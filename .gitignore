@@ -1,0 +1,20 @@
+# Project-local tooling
+.tools/
+
+# Generated Graphify indexes, reports, visualizations, and query memory
+graphify-out/
+
+# Local dependencies and build/test output
+node_modules/
+dist/
+build/
+coverage/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example

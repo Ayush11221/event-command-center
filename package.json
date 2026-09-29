@@ -1,0 +1,6 @@
+{
+  "name": "event-command-center",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo foundation for the Real-Time Event Operations Command Center capstone."
+}

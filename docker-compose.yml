@@ -1,0 +1,4 @@
+name: event-command-center
+
+# Services will be added only when their implementation phase begins.
+services: {}
