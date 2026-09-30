@@ -6,7 +6,7 @@ The project exists to give event teams one trustworthy operational view instead 
 
 ## Current status
 
-**Phase 1: product definition and UX architecture, in progress.** Phase 0 foundation is committed. The Phase 1 specifications are working documents for review; no application features, services, database schema, or user interface have been implemented. Technology choices remain planned or provisional until validated in the relevant roadmap phase.
+**Slice 1: runnable repository/tooling foundation, in progress.** Phase 1 product/UX decisions were approved and committed at `3cd972b`. The Phase 2 architecture and Slice 1 plan guide this minimal developer bootstrap. No event, registration, gate, database, authentication, or other product workflow has been implemented.
 
 ## Planned capabilities
 
@@ -29,7 +29,7 @@ The initial direction is a modular web application rather than an early collecti
 - **UI foundation:** Tailwind CSS, shadcn/ui, and Lucide React; Motion only where interaction feedback benefits
 - **Application API:** Node.js, TypeScript, and Express
 - **Primary data store:** PostgreSQL, with Prisma as the planned data-access layer
-- **Real-time delivery:** WebSocket or Server-Sent Events, to be selected from concrete command-center needs
+- **Real-time delivery:** Socket.IO/WebSocket is the Phase 2 live-transport direction, with authoritative API snapshot reconciliation
 - **Event streaming:** Kafka when the real-time phase demonstrates a justified need; not part of initial foundation work
 - **Forecasting:** a bounded Python/FastAPI service using explainable baseline methods and scikit-learn where justified
 - **Operations:** containerized local environments, structured logs, metrics, and traces; exact deployment platform is TBD
@@ -41,9 +41,9 @@ The authoritative technical boundaries are in [ARCHITECTURE.md](docs/architectur
 ```text
 .
 |-- .codex/                    # Project-scoped Codex/Graphify configuration
-|-- .github/workflows/         # CI/CD workflows, added when justified
-|-- frontend/                  # Planned React + TypeScript application
-|-- backend/                   # Planned Node.js + TypeScript + Express API
+|-- .github/workflows/         # Slice 1 verification workflow
+|-- frontend/                  # React + TypeScript diagnostic bootstrap
+|-- backend/                   # Node.js + TypeScript + Express liveness API
 |-- ai-service/                # Planned Python + FastAPI forecasting service
 |-- database/                  # Planned PostgreSQL/Prisma assets
 |-- tests/                     # Cross-system integration, E2E, load, and security tests
@@ -61,11 +61,12 @@ The authoritative technical boundaries are in [ARCHITECTURE.md](docs/architectur
 |-- monitoring/                # Future metrics/dashboard configuration
 |-- AGENTS.md                  # Concise repository working rules
 |-- docker-compose.yml         # Valid placeholder; currently defines no services
-|-- package.json               # Private monorepo metadata; no packages or scripts yet
+|-- package.json               # Private npm workspace scripts and tooling
+|-- package-lock.json          # Reproducible npm dependency lockfile
 `-- README.md                  # Project entry point
 ```
 
-Only the top-level architectural boundaries exist today. Deeper source trees are created when they gain real code; the intended layout is documented in [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
+Only the frontend and backend Slice 1 source trees are now populated. Other top-level boundaries remain empty until they gain real work; the intended layout is documented in [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
 ## Documentation map
 
@@ -80,6 +81,8 @@ Only the top-level architectural boundaries exist today. Deeper source trees are
 | [Test strategy](docs/testing/TEST_STRATEGY.md) | Test layers, environments, quality gates, and failure testing |
 | [Design system](docs/design/DESIGN_SYSTEM.md) | UX principles and provisional UI technology direction |
 | [Roadmap](docs/ROADMAP.md) | Sequenced phases and completion criteria |
+| [Phase 2 architecture](docs/architecture/TECHNICAL_ARCHITECTURE.md) | Implementation boundaries and links to detailed Phase 2 contracts |
+| [Phase 2 vertical slices](docs/ROADMAP_PHASE_2.md) | Dependency-oriented implementation handoff after approval |
 
 Phase 1 product specifications: [personas](docs/requirements/PERSONAS.md), [user stories](docs/requirements/USER_STORIES.md), [use cases](docs/requirements/USE_CASES.md), [event lifecycle](docs/requirements/EVENT_LIFECYCLE.md), [role permissions](docs/requirements/ROLE_PERMISSION_MATRIX.md), [MVP scope](docs/requirements/MVP_SCOPE.md), [traceability](docs/requirements/TRACEABILITY.md), and [open product decisions](docs/requirements/OPEN_PRODUCT_DECISIONS.md).
 
@@ -91,7 +94,7 @@ Traceability flows from **PRD -> Requirements -> Architecture/API/Database -> Te
 
 0. Project foundation and documentation
 1. Product definition and UX architecture
-2. Design system and UI direction
+2. Technical architecture and design foundation
 3. Backend foundation
 4. Database, authentication, and RBAC
 5. Participant registration and QR identity
@@ -107,7 +110,17 @@ The canonical phase numbering and exit criteria are maintained in the [roadmap](
 
 ## Development setup
 
-There is no application runtime to start yet. Setup commands will be added only after the stack is initialized and verified. Do not infer implementation readiness from the planning documents.
+Slice 1 uses the installed Node.js 22.12.0/npm 10.9.0 convention and npm workspaces. It does not require Docker, PostgreSQL, Prisma, or an identity provider. The health check is **process liveness only**; it does not imply database/write readiness or any product capability.
+
+1. From the repository root, run `npm ci` (or `npm install` when deliberately updating the lockfile).
+2. Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env`. The examples contain only the local port and origins. Real `.env` files are ignored by Git. The defaults use backend `http://127.0.0.1:3000` and frontend `http://127.0.0.1:5173`.
+3. In separate terminals, run `npm run dev:backend` and `npm run dev:frontend`. Open `http://127.0.0.1:5173`.
+
+`GET http://127.0.0.1:3000/health/live` returns only `status: alive` and an opaque correlation ID in the JSON body and `x-correlation-id` header. It is public and has no domain data. The frontend shows **Checking**, **Available**, or **Unavailable** for that process; if the backend stops, select **Retry check** to observe the unavailable state, then restart the backend and retry to see recovery. It does not poll automatically. A missing/invalid backend port or frontend origin fails startup with a safe configuration message; a missing/invalid `VITE_API_ORIGIN` leaves the frontend in the unavailable state. Only `VITE_API_ORIGIN` is browser-exposed; do not put secrets in any `VITE_` variable.
+
+From the root, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` run the local checks. `npm run format` formats only Slice 1 implementation files. A built backend can be started with `npm run start --workspace=backend` after setting its two environment variables; the development script loads the ignored `backend/.env` if present. GitHub Actions runs `npm ci` and the same checks. Stop each development process with Ctrl+C.
+
+The [Slice 1 plan](docs/implementation/SLICE_1_PLAN.md) defines the boundary: this is a developer/system bootstrap, **not** a user-facing Event Command Center screen. PostgreSQL and application readiness, role-scoped data, and product API routes begin only in later slices.
 
 ## Decision policy
 

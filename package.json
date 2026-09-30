@@ -2,5 +2,32 @@
   "name": "event-command-center",
   "version": "0.0.0",
   "private": true,
-  "description": "Monorepo foundation for the Real-Time Event Operations Command Center capstone."
+  "description": "Monorepo foundation for the Real-Time Event Operations Command Center capstone.",
+  "packageManager": "npm@10.9.0",
+  "engines": {
+    "node": ">=22.12.0 <23"
+  },
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=backend",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "format": "prettier --write package.json backend frontend eslint.config.mjs .github/workflows/checks.yml",
+    "format:check": "prettier --check package.json backend frontend eslint.config.mjs .github/workflows/checks.yml",
+    "lint": "eslint backend/src frontend/src frontend/vite.config.ts",
+    "typecheck": "npm run typecheck --workspace=backend && npm run typecheck --workspace=frontend",
+    "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
+    "build": "npm run build --workspace=backend && npm run build --workspace=frontend"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.4",
+    "eslint": "9.39.5",
+    "prettier": "3.9.9",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.50.0",
+    "vite": "8.3.1",
+    "vitest": "5.0.3"
+  }
 }
