@@ -32,12 +32,12 @@ Formatting, linting, type checking, schema validation, migration checks, depende
 
 Prioritize pure and high-risk logic:
 
-- Event lifecycle and policy decisions
+- Organizer-only event lifecycle including Live cancellation, Published detail editing/audit and restricted Live registration/attendance policy edits, exact PUBLIC allowlist/PRIVATE non-leakage, publication-default/future opening and Live closure, three registration closure causes, REGISTERED cap versus INSIDE occupancy, and cancellation cutoff plus post-check-in prohibition
 - Role/permission evaluation
 - Credential issue/revoke/validation helpers
-- Attendance state machine and occupancy fold
-- Alert threshold/state behavior
-- Certificate eligibility
+- Attendance state machine (optional exit/re-entry) and append-only correction/occupancy fold
+- Alert condition deduplication and ACTIVE → ACKNOWLEDGED → RESOLVED behavior
+- Accepted-check-in ELIGIBLE without automatic issue/send, explicit single/bulk issue, post-check-in registration-cancellation denial, and independent email-delivery state
 - Forecast feature preparation, baselines, and evaluation metrics
 
 Avoid mocking every implementation detail; test observable domain behavior.
@@ -56,12 +56,15 @@ Validate the OpenAPI contract and backend/frontend expectations. Validate backen
 
 ### End-to-end tests
 
-Automate the four PRD journeys plus essential failures:
+Automate the four core PRD journeys, the selected bounded volunteer journey, and essential failures:
 
-- Organizer creates/configures/publishes/completes an event
-- Participant registers, obtains a credential, checks in, and accesses an eligible certificate
+- Organizer creates/configures/publishes/completes or cancels an event, including from Live; Event Admin cannot control lifecycle or cancel the event
+- Event Admin configures gates and grants only approved event-scoped roles
+- Authenticated participant and OTP-verified guest register only while Published under default/future opening and scheduled/capacity/manual rules, cancel only before cutoff and first accepted check-in, re-register with new QR, check in, see ELIGIBLE before explicit issue, and access only own ISSUED certificate
 - Gate staff accepts valid entry and rejects invalid, revoked, wrong-event, and duplicate attempts
 - Organizer observes live occupancy/gate activity/forecast/degraded states
+- PUBLIC event appears with only allowlisted fields, PRIVATE event only via controlled link and without public-detail leakage; Volunteer sees/progresses only own task
+- Organizer/Admin previews a built-in certificate, explicitly issues one or starts a bulk batch, sees generation/email progress, explicitly revokes, and retries a FAILED send without duplicate email or reissue
 - Unauthorized roles cannot perform protected actions or access another participant's data
 
 Use browser automation only after real screens exist; do not create mock pages merely to satisfy tests.
@@ -76,6 +79,18 @@ Tools are selected in Phase 10; no load library is authorized by this plan alone
 
 Exercise database connection interruption, slow database, live-channel disconnect/reconnect, dropped/duplicated asynchronous events, forecasting timeout/unavailability, process restart, and network latency. Verify core attendance durability, explicit degraded states, bounded retries, reconciliation, and no false “live” status.
 
+## Locked-policy scenario matrix
+
+| Area | Conceptual tests |
+| --- | --- |
+| Discovery/registration | Exact PUBLIC field allowlist and forbidden fields; PRIVATE link/no public leak; verified account/guest OTP; one REGISTERED per user or verified guest email OR phone/event. Publication opens by default; future opening blocks until time; configured/default event-start close and Live transition always block, including when configured close is later. Published detail edits are audited; Live registration/attendance policy changes cannot silently rewrite active contract. REGISTERED-cap and Organizer manual closure are distinct. Pre-check-in cancellation frees a slot and reopens only capacity-only closure, never manual/scheduled/Live closure. Organizer/Admin may cancel after participant cutoff only before accepted check-in; retained CANCELLED row and new token. Cancelled event denies registration but leaves rows unchanged. |
+| QR/gate | Valid/invalid/wrong-event/revoked/CANCELLED QR; Cancelled event blocks check-in; assigned-gate display name, registration/attendance status, event/scan result only, with no email/phone/OTP/credentials; unique scan_id/retry/new duplicate/concurrency; failed result never increments occupancy; REGISTERED-cap fullness does not itself block gate entry. |
+| Attendance | NOT_ARRIVED → INSIDE; optional check-out INSIDE → LEFT; re-entry only after valid exit; no outside claim when check-out disabled; cancellation after first accepted check-in denied for all roles even after LEFT, so CANCELLED + INSIDE cannot arise; authorized Organizer/Admin actor/reason correction remains append-only and projection reconciles. |
+| Alerts | Exactly three categories: live INSIDE occupancy WARNING near default 90% and CRITICAL at 100% of event capacity, assigned-gate scanner failure, data/forecast staleness. REGISTERED-list fullness produces no alert. Persistent-condition deduplication, ACTIVE/ACKNOWLEDGED/RESOLVED, evidence/timestamps; Organizer/Admin full stream with acknowledge/resolve, Gate/Security assigned-gate read-only, Volunteer none. |
+| Certificates | First accepted check-in creates ELIGIBLE on non-CANCELLED registration but no PDF/email; explicit Organizer/Admin single or database-derived bulk issue creates ISSUED/unique-ID PDF, built-in preview, batch progress; NOT_ELIGIBLE/ELIGIBLE/ISSUED/REVOKED distinct from email PENDING/SENT/FAILED (including ISSUED + FAILED). Post-check-in registration cancellation denied; explicit revoke, Organizer/Admin-only retry/idempotent no-duplicate send, own-artifact isolation. |
+| RBAC/audit | Organizer owns lifecycle/Admin grants; Event Admin cannot cancel event/promote/transfer; gate has assigned-gate minimal identity and read-only operational alerts, no correction; Volunteer has own task only; Participant owns own record and cannot retry email; Organizer/Admin have restricted event-scoped audit read and no unrestricted export or direct staff credential issue/revoke. |
+| Forecast | Fixed 30/60-minute horizon, current versus predicted occupancy/capacity, generation time and freshness, uncertainty, stale/unavailable; chronological validation against simple baseline, suitable MAE/RMSE reporting, no autonomous gate change. |
+
 ### Security tests
 
 Follow the [security plan](../security/SECURITY_PLAN.md): object/role authorization, QR tamper/replay/revocation, session controls, validation/injection, abuse/rate behavior, sensitive-data leakage, dependency/secret/container scans, and deployed-surface checks. Security tests must be authorized and confined to project environments.
@@ -89,11 +104,11 @@ Combine automated checks with keyboard-only, screen-reader-oriented semantic rev
 - Use chronological train/validation/test splits; never randomize future observations into training.
 - Compare against naive and seasonal baselines where data supports them.
 - Fix seeds and version data, features, code, model/method, and metrics.
-- Report the approved error metric by horizon plus availability/coverage and uncertainty calibration when applicable.
+- Report suitable error metrics such as MAE/RMSE by fixed 30/60-minute horizon plus availability/coverage and uncertainty calibration when applicable.
 - Test missing, sparse, delayed, duplicated, and anomalous inputs.
 - A complex model is not accepted unless it materially improves a relevant metric and remains operable/explainable.
 
-Forecast horizon, cadence, metric, and minimum useful improvement are TBD in Phase 8.
+MVP horizons are fixed at 30/60 minutes. Cadence/minimum-data rule is an implementation-phase decision; a production acceptance threshold is not hardcoded and will be decided with Phase 8 evidence.
 
 ## Test data
 
@@ -122,7 +137,7 @@ Test names or metadata should reference requirement IDs where practical. A final
 A change is not “working” solely because it compiles. Relevant checks must pass, migrations/contracts/docs must agree, and no new critical/high security issue may remain unexplained. Final release gates include:
 
 - Four core journeys and required failure paths pass.
-- Occupancy reconciles exactly with accepted transitions in the test data.
+- Occupancy reconciles exactly with accepted check-in/check-out and authorized correction transitions in the test data; failed/duplicate scans have no effect.
 - Duplicate/retry concurrency creates one logical transition.
 - NFR performance targets pass against the documented workload.
 - Protected-action authorization matrix passes.
@@ -142,7 +157,6 @@ Prioritize by user/operational impact, security, data integrity, reproducibility
 - Workload volumes and performance budgets beyond current latency targets
 - Supported browser/device matrix, including scanner hardware
 - Accessibility assistive-technology matrix
-- Forecast metrics/horizons and acceptance threshold
+- Forecast cadence/data sufficiency and later acceptance threshold; horizons fixed at 30/60 minutes
 - Coverage/report retention expectations
 - Production-like environment and failure-injection mechanism
-

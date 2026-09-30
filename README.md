@@ -6,17 +6,17 @@ The project exists to give event teams one trustworthy operational view instead 
 
 ## Current status
 
-**Phase 0: project foundation and documentation.** No application features, services, database schema, infrastructure, or user interface have been implemented yet. Technology choices described below are planned or provisional until validated in the relevant roadmap phase.
+**Phase 1: product definition and UX architecture, in progress.** Phase 0 foundation is committed. The Phase 1 specifications are working documents for review; no application features, services, database schema, or user interface have been implemented. Technology choices remain planned or provisional until validated in the relevant roadmap phase.
 
 ## Planned capabilities
 
 - Event creation, configuration, publication, and lifecycle management
-- Participant registration and unique QR credentials
+- PUBLIC/PRIVATE event access, verified account or guest-OTP registration, cancellation, and unique opaque QR credentials
 - Gate configuration, QR validation, duplicate-scan handling, and check-in/check-out
 - Live attendance, occupancy, capacity, and gate-activity monitoring
 - Crowd forecasts with uncertainty and historical comparisons
 - Role-based access for organizers, event admins, gate/security staff, volunteers, and participants
-- Certificates for eligible participants
+- Accepted-check-in certificates with built-in-template preview, bulk unique-ID PDFs, and tracked/retryable platform-email delivery
 - Audit trails, operational alerts, and post-event reporting
 
 See the [PRD](docs/PRD.md) for scope boundaries and product requirements.
@@ -80,6 +80,10 @@ Only the top-level architectural boundaries exist today. Deeper source trees are
 | [Test strategy](docs/testing/TEST_STRATEGY.md) | Test layers, environments, quality gates, and failure testing |
 | [Design system](docs/design/DESIGN_SYSTEM.md) | UX principles and provisional UI technology direction |
 | [Roadmap](docs/ROADMAP.md) | Sequenced phases and completion criteria |
+
+Phase 1 product specifications: [personas](docs/requirements/PERSONAS.md), [user stories](docs/requirements/USER_STORIES.md), [use cases](docs/requirements/USE_CASES.md), [event lifecycle](docs/requirements/EVENT_LIFECYCLE.md), [role permissions](docs/requirements/ROLE_PERMISSION_MATRIX.md), [MVP scope](docs/requirements/MVP_SCOPE.md), [traceability](docs/requirements/TRACEABILITY.md), and [open product decisions](docs/requirements/OPEN_PRODUCT_DECISIONS.md).
+
+Phase 1 UX architecture: [user journeys](docs/design/USER_JOURNEYS.md), [information architecture](docs/design/INFORMATION_ARCHITECTURE.md), [screen inventory](docs/design/SCREEN_INVENTORY.md), [UX states](docs/design/UX_STATES.md), and [decision dependencies](docs/design/UX_DECISION_DEPENDENCIES.md).
 
 Traceability flows from **PRD -> Requirements -> Architecture/API/Database -> Testing**, with security and design concerns applied across the chain.
 

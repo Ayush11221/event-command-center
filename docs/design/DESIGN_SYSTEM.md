@@ -1,7 +1,7 @@
 # Design System Direction
 
 **Status:** Phase 0 strategy, not final visual design  
-**Decision point:** Detailed choices belong to Phase 2 after Phase 1 UX architecture
+**Decision point:** Detailed visual choices belong to Phase 2 after the Phase 1 [journeys](USER_JOURNEYS.md), [information architecture](INFORMATION_ARCHITECTURE.md), [screen inventory](SCREEN_INVENTORY.md), and [UX states](UX_STATES.md) are reviewed.
 
 This document defines how design decisions will be made. It intentionally does not select final fonts, colors, spacing, component variants, charts, or branding.
 
@@ -45,7 +45,7 @@ These candidates are not installed or finalized by this document. Phase 2 must v
 ## 4. Component strategy
 
 - Use shadcn/ui as a source-level base for accessible primitives, not as a complete product design.
-- Create product-specific components when behavior or semantics are unique: scanner status, scan decision feedback, occupancy/capacity status, data freshness, gate health, operational alert, and forecast availability.
+- Create product-specific components when behavior or semantics are unique: scanner status, scan decision feedback, occupancy/capacity status, data freshness, gate health, operational alert, forecast availability, and certificate batch/delivery progress. Certificate issue state must never be visually conflated with email delivery state.
 - Do not add a second broad component library without a concrete gap and migration/consistency analysis.
 - Keep reusable design tokens separate from one-off styling.
 - Keep state names and behavior consistent across features.
@@ -125,7 +125,7 @@ Likely visualization needs include:
 - Event capacity thresholds
 - Historical event comparisons where data is comparable
 
-Choose a chart library only after defining dataset size, update cadence, interactions, annotation, responsive behavior, accessibility, theming, and export needs. Prefer direct values/tables when a chart does not improve a decision. Forecasts must distinguish predicted from actual values, show horizon/freshness, and avoid false precision.
+Choose a chart library only after defining dataset size, update cadence, interactions, annotation, responsive behavior, accessibility, theming, and export needs. Prefer direct values/tables when a chart does not improve a decision. MVP forecasts must distinguish current occupancy from 30- and 60-minute predictions against the single event capacity, show generation time/freshness and uncertainty, and avoid false precision.
 
 ## 11. Responsive strategy
 
@@ -143,7 +143,7 @@ Prioritize event details, registration, QR access, status, and certificate with 
 
 ### Mobile/tablet QR scanning
 
-Design around camera permission, targeting feedback, rapid repeated use, clear accept/reject states, duplicate/technical distinctions, connectivity, and a TBD accessible/manual fallback. Do not rely on hover.
+Design around camera permission, targeting feedback, rapid repeated use, clear accept/reject/unknown states, duplicate/technical distinctions, and connectivity. An accessible capture/recovery alternative is TBD, but it must not become a manual gate override or offline acceptance in MVP. Do not rely on hover.
 
 Final breakpoints must follow content stress tests and target devices, not framework defaults alone.
 
@@ -201,4 +201,3 @@ TBD during the dedicated UI/UX phase:
 ## Design decision workflow
 
 Phase 1 defines journeys, information architecture, content priority, state models, and low-fidelity flows. Phase 2 tests visual directions against representative command-center, scanner, and participant screens; defines tokens and component states; records decisions; and only then authorizes required packages. Every choice should trace to a user task, operational risk, accessibility need, or maintainability benefit.
-

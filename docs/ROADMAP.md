@@ -1,6 +1,6 @@
 # Delivery Roadmap
 
-**Current phase:** Phase 0 - Project foundation and documentation  
+**Current phase:** Phase 1 - Product definition and UX architecture (working documents under review)
 **Status rule:** A phase is complete only when its exit criteria have evidence. Future phases below are planned, not implemented.
 
 The sequence reduces rework by resolving product and UX decisions before UI implementation, protecting transactional correctness before real-time distribution, and delaying operationally expensive infrastructure until a demonstrated need exists.
@@ -13,11 +13,13 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Exit criteria:** All planned documents exist; internal links and terminology are consistent; unresolved decisions are marked TBD; Graphify/Codex setup remains valid; no features or unnecessary dependencies exist; repository status is understood.
 
+**Evidence:** Phase 0 foundation is recorded in the initial local Git commit. Its top-level empty directories remain local until they contain trackable files.
+
 ## Phase 1 - Product definition and UX architecture
 
 **Goal:** Resolve the highest-impact product ambiguities and design role-specific flows before visual styling or backend contracts harden.
 
-**Planned work:** Validate personas/journeys, lifecycle and attendance policies, role/permission matrix, information architecture, content model, scanner error recovery, command-center priorities, low-fidelity flows, workload assumptions, and acceptance criteria.
+**Working specifications:** Personas, prioritized stories, use cases, locked PUBLIC/PRIVATE discovery and public-detail allowlist, verified account/guest OTP registration, attendance/volunteer/alert/certificate/forecast rules, lifecycle and least-privilege permissions, journeys, information architecture, screen/state inventory, MVP thread, traceability, and an explicit decision register. Final product approval and implementation-phase workload/technical choices still require review.
 
 **Exit criteria:** Approved MVP journey/state maps, permission matrix, key policy decisions, low-fidelity UX architecture, updated PRD/requirements, and owned remaining TBDs.
 
@@ -41,7 +43,7 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Establish trustworthy identity, event-scoped authorization, and transactional persistence.
 
-**Planned work:** PostgreSQL/Prisma, initial reviewed migrations, account/session integration, event and role foundations, permission enforcement, audit foundation, disposable integration database, and backup/retention decisions appropriate to the environment.
+**Planned work:** PostgreSQL/Prisma, initial reviewed migrations, verified account and guest OTP ownership/session integration, event and role foundations, permission enforcement, audit foundation, disposable integration database, and backup/retention decisions appropriate to the environment.
 
 **Exit criteria:** Authentication and role matrix tests pass; cross-event/role access is denied; migrations work from empty state; security review covers session, secrets, and data handling.
 
@@ -49,7 +51,7 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Deliver registration and a secure credential lifecycle.
 
-**Planned work:** Event registration policy, participant ownership, duplicate rule, opaque QR generation/display, expiry, revocation/reissue, and privacy-safe delivery/access.
+**Planned work:** PUBLIC allowlisted/PRIVATE controlled-link access, authenticated/OTP-verified guest registration, one event registration cap counting REGISTERED rows, publication-default/future opening, configured/default event-start and Live closure, distinct scheduled/capacity/manual closure behavior, duplicate REGISTERED identity rule, pre-check-in-only cancellation under participant cutoff/staff authority and new-token re-registration, opaque QR generation/display, expiry, revocation/reissue, and privacy-safe access. Only capacity-only closure reopens automatically when a pre-check-in cancellation frees a slot; only Organizer reopens manual closure.
 
 **Exit criteria:** Registration and credential journeys/failures pass; QR exposes no plaintext PII; ownership, duplicate, revoke, and replacement behavior is tested and audited.
 
@@ -57,7 +59,7 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Deliver fast, explicit, idempotent gate decisions and authoritative attendance transitions.
 
-**Planned work:** Scanner UX, camera permission/recovery, gate/operator context, scan-decision API, check-in/check-out policy, concurrency and duplicate handling, occupancy derivation, technical/policy error distinction, and correction policy if approved.
+**Planned work:** Scanner UX, camera permission/recovery, gate/operator context, unique scan_id/original-result retry, optional check-out/re-entry after valid exit, concurrency and duplicate handling, occupancy derivation, technical/policy error distinction, and authorized reasoned append-only correction. Failed scans hold entry; manual override is post-MVP.
 
 **Exit criteria:** Valid/invalid/revoked/wrong-event/duplicate/retry/concurrent cases pass; occupancy reconciles; target scan latency is measured; mobile/tablet accessibility is reviewed.
 
@@ -65,7 +67,7 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Provide a trustworthy live operational view without weakening transactional correctness.
 
-**Planned work:** Authoritative snapshot, WebSocket/SSE decision, live event schemas, reconnect/reconciliation, occupancy/capacity/gate activity, data freshness, degraded states, bounded alerts, and Kafka only if its need is demonstrated.
+**Planned work:** Authoritative snapshot, WebSocket/SSE decision, live event schemas, reconnect/reconciliation, live INSIDE occupancy distinct from registration capacity, gate activity, data freshness, degraded states, and three in-product alert conditions (live-occupancy capacity, assigned-gate/scanner failure, data/forecast staleness) with ACTIVE/ACKNOWLEDGED/RESOLVED lifecycle and deduplication. Organizer/Admin may acknowledge/resolve; assigned-gate alerts are read-only for Gate/Security. Registration-full is not an alert. Kafka only if its need is demonstrated.
 
 **Exit criteria:** Live latency target passes under documented workload; reconnect cannot silently miss state; stale/degraded states are visible; optional dependencies cannot lose attendance writes.
 
@@ -73,7 +75,7 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Provide an honest, explainable near-term forecast that adds evidence beyond a naive baseline.
 
-**Planned work:** FastAPI service, versioned data contract, synthetic/representative time-series plan, baseline, explainable model only if justified, chronological evaluation, uncertainty/freshness, missing-data handling, monitoring, and fallback.
+**Planned work:** FastAPI service, fixed 30/60-minute versioned contract, synthetic/representative time-series plan, simple baseline, explainable model only if justified, chronological MAE/RMSE or suitable evaluation, uncertainty/freshness, missing-data handling, monitoring, and fallback. Production acceptance threshold is decided from evidence here, not hardcoded in Phase 1.
 
 **Exit criteria:** Reproducible time-aware evaluation is reported against baseline; limitations are visible; stale/insufficient data degrades safely; forecasting cannot change operational policy.
 
@@ -81,9 +83,9 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Complete post-event workflows and accountable evidence.
 
-**Planned work:** Versioned certificate eligibility, issue/access/revoke, completed-event analytics, audit search/access, privacy-safe reports/exports, and historical comparison rules.
+**Planned work:** First-accepted-check-in eligibility on non-CANCELLED registrations without automatic issue; built-in template/font preview; explicit Organizer/Admin single or database-derived bulk batch/job issuance with unique-ID PDF generation; auditable issue/access/revoke; asynchronous platform-sender PDF email with Organizer Reply-To, independent PENDING/SENT/FAILED/RETRY delivery status, progress, and Organizer/Admin-only idempotent retry; completed-event analytics, restricted event-scoped audit search/access, privacy-safe reporting, and historical comparison rules. Unrestricted export needs a separate policy. Select a bounded queue, worker, PDF generator, and provider here; Kafka is not presumed.
 
-**Exit criteria:** Eligibility and artifact lineage are reproducible; audit access is protected/audited; reports reconcile with authoritative data; exports honor privacy policy.
+**Exit criteria:** Eligibility/artifact/batch/delivery lineage is reproducible; ISSUED and FAILED delivery coexist correctly; retries cause no duplicate send; recipient/artifact access is isolated; audit access is protected; reports reconcile. Any later export requires an explicit privacy/authorization policy.
 
 ## Phase 10 - Testing, security, load, and failure testing
 
@@ -116,4 +118,3 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 - Record material architectural decisions when they are made.
 - Add dependencies, directories, services, and automation only when they have an immediate owner and use.
 - Preserve security, privacy, accessibility, observability, and test traceability throughout rather than postponing them to Phase 10/11.
-

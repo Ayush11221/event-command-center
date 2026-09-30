@@ -1,0 +1,57 @@
+# User Journeys
+
+**Status:** Phase 1 UX architecture. Screen IDs refer to [SCREEN_INVENTORY.md](SCREEN_INVENTORY.md); state names refer to [UX_STATES.md](UX_STATES.md). Journeys describe information and decisions, not visual layouts. Implementation-phase details remain in [OPEN_PRODUCT_DECISIONS.md](../requirements/OPEN_PRODUCT_DECISIONS.md).
+
+## A. Participant / Attendee
+
+| Step | Happy path and information needed | Alternate/failure state | Security-sensitive point |
+| --- | --- | --- | --- |
+| Discover and view event (`S-PUB-01/02`) | Find PUBLIC Published event in catalog or use PRIVATE controlled link/invitation; see approved public fields and registration availability. | PRIVATE events are absent from catalog; unpublished/cancelled/closed event has safe, distinct messaging. | Public allowlist: name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available indication, category/tags. No participant/QR/internal/live occupancy/alert/admin/audit data; private details do not leak in discovery. |
+| Register (`S-PUB-03`) | Verified account or guest OTP registers while Published: immediately after publication by default or after a future configured opening, before configured/default event-start close, unless manual closure or REGISTERED cap blocks it. | Show scheduled/event-based, capacity-only, manual, Live, and Cancelled-event closure distinctly; only capacity-only closure may auto-reopen after a pre-check-in cancellation. | One REGISTERED registration per user or verified guest email OR phone/event; capacity counts REGISTERED rows, not INSIDE people. |
+| Cancel/re-register (`S-PAR-01`, `S-PUB-03`) | Participant cancels before both configured cutoff (event start by default) and first accepted check-in; slot returns; later new registration gets a new QR if availability permits. | Organizer/Admin may cancel before accepted check-in regardless of cutoff; after check-in no role may cancel. Old QR rejects as CANCELLED; history persists. | Guest cancellation requires OTP; retained CANCELLED row has actor/time. No CANCELLED + INSIDE state. |
+| Receive/access QR (`S-PAR-01`) | See own active credential and validity/status; present it at gate. | Missing, revoked, replaced, or unavailable credential gives safe next step. Delivery beyond own web view is post-MVP. | QR contains no plaintext PII; owner-only access. |
+| Arrive and scan (`S-GAT-01`) | Staff scans; participant receives clear accepted result and own attendance status. | Invalid/wrong-event/duplicate/technical result requires distinct next step; timeout is unresolved, not accepted. | Staff sees minimum identity; scan decision is server authoritative. |
+| Participate/exit | If check-out is enabled, accepted exit moves INSIDE → LEFT and permits later re-entry. Otherwise checked-in state remains INSIDE. | Duplicate entry without valid exit is rejected; do not claim outside status without accepted check-out. | Attendance cannot be changed by participant client. |
+| Certificate (`S-PAR-02`) | First accepted check-in on non-CANCELLED registration shows ELIGIBLE but no PDF until explicit Organizer/Admin issue; then view/download own unique-ID PDF. | NOT_ELIGIBLE, ELIGIBLE-awaiting-issue, ISSUED, REVOKED; email delivery independently PENDING, SENT, or FAILED. | Registration cannot be cancelled after accepted check-in; own artifact/delivery only. |
+
+## B. Event Organizer
+
+| Step | Happy path and information needed | Alternate/failure state | Security-sensitive point |
+| --- | --- | --- | --- |
+| Create and configure (`S-ORG-01/02/03`) | Organizer owns/creates event; configure Draft, one REGISTERED-registration cap, optional opening/closing times, PUBLIC/PRIVATE visibility, gates, staffing. | Partial Draft is safe; Admin operates assigned event but cannot promote admins/transfer ownership or control lifecycle. | Event-scoped edit and role-grant authority. |
+| Publish/cancel event (`S-ORG-02`) | Organizer reviews validation and alone requests lifecycle transitions, including cancellation from Live. | Cancelled event stops new registration/check-in, retains existing registration rows unchanged, and has no MVP participant notification. Published details may be edited; Live registration/attendance policy changes are restricted. | Organizer-only, version-checked, audited transition. |
+| Manage registration availability (`S-ORG-02`) | Organizer may set future opening or use publication default, manually close early and alone reopen; configured close defaults to event start; capacity closes at REGISTERED cap. | Live transition closes registration even if a later time was configured. Pre-check-in cancellation frees a spot but reopens only if capacity was the sole closure cause. | Scheduled/event, capacity, and manual closure causes stay distinct. |
+| Monitor (`S-ORG-04`) | See INSIDE occupancy versus the event cap, separate REGISTERED count, gate activity, alert state, freshness. | Stale/offline/partial state is labeled and reconciled after reconnect. | Subscription authorization and minimal data. |
+| Manage operations (`S-ORG-03/04/05`) | Investigate conditions, acknowledge/resolve alerts, and make authorized actor/reason-backed correction transitions. | Gate staff see assigned-gate alerts read-only; correction never edits an unrestricted count. | High-impact actions require event scope and audit. |
+| Review forecast (`S-ORG-04`) | Compare current occupancy and 30/60-minute predictions against capacity with generation time, freshness, and uncertainty. | Insufficient/stale input shows unavailable/degraded reason. | Forecast remains advisory and cannot change gate policy. |
+| Review results/certificates (`S-ORG-06/07`) | Inspect results, select built-in template/font, preview, explicitly issue one or a database-derived eligible bulk batch, track generated/delivery counts, retry FAILED email, inspect event-scoped audit. | ELIGIBLE alone has no artifact; ISSUED can have FAILED delivery; post-check-in registration cancellation is forbidden. | Organizer/Admin may issue/revoke/retry; recipient isolation, unique IDs, idempotent retry, restricted audit read. |
+
+## C. Gate / Security Staff
+
+| Step | Happy path and information needed | Alternate/failure state | Security-sensitive point |
+| --- | --- | --- | --- |
+| Open gate workflow (`S-GAT-01`) | Confirm assigned event, gate, operator, connectivity, and readiness before camera starts. | Missing assignment or permission denies scanning; camera permission failure offers approved recovery. | Gate scope and session validity. |
+| Scan and validate (`S-GAT-01`) | Capture opaque QR with unique scan_id; wait for server result, display name, registration/attendance status, and event context. | Cancelled event or registration blocks check-in; unreadable QR/timeout holds entry until original result is recovered. REGISTERED cap fullness alone does not reject at gate. | No contact, OTP, credentials, or unnecessary PII; assigned-gate request/history. |
+| Accept or reject (`S-GAT-01`) | Accepted check-in changes attendance once; policy rejection does not. | Revoked, expired, wrong-event, unauthorized, and technical failure remain distinct. | Concurrency and idempotency; minimum identity shown. |
+| Duplicate handling (`S-GAT-01`) | New conflicting scan shows duplicate/policy reason and occupancy stays unchanged. | Same scan_id retry returns original decision; new scan after accepted exit can re-enter when check-out is enabled. | Duplicate evidence without duplicate transition. |
+| Occupancy update (`S-ORG-04`) | Authorized staff see updated count and freshness. | Delayed live delivery is visibly stale and later reconciles. | Only accepted attendance transitions, including authorized correction events, change count. |
+
+## D. Volunteer
+
+| Step | Happy path and information needed | Alternate/failure state | Security-sensitive point |
+| --- | --- | --- | --- |
+| Access assignment (`S-VOL-01`) | See own event, approved task, instructions, location/time, and escalation contact. | No assignment is an empty state; stale or revoked assignment is explicit. | Event/task-scoped read only. |
+| Perform bounded task (`S-VOL-01`) | Carry out own titled assignment with instructions and applicable time/location. | No assignment or blocked work has a visible state. | No gate scan, participant management, correction, configuration, admin functions, or general alert stream. |
+| Record/review status (`S-VOL-01`) | Progress own task ASSIGNED → IN_PROGRESS → COMPLETED and see saved status. | Failed save or offline state does not claim completion. | Server checks assignment and logs material action. |
+
+## E. Organizer Command Center
+
+The command center is an event-level Organizer/Admin experience, not a sixth persona.
+
+| Step | Happy path and information needed | Alternate/failure state | Security-sensitive point |
+| --- | --- | --- | --- |
+| Open live event (`S-ORG-04`) | Confirm event identity/state and snapshot time. | Event not Live or access denied shows appropriate state. | Event-scoped read/subscription. |
+| Observe metrics/gates | Read INSIDE occupancy and REGISTERED count as distinct metrics, compare occupancy against one event capacity, see gate activity/rate/freshness. | Missing gate feed/partial source is labeled. | Aggregates by default; no broad PII. |
+| Inspect forecast | See current occupancy, capacity, 30/60-minute predicted occupancy, generation time, input freshness, uncertainty, and method status. | Stale, missing, or insufficient data is unavailable/degraded. | Forecast has no control authority. |
+| Identify condition | See occupancy WARNING near 90%/CRITICAL at 100%, gate/scanner failure, or data/forecast staleness with evidence and ACTIVE → ACKNOWLEDGED → RESOLVED. | REGISTERED list full is not an alert; Organizer/Admin acknowledge/resolve. | Organizer/Admin full stream/actions; Gate/Security only assigned-gate errors read-only; Volunteer none. |
+| Recover live view | Detect reconnect or revision gap and refresh authoritative snapshot. | Last-known data is timestamped and never labeled live. | Renew authorization on reconnect. |
