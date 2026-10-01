@@ -4,7 +4,7 @@
 
 ## UC-01 — Create event
 
-- **Actor / goal:** Event Organizer creates an owned event draft; assigned Event Admin may edit that draft.
+- **Actor / goal:** Event Organizer creates an owned event draft; assigned Event Admin may edit that Draft's name, description, public venue/location, image/banner, and public category/tags, and configure its gates separately.
 - **Preconditions:** Authenticated Organizer for creation; assigned-event permission for Admin editing.
 - **Main flow:** Open event workspace → enter required draft details → validate → save Draft → show event identity and missing publication requirements.
 - **Alternates:** Save partial Draft; return to edit.
@@ -15,10 +15,10 @@
 ## UC-02 — Control event lifecycle
 
 - **Actor / goal:** Organizer controls publication and other lifecycle transitions; Event Admin cannot cancel the event or transfer ownership.
-- **Preconditions:** Draft with required capacity, schedule/time zone, registration policy, and gate configuration for publication; the current state and transition-specific guards apply to later lifecycle actions.
+- **Preconditions:** Draft with required capacity, schedule/time zone, registration policy, and at least one configured Gate associated with the Event for publication; the server independently rechecks for a configured Gate before the later Published → Live transition.
 - **Main flow:** Review readiness → request publish → server validates and authorizes transition → move to Published → expose approved public details. Organizer alone controls subsequent start, completion, and event cancellation.
 - **Alternates:** Return to Draft editing when readiness fails. Registration opens on publication unless a future opening is configured; Live transition closes it even if a later close was configured. Organizer may cancel from Live; cancellation blocks further registrations/check-ins, retains existing rows/history, and is audited. Participant notification is post-MVP.
-- **Failures:** Concurrent edit, missing configuration, or forbidden actor prevents transition and reports why.
+- **Failures:** Concurrent edit, missing configuration (including no configured Gate at Publish or Live), or forbidden actor prevents transition and reports why.
 - **Postconditions:** The authorized transition is audited. Publication exposes approved details; cancellation blocks registration/check-in and retains existing registrations unchanged.
 - **Security:** Event-scoped permission, version/concurrency check, public field allowlist.
 
@@ -146,11 +146,11 @@
 
 - **Actor / goal:** Participant finds and evaluates an event before registration.
 - **Preconditions:** Event is Published and visible under approved discovery policy.
-- **Main flow:** Find PUBLIC Published event in catalog or open PRIVATE Published event by controlled link/invitation → read permitted details and registration availability → continue to UC-03. Public details are limited to name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available indication, and public category/tags.
+- **Main flow:** Find PUBLIC Published event in catalog or open PRIVATE Published event by valid opaque event-scoped controlled link → read permitted details and registration availability → continue to UC-03 when registration is available. Organizer alone issues, revokes or reissues at most one active PRIVATE link per event; reissue immediately invalidates the old proof. There is no automatic time-based link expiry in MVP; access ends on revoke/replace or leaving PRIVATE Published. Link possession suffices for allowlisted detail viewing without login or guest OTP. Public details are limited to name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available indication, and public category/tags.
 - **Alternates:** Closed/full event remains viewable only as approved; cancelled/unpublished event shows safe unavailable state.
 - **Failures:** Private/draft details, participant lists/contact, QR credentials, internal operations, live occupancy, alerts, admin data, and audit logs are not disclosed through public discovery.
 - **Postconditions:** Participant understands availability and next action.
-- **Security:** PRIVATE events never enter the PUBLIC catalog; enforce controlled-link access, public field allowlist, and abuse controls.
+- **Security:** PRIVATE events never enter the PUBLIC catalog; enforce server validation of the event-bound controlled link, active state, PRIVATE visibility, Published state and public field allowlist. Malformed, revoked, mismatched, non-PRIVATE/non-Published and unknown/unauthorized attempts share one privacy-safe unavailable response; the old proof fails on the next read after revoke/reissue. A guessed event ID is not access. Account/guest verification is reserved for registration ownership, not PRIVATE detail viewing.
 
 ## UC-16 — Assign event role
 

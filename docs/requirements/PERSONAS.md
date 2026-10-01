@@ -21,7 +21,7 @@
 | --- | --- |
 | Responsibilities | Operate assigned events: individual registrations, gates, volunteers, command center, certificates/alerts, and reasoned corrections; cannot promote admins, transfer ownership, control lifecycle, or cancel the event. |
 | Goals | Make configuration valid and staff access least-privileged; resolve operational exceptions without losing an audit trail. |
-| Key tasks | Edit event settings, set capacity/gates, assign event roles, inspect registration/scan problems, manage allowed policy actions. |
+| Key tasks | Edit only approved assigned Draft/Published public details, configure assigned-event gates, assign permitted staff/volunteer roles, inspect registration/scan problems, and perform separately authorized operational actions. Capacity, registration policy and lifecycle remain Organizer-only. |
 | Pain points | Unclear permission boundaries, configuration changes after publication, ambiguous scan outcomes, missing correction history. |
 | Information needed | Configuration state, registration/credential status, gate assignments, permission matrix, audit/correlation data. |
 | Required permissions | Assigned-event operations including pre-check-in registration cancellation, alert acknowledge/resolve, explicit certificate issue/revoke and failed-email retry, and restricted event-scoped audit read. No event lifecycle/ownership, direct staff credential issue/revoke, or unrestricted export grant. |

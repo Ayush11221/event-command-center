@@ -7,7 +7,7 @@
 | State | Meaning | Participant/operational effect |
 | --- | --- | --- |
 | Draft | Event is being configured and is not discoverable for registration. | No participant registration or gate validation. |
-| Published | PUBLIC events appear in the catalog; PRIVATE events require a controlled link/invitation. Registration may independently be open or closed. | Participants can access permitted details; register only when registration is open. |
+| Published | PUBLIC events appear in the catalog; PRIVATE event details require a valid server-verifiable controlled link. Registration may independently be open or closed. | Participants can access permitted details; register only when registration is open. A PRIVATE link grants detail only while this event is PRIVATE and Published. |
 | Live | The event is in active operation. | Authorized gates may validate credentials; command center shows live conditions. New registration is closed. |
 | Completed | Live operations have ended. | New gate entry stops; eligible certificate and results workflows can proceed under their policies. |
 | Cancelled | Organizer has cancelled the event. | No new registration or check-in; existing registration rows remain unchanged and auditable. Participant event-cancellation notification is post-MVP. |
@@ -18,13 +18,17 @@
 
 | From → To | Trigger/guard | Actor | Effects and open decision |
 | --- | --- | --- | --- |
-| Draft → Published | Required configuration passes publication validation (FR-EVT-002/004). | Organizer only. | PUBLIC event enters catalog; PRIVATE event is accessible by controlled link. Registration opens immediately unless a future opening time is configured, subject to capacity/manual/closing rules. |
-| Published → Live | Event is ready, at least one gate is configured, and operation begins. | Organizer only. | Gate validation and live monitoring become available; new registration closes regardless of a later configured closing time. |
+| Draft → Published | Required configuration passes publication validation (FR-EVT-002/004), including at least one configured gate. | Organizer only. | PUBLIC event enters catalog; PRIVATE event is accessible by valid controlled link. Registration opens immediately unless a future opening time is configured, subject to capacity/manual/closing rules. |
+| Published → Live | Event is ready and the server independently rechecks that at least one configured gate still exists before operation begins. | Organizer only. | Gate validation and live monitoring become available; new registration closes regardless of a later configured closing time. |
 | Live → Completed | Operations end and attendance state is reconciled or discrepancy is visible. | Organizer only. | Gate entry stops; results remain available. Eligibility alone does not issue certificates; Organizer/Admin explicitly issue eligible certificates. |
-| Draft/Published → Cancelled | Explicit cancellation under a reason/confirmation policy. | Organizer only. | New registration/check-in stop; existing registrations remain unchanged and auditable. No MVP participant notification. |
-| Live → Cancelled | Explicit Organizer cancellation. | Organizer only. | New registration/check-in stop; existing registration and attendance history remain unchanged and auditable. No MVP participant notification. |
+| Draft/Published → Cancelled | Explicit confirmation and nonblank reason in the approved Slice 3 transition command. | Organizer only. | New registration/check-in stop; existing registrations remain unchanged and auditable. No MVP participant notification. |
+| Live → Cancelled | Explicit confirmation and nonblank reason in the approved Slice 3 transition command. | Organizer only. | New registration/check-in stop; existing registration and attendance history remain unchanged and auditable. No MVP participant notification. |
 
 No *event lifecycle* transition occurs automatically based solely on a clock. Registration opening/closing times are separate availability rules.
+
+An active PRIVATE access link has no automatic time-based MVP expiry. At most one may be active per event; Organizer alone issues, revokes or atomically reissues it, and the replaced proof becomes invalid immediately. A link ceases to authorize detail when the event leaves Published. Organizer visibility change from PRIVATE to PUBLIC invalidates the active PRIVATE proof in the same audited change, preventing later resurrection. These link rules do not add a lifecycle state or make registration available.
+
+For these two guards, a gate is **configured** when an authorized Organizer or assigned Event Admin has created a persistent Gate associated with that Event. The server checks for at least one such association at each transition. Staff assignment, scanner hardware/device registration, connectivity, scanner health, and operational readiness are not prerequisites for this Slice 3 configuration guard; scanner operation belongs to a later slice. A partial Draft may still be saved without a gate.
 
 ## Invalid transitions and invariants
 
@@ -33,7 +37,7 @@ No *event lifecycle* transition occurs automatically based solely on a clock. Re
 - An incomplete Draft cannot publish.
 - A Published event cannot skip authorization and validation to become Live.
 - A registration or credential cannot make a Cancelled event operational. Existing registration status is not rewritten merely because the event is Cancelled, and no new check-in is accepted.
-- Every state change is authorized, timestamped, and audited. Organizer may edit Published event details; material changes are visible and auditable. Once Live, changes affecting registration or attendance policy are restricted and cannot silently rewrite the active operational contract.
+- Every state change is authorized, timestamped, and audited. Organizer may edit Published event details; material changes are visible and auditable. An assigned Event Admin's ordinary detail edits in Draft/Published are limited to name, description, public venue/location, image/banner, and public category/tags; gate configuration is a separate scoped action. Neither role receives an unrestricted Live event-detail edit: registration/attendance policy changes are restricted and cannot silently rewrite the active operational contract.
 - Registration capacity is one event value, applied to the number of REGISTERED registrations. Live occupancy counts people INSIDE and is not a second physical/gate-capacity rule.
 
 ## Registration availability

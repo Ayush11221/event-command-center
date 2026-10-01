@@ -1,6 +1,6 @@
 # API Plan
 
-**Status:** Contract direction only; no endpoints are implemented  
+**Status:** Phase 0 contract direction; Slice 2 identity/staff endpoints exist, while the approved Slice 3 signatures in the [Phase 2 API contract](API_CONTRACT.md) are not implemented. That contract supersedes technical TBDs where more specific.
 **Inputs:** [PRD](../PRD.md), [requirements](../requirements/REQUIREMENTS.md), and [architecture](../architecture/ARCHITECTURE.md)
 
 ## API goals
@@ -42,11 +42,11 @@ The paths below express boundaries, not final endpoint signatures.
 
 | Resource group | Representative responsibilities | Requirement links |
 | --- | --- | --- |
-| `/events` | Organizer create/own and control lifecycle including Live cancellation; assigned Admin edit only, no event cancellation/ownership transfer; Published detail edits allowed, Live registration/attendance policy edits restricted; one REGISTERED cap, schedule and policy | FR-EVT-* |
-| Published event discovery/read (path TBD) | PUBLIC catalog exposes only name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available indication, category/tags; PRIVATE controlled-link/invitation access without discovery leakage; no participant/credential/internal/live occupancy/alert/admin/audit public fields | FR-DISC-001 |
+| `/events` | Final Slice 3 signatures in [API_CONTRACT.md](API_CONTRACT.md): server-scoped owned/assigned list and management detail with state, schedule/time zone, configuration, gates, readiness, availability reasons, permitted actions and revision; Organizer create/own/lifecycle including Live cancellation; assigned Admin Draft/Published edit only name, description, public venue/location, image/banner, public category/tags; no Admin capacity/visibility/schedule/policy/ownership/lifecycle edits; Publish and Live each check a configured Gate. Owner-only PRIVATE-link issue/revoke/reissue commands are separate from ordinary event PATCH. | FR-EVT-* |
+| `/discovery/events`, `/discovery/private` | PUBLIC Published catalog/detail exposes only the approved allowlist; PRIVATE Published detail requires a valid opaque event-scoped bearer link via `PrivateLink` header, not a guessed event ID or account/guest OTP. At most one active link per event; no automatic time-based MVP expiry. Only Organizer may issue/revoke/reissue it; invalid/unauthorized PRIVATE reads safely conceal existence. No participant/credential/internal/live occupancy/alert/admin/audit public fields. | FR-DISC-001 |
 | `/events/{eventId}/roles` | Event-scoped staff and volunteer assignments | FR-RBAC-*, FR-GATE-001 |
 | Volunteer assignment/task status (path TBD) | Organizer/Admin titled assignment, instructions, applicable time/location; own ASSIGNED → IN_PROGRESS → COMPLETED updates only | FR-VOL-001 |
-| `/events/{eventId}/gates` | Gate configuration and operational status | FR-GATE-* |
+| `/events/{eventId}/gates` | Slice 3 event-scoped Gate create by Organizer or assigned Admin, with Gate references/readiness embedded in scoped management detail; authorized persistent Event–Gate association alone satisfies Publish/Live configuration guard. No separate Slice 3 Gate field-update endpoint is justified by the configured-gate predicate; operational/scanner health and staff assignment are separate. | FR-GATE-* |
 | `/events/{eventId}/registrations` | Verified account/guest-OTP REGISTERED creation; publication-default or future opening, configured/default event-start close, Live closure regardless of later time, REGISTERED cap, manual Organizer closure/reopen; own cutoff and no cancellation by any role after accepted check-in; new row after CANCELLED | FR-REG-* |
 | `/registrations/{id}/credential` | Own-record view/approved issue or replacement; no direct staff credential issue/revoke grant | FR-QR-* |
 | `/scan-decisions` | Opaque-token and current-registration validation; unique scan_id, original-result retry, accepted/rejected/failed decision and attendance transition | FR-SCAN-*, FR-ATT-* |
@@ -96,7 +96,7 @@ The response may expose only display name, registration status, relevant attenda
 
 ## Registration, alert, and certificate contract distinctions
 
-- Registration availability is separate from event state: it opens on publication unless a future opening is configured; configured/default event-start close, REGISTERED-cap closure, Organizer manual closure, and Live transition can each block registration. Live closure applies even with a later configured close. Only capacity-only closure lifts automatically when a pre-check-in cancellation frees a slot; only Organizer reopens manual closure. Organizer may cancel a Live event, blocking creation/check-in while preserving existing registration rows unchanged. Guest OTP establishes ownership; individual cancellation is allowed only before any accepted check-in, retains CANCELLED row, invalidates old QR, and re-registration creates a new row/token. No cancellation path can create CANCELLED + INSIDE.
+- Registration availability is separate from event state: it opens on publication unless a future opening is configured; configured/default event-start close, REGISTERED-cap closure, Organizer manual closure, and Live transition can each block registration. Live closure applies even with a later configured close. Slice 3 responses may report `NOT_OPEN_YET`, `OPEN`, `SCHEDULED_CLOSE_REACHED`, and `MANUALLY_CLOSED` only from known event policy; applicable blockers may coexist. With no Registration records in Slice 3, do not fabricate count, remaining slots, capacity usage, or `CAPACITY_REACHED`, or offer a working registration action. Slice 4 adds capacity-based facts and enforcement. Only capacity-only closure lifts automatically when a pre-check-in cancellation frees a slot; only Organizer reopens manual closure. Organizer may cancel a Live event, blocking creation/check-in while preserving existing registration rows unchanged. Guest OTP establishes ownership; individual cancellation is allowed only before any accepted check-in, retains CANCELLED row, invalidates old QR, and re-registration creates a new row/token. No cancellation path can create CANCELLED + INSIDE.
 - One event capacity is a registration cap, not a gate-entry rejection rule. Live occupancy is the count of people INSIDE, separately exposed from REGISTERED count. A full registration list is not an alert.
 - Optional check-out governs NOT_ARRIVED → INSIDE → LEFT → INSIDE; without check-out, no outside/re-entry state is inferred. Authorized actor/reason-backed CORRECTION is an append-only attendance event, not an editable count.
 - Alert reads are full event stream for Organizer/Admin, assigned-gate operational errors only for Gate/Security, and none for Volunteer. Exactly three categories: live INSIDE occupancy near-90% WARNING/100% CRITICAL relative to event capacity; gate/scanner failure; data/forecast staleness. Lifecycle is ACTIVE → ACKNOWLEDGED → RESOLVED with no duplicate active alert for a persistent condition. Organizer/Admin may acknowledge/resolve; Gate/Security may not. No generic rules engine is presumed.
@@ -104,7 +104,7 @@ The response may expose only display name, registration status, relevant attenda
 
 ## Real-time contract
 
-WebSocket versus Server-Sent Events is TBD. The live protocol must define:
+Phase 2 selects Socket.IO/WebSocket with snapshot reconciliation; see [real-time architecture](../architecture/REALTIME_ARCHITECTURE.md). The live protocol must define:
 
 - Authenticated event-scoped subscription
 - Initial snapshot version/time
@@ -161,11 +161,11 @@ Rate limits must be based on threat and workload modelling, not copied defaults.
 ## TBD decisions
 
 - Authentication/session mechanism and CSRF implications
-- Final resource paths and action-specific contracts; publication-default opening, Live registration closure, alert action authority, and least-privilege audit/credential grants are locked
-- Pagination and idempotency retention windows
+- Final resource paths and action-specific contracts for **later** slices; Slice 3 event/discovery/gate/PRIVATE-link signatures are finalized in [API_CONTRACT.md](API_CONTRACT.md). Publication-default opening, Live registration closure, alert action authority, and least-privilege audit/credential grants are locked.
+- Pagination and idempotency retention windows for later slices; Slice 3 uses an opaque cursor (20 default/100 maximum) and protected 24-hour PRIVATE issuance replay, which is not link expiry.
 - Scan reason-code catalog (gate identity allowlist is locked; contact data excluded)
-- WebSocket versus SSE and live revision protocol
+- Live revision/reconnect implementation details under the Phase 2 Socket.IO/WebSocket direction
 - Forecast request cadence/minimum data rule and synchronous versus asynchronous invocation; horizons fixed at 30/60 minutes
-- OTP verification mechanism, controlled PRIVATE link semantics, detailed gate/staleness detection, and certificate queue/provider/delivery idempotency retention
+- OTP provider implementation, detailed gate/scanner staleness detection, and certificate queue/provider/delivery idempotency retention. Slice 3 PRIVATE-link proof, Organizer-only issue/revoke/reissue, no automatic time-based expiry and exact event/discovery routes are finalized in [API_CONTRACT.md](API_CONTRACT.md); they are not implemented yet.
 - Export formats, limits, and data-redaction rules
 - API compatibility/deprecation policy

@@ -1,9 +1,9 @@
 # Design System Direction
 
-**Status:** Phase 0 strategy, not final visual design  
-**Decision point:** Detailed visual choices belong to Phase 2 after the Phase 1 [journeys](USER_JOURNEYS.md), [information architecture](INFORMATION_ARCHITECTURE.md), [screen inventory](SCREEN_INVENTORY.md), and [UX states](UX_STATES.md) are reviewed.
+**Status:** Phase 2 token and interaction foundation; visual brand/font/palette and implemented components remain open
+**Decision point:** This foundation applies the Phase 1 [journeys](USER_JOURNEYS.md), [information architecture](INFORMATION_ARCHITECTURE.md), [screen inventory](SCREEN_INVENTORY.md), and [UX states](UX_STATES.md).
 
-This document defines how design decisions will be made. It intentionally does not select final fonts, colors, spacing, component variants, charts, or branding.
+This document fixes semantic roles and provisional numeric token scales so representative screens can be evaluated without claiming a final font, palette, chart library, or brand.
 
 ## 1. Design goals
 
@@ -76,7 +76,7 @@ Avoid decorative animation everywhere, continuous dashboard motion, animated cou
 
 ## 7. Typography
 
-**Final font: TBD - to be decided during the dedicated UI/UX design phase.**
+**Final font: TBD.** Until a font is evaluated, use a system sans-serif stack. Use semantic typography roles: display/page title, section title, subsection, body, label/control, helper/caption, and tabular operational numerals. A provisional type scale is 12/14/16/20/24/32 CSS px with 16 px body; exact family, weights and line-height are validated on dense command-center, scanner and mobile participant examples. Use tabular numbers for counts/time/percentages and never make 12 px the default body size.
 
 Evaluation must cover:
 
@@ -109,9 +109,15 @@ Required semantic categories are:
 
 Operational semantics need additional state definitions such as normal, nearing capacity, at/over capacity, stale, offline, unavailable, accepted, rejected, and attention required. These states must combine color with text, icon, pattern, position, or shape. Color alone must never carry the decision.
 
+Semantic tokens are `canvas`, `surface`, `surface-raised`, `surface-inset`, `border`, `text`, `text-muted`, `focus`, `action`, `action-hover`, `action-disabled`, `success`, `warning`, `critical`, `info`, and `unavailable`. Status mappings: accepted/saved = success; capacity near threshold = warning; capacity 100% or policy rejection = critical with different text/shape; stale/unknown = unavailable/neutral, never success; technical scanner failure = distinct error/unknown, not policy rejection. Registration full uses an availability label, not an alert color rule.
+
+Provisional layout tokens: spacing 4/8/12/16/24/32/48 CSS px, with 8 px base rhythm and 4 px fine adjustment; radius 4/8/12 px for controls/panels/dialogs; elevation 0/1/2 for flat surface, raised panel and modal/overlay. Prefer border and spacing over stacked shadows. These scales are a foundation, not a mandate to use every step. Surface hierarchy is canvas → task surface → raised overlay, with one dominant action region and stable event/gate context. Do not tile every metric into a separate card.
+
 ## 9. Theme strategy
 
-Plan for both light and dark themes from shared semantic tokens. Do not build dark mode by mechanically inverting colors. Each theme must independently satisfy contrast, chart legibility, focus visibility, status differentiation, and comfortable viewing in its expected environment. Exact colors and user/system theme behavior remain TBD.
+Slice 3 supports **Light**, **Dark**, and **System** from shared semantic tokens. A user may explicitly select Light or Dark; System follows the operating system color-scheme preference and responds to OS changes while the application is open. The chosen mode is a local browser presentation preference for authenticated and unauthenticated users, not an account field, authorization token, or server-side role setting. Apply the persisted choice (and the current OS preference when System is selected) before application rendering to avoid a wrong-theme flash. Do not build dark mode by mechanically inverting colors. Each rendered theme must independently satisfy contrast, chart legibility, focus visibility, status differentiation, and comfortable viewing in its expected environment. Exact palette values remain TBD for representative-screen evaluation.
+
+For both rendered themes, assign token values independently and test normal text at ≥4.5:1 contrast, large text at ≥3:1, and meaningful UI boundaries/focus/status graphics at ≥3:1 against adjacent colors, consistent with the WCAG 2.2 AA target. All Slice 3 screens, loading/error/empty/success states, and theme controls must work in Light, Dark, and System-derived appearance. There must be no flash that falsely conveys a status. Never use hue alone for alert severity or scan acceptance. No fourth/custom theme mode is required.
 
 ## 10. Dashboard visualization strategy
 
@@ -126,6 +132,12 @@ Likely visualization needs include:
 - Historical event comparisons where data is comparable
 
 Choose a chart library only after defining dataset size, update cadence, interactions, annotation, responsive behavior, accessibility, theming, and export needs. Prefer direct values/tables when a chart does not improve a decision. MVP forecasts must distinguish current occupancy from 30- and 60-minute predictions against the single event capacity, show generation time/freshness and uncertainty, and avoid false precision.
+
+Chart foundation: label observed versus predicted series directly; show horizon, unit, timestamp, capacity reference and uncertainty interval; distinguish stale or missing segments rather than connecting through gaps. Provide an equivalent compact table or text summary for decisions and keyboard/screen-reader access. Keep axes stable during live updates when possible; avoid smooth animation that conceals revisions. Occupancy (INSIDE) and REGISTERED count are separate labeled measures even though both can be compared with the one capacity.
+
+## Component state contract
+
+Buttons/links/inputs need default, hover where applicable, keyboard focus-visible, active, disabled, pending and error states; disabled controls include an explanation when the action is policy-blocked. Forms retain valid input on validation failure and identify field plus summary. Scanner result has accepted, policy-rejected, duplicate, technical/unknown and same-`scan_id` replay presentations; technical/unknown never looks accepted. Data panels have loading, empty, current, stale, partial, unavailable and forbidden states with last-confirmed time. Alerts expose severity **and** ACTIVE/ACKNOWLEDGED/RESOLVED separately. Certificate components show eligibility, issue and delivery as three different lines of state; batch progress shows counts and partial failure. Live announcements are throttled/priority-ranked so repeated updates do not overwhelm assistive technology. Exact visual variants are tested on representative screens before implementation.
 
 ## 11. Responsive strategy
 
@@ -186,18 +198,14 @@ TBD during the dedicated UI/UX phase:
 
 - Final font
 - Final color palette
-- Exact spacing scale
-- Border radius
-- Shadows/elevation
-- Typography scale
+- Final values/refinement of the provisional spacing, radius, elevation, and typography scales after representative-screen testing
 - Dashboard chart library
 - Final component variants
 - Final responsive breakpoints
 - Final visual branding
-- Theme selection/persistence behavior
 - Dense table and chart accessibility patterns
 - Scanner feedback and accessible fallback details
 
 ## Design decision workflow
 
-Phase 1 defines journeys, information architecture, content priority, state models, and low-fidelity flows. Phase 2 tests visual directions against representative command-center, scanner, and participant screens; defines tokens and component states; records decisions; and only then authorizes required packages. Every choice should trace to a user task, operational risk, accessibility need, or maintainability benefit.
+Phase 1 defines journeys, information architecture, content priority, state models, and low-fidelity flows. Phase 2 documents the foundation; representative command-center, scanner, and participant prototypes must validate final font/palette, token refinements and component variants before packages are authorized. Every choice should trace to a user task, operational risk, accessibility need, or maintainability benefit.

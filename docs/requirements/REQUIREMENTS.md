@@ -11,11 +11,11 @@ This document converts product intent into stable identifiers for architecture, 
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-EVT-001 | An Organizer must be able to create an owned Draft; an assigned Event Admin may edit that event's Draft under event-scoped permission. Delegated event creation/ownership transfer is not assumed. | Must |
-| FR-EVT-002 | The system must block publication until required event configuration is valid and explain missing/invalid fields. | Must |
+| FR-EVT-001 | An Organizer must be able to create an owned Draft; an assigned Event Admin may edit that event's Draft only within the approved field allowlist and event-scoped permission. Delegated event creation/ownership transfer is not assumed. | Must |
+| FR-EVT-002 | The system must block publication until required event configuration is valid, including at least one configured Gate associated with the Event, and explain missing/invalid fields. Published → Live independently rechecks the configured-Gate condition. | Must |
 | FR-EVT-003 | Organizer creates/owns the event and alone controls lifecycle transitions, including Live → Cancelled. A Cancelled event blocks new registration and check-in; existing registration rows remain unchanged and auditable. Event Admin cannot cancel or transfer ownership. | Must |
-| FR-EVT-004 | The event must support one MVP registration-capacity value, time zone, schedule, registration policy, and at least one gate before live operation. Live occupancy is a distinct count of people INSIDE, not a second gate-capacity limit. | Must |
-| FR-EVT-005 | Organizer may edit Published event details; material changes must be visible and audited. Once Live, changes affecting registration or attendance policy are restricted and cannot silently rewrite the active operational contract. Event-cancellation participant notification is post-MVP. | Should |
+| FR-EVT-004 | The event must support one MVP registration-capacity value, time zone, schedule, registration policy, and at least one configured gate before both publication and live operation. A Gate is configured for this guard by an authorized persistent Event–Gate association; staff assignment, scanner hardware, connectivity, health, and operational readiness are not prerequisites. Live occupancy is a distinct count of people INSIDE, not a second gate-capacity limit. | Must |
+| FR-EVT-005 | Organizer may edit Published event details; material changes must be visible and audited. In Slice 3, an assigned Event Admin may edit only name, description, public venue/location, image/banner, and public category/tags on Draft/Published events, plus separately authorized gate configuration; this does not grant capacity, visibility, schedule, registration/attendance policy, ownership, or lifecycle edits. Once Live, registration/attendance policy changes are restricted and cannot silently rewrite the active operational contract; no unrestricted Live detail edit is granted. Event-cancellation participant notification is post-MVP. | Should |
 
 ### Registration and credentials
 
@@ -35,13 +35,13 @@ This document converts product intent into stable identifiers for architecture, 
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-DISC-001 | PUBLIC Published events appear in the catalog with only event name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available registration indication, and public category/tags. Participant lists/contact, QR credentials, internal operations, live occupancy, alerts, admin data, and audit logs are excluded. PRIVATE events are omitted from public discovery and accessed only by controlled link/invitation without leaking private details publicly. | Must |
+| FR-DISC-001 | PUBLIC Published events appear in the catalog with only event name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available registration indication, and public category/tags. Participant lists/contact, QR credentials, internal operations, live occupancy, alerts, admin data, and audit logs are excluded. PRIVATE events are omitted from public discovery; possession of an opaque, event-scoped, server-verifiable controlled link is sufficient to view the same allowlisted details only while PRIVATE and Published. At most one link is active per event; Organizer alone issues, revokes or reissues it, with immediate old-proof invalidation on replacement. There is no automatic time-based link expiry in MVP; explicit revocation/replacement or leaving PRIVATE Published ends access. A guessed event ID is not access; viewing does not require account login or guest OTP, while registration ownership still requires verification. Invalid, revoked, malformed and other unauthorized private-link attempts return the same privacy-safe unavailable result. | Must |
 
 ### Gates and attendance
 
 | ID | Requirement | Priority |
 | --- | --- | --- |
-| FR-GATE-001 | An authorized admin must be able to configure gates and assign event-scoped staff. | Must |
+| FR-GATE-001 | An authorized Organizer or assigned Event Admin must be able to configure gates and assign event-scoped staff within their permitted scope. A persistent Gate associated with its Event through authorized configuration is sufficient for the Publish/Live configured-gate guard; scanner hardware, staff assignment, connectivity, health, and operational readiness are separate later concerns. | Must |
 | FR-GATE-002 | A scanner session must show its selected event, gate, operator, connectivity, and readiness state. | Must |
 | FR-GATE-003 | Gate/Security may see only display name, registration status, relevant attendance status, event context, and scan result; never contact, OTP, credential, or unnecessary personal data. | Must |
 | FR-SCAN-001 | A scan must validate credential, registration, event, gate/operator context, and the event's attendance/re-entry policy. | Must |

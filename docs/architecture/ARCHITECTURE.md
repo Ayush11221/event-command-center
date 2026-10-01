@@ -1,6 +1,6 @@
 # Architecture Plan
 
-**Status:** Directional plan; no architecture has been implemented  
+**Status:** Directional Phase 0 plan; no architecture has been implemented. The [Phase 2 technical architecture](TECHNICAL_ARCHITECTURE.md) is the current implementation blueprint.
 **Drivers:** [PRD](../PRD.md) and [requirements](../requirements/REQUIREMENTS.md)
 
 ## Architecture goals
@@ -39,7 +39,7 @@ Versioned Node.js/TypeScript API
 
 Certificate bulk issuance/email is a separate asynchronous job boundary backed by durable state: authorized batch creation → eligible registration selection → explicit issue action with built-in-template unique-ID PDF generation → auditable ISSUED state → platform-sender delivery attempts/status/retry. Preview precedes the issue action. The exact queue, worker, PDF library, and email provider are deferred. Kafka is **not** required for this workflow.
 
-Kafka is a planned candidate for Phase 7/8 event streaming, not a Phase 0 commitment. A transactional outbox or equivalent reliable publication pattern must protect against database/event-bus dual-write loss if Kafka is introduced. WebSocket versus Server-Sent Events remains TBD based on client-to-server interaction needs and deployment constraints.
+Kafka is a later candidate only if measured need justifies it; no MVP need is currently demonstrated. A transactional outbox or equivalent reliable publication pattern must protect against database/event-bus dual-write loss if async publication is introduced. Phase 2 selects Socket.IO/WebSocket for live delivery with authoritative snapshot reconciliation; see [REALTIME_ARCHITECTURE.md](REALTIME_ARCHITECTURE.md).
 
 ## Planned technology direction
 
@@ -50,7 +50,7 @@ Kafka is a planned candidate for Phase 7/8 event streaming, not a Phase 0 commit
 | API | Node.js + TypeScript + Express | Planned; keep domain modules framework-light |
 | Data | PostgreSQL | Planned authoritative transactional store |
 | Data access | Prisma | Planned; validate concurrency, migrations, and query requirements before relying on it |
-| Live delivery | WebSocket or SSE | TBD after Phase 1 interaction modelling |
+| Live delivery | Socket.IO/WebSocket | Phase 2 contract direction; API snapshot remains authoritative |
 | Event streaming | Kafka | Deferred until the real-time architecture justifies operational cost |
 | Forecasting | Python + FastAPI + explainable baselines/scikit-learn | Planned bounded service; no complex model by default |
 | Local operations | Docker/Compose | Planned for reproducible multi-component development |
@@ -186,7 +186,7 @@ Material decisions should receive short ADRs when implementation begins, includi
 
 - API framework and repository/application layout
 - Authentication mechanism and session/token storage
-- WebSocket versus SSE
+- Live revision, reconnect and shared coordination details beyond the Phase 2 Socket.IO/WebSocket direction
 - Attendance transaction and occupancy projection design
 - Whether/when Kafka is introduced and the publication pattern
 - Forecast service boundary and data contract

@@ -50,7 +50,7 @@ Owns the event outcome and needs lifecycle controls, live visibility, forecasts,
 
 ### Event Admin
 
-Configures event details, capacity, registration, gates, staff assignments, and operational policies. The admin needs precise controls and an audit trail.
+Operates assigned events within the role matrix: in Slice 3, edits only approved Draft/Published public details and configures assigned-event gates; permitted staff/volunteer assignments and later operational actions remain event-scoped. The admin needs precise controls and an audit trail, but cannot change capacity, visibility, schedule, registration or attendance policy, ownership, or lifecycle.
 
 ### Gate/Security Staff
 
@@ -74,7 +74,7 @@ Important exceptions: publication must fail visibly when required configuration 
 
 ### Participant journey
 
-Discover a PUBLIC catalog event or access a PRIVATE event by controlled link/invitation -> review details -> register as a verified authenticated participant or OTP-verified guest -> receive QR credential -> arrive -> present QR at a gate -> receive check-in result -> participate -> check out if enabled -> receive certificate if eligible.
+Discover a PUBLIC catalog event or access a PRIVATE Published event by valid controlled link -> review allowlisted details without login/guest OTP solely for viewing -> register as a verified authenticated participant or OTP-verified guest -> receive QR credential -> arrive -> present QR at a gate -> receive check-in result -> participate -> check out if enabled -> receive certificate if eligible.
 
 Important exceptions: duplicate registration, revoked/cancelled registration, unavailable credential, rejected scan, and certificate ineligibility must each have clear next steps.
 
@@ -90,7 +90,7 @@ Open live event -> view attendance and current occupancy -> monitor capacity and
 
 ### Event Admin configuration
 
-Open assigned event -> configure registration policy and gates/staff/volunteer assignments -> perform permitted reasoned corrections and explicit certificate operations -> review audit evidence. Organizer alone creates and controls event lifecycle, including event cancellation and manual registration closure/reopening. Event Admin cannot promote admins, transfer ownership, or cancel the event; both may cancel individual registrations.
+Open assigned event -> edit only approved Draft/Published public details (name, description, public venue/location, image/banner, public category/tags) and configure assigned-event gates/staff/volunteer assignments -> perform permitted reasoned corrections and explicit certificate operations -> review audit evidence. Organizer alone creates and controls event lifecycle, registration opening/closing times, capacity, manual registration closure/reopening, and event cancellation. Event Admin cannot promote admins, transfer ownership, change visibility or registration/attendance/certificate policy, or cancel the event; both may cancel individual registrations before accepted check-in. No unrestricted Live event-detail edit is granted.
 
 ### Volunteer assignment
 
@@ -134,7 +134,7 @@ Detailed, testable requirements and identifiers live in [requirements/REQUIREMEN
 10. First accepted check-in establishes ELIGIBLE unless registration is CANCELLED; it never automatically generates/sends. Organizer/Admin explicitly issue one or a batch to make ISSUED and generate unique-ID PDFs; explicit revoke and delivery are independently auditable. Check-out duration is not an MVP criterion.
 11. Security- and operations-relevant changes are written to an append-oriented audit trail.
 12. Participants can access only their own registration/credential/certificate information unless another lawful workflow is defined.
-13. PUBLIC Published events appear in the catalog with only name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available registration indication, and public category/tags. Public discovery excludes participant lists/contact, QR credentials, internal operations, live occupancy, alerts, admin data, and audit logs. PRIVATE Published events use controlled link/invitation and leak no private details in public discovery. Event state and registration availability remain separate.
+13. PUBLIC Published events appear in the catalog with only name, description, date, start/end time, public venue/location, organizer-provided image/banner, registration availability, remaining/available registration indication, and public category/tags. Public discovery excludes participant lists/contact, QR credentials, internal operations, live occupancy, alerts, admin data, and audit logs. PRIVATE events are absent from public discovery; an opaque event-scoped controlled link is both discovery route and bearer authority for the same allowlisted detail only while PRIVATE and Published. At most one link is active per event. Organizer alone issues, revokes, or reissues it; reissue immediately invalidates the previous proof. There is no automatic time-based MVP expiry: access ends on revocation/replacement or when the event ceases to be PRIVATE Published. A guessed event ID is not proof. Viewing requires neither account login nor guest OTP, but registration ownership still requires verification. Invalid/unauthorized links and non-Published events return a non-leaking unavailable result. Event state and registration availability remain separate; Slice 3 does not assert registration counts, remaining places or cap saturation without Slice 4 records.
 14. Assigned Volunteers see/update only their own titled task, instructions, applicable time/location, and ASSIGNED → IN_PROGRESS → COMPLETED status.
 15. Both verified authenticated participants and OTP-verified guests may register; active-duplicate and cancellation rules are in [requirements/REQUIREMENTS.md](requirements/REQUIREMENTS.md).
 16. MVP certificates support built-in templates/font styles, preview, explicit single or database-derived bulk issue, one PDF/unique ID per issued participant, asynchronous platform-sender email with optional Organizer Reply-To, batch progress, Organizer/Admin-authorized retry-safe delivery, and explicit revocation. Other roles cannot retry. Certificate and email lifecycles are independent; ISSUED may coexist with FAILED delivery.

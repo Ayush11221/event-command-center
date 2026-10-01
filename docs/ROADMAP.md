@@ -1,6 +1,6 @@
 # Delivery Roadmap
 
-**Current phase:** Phase 1 - Product definition and UX architecture (working documents under review)
+**Current phase:** Phase 2 - Technical Architecture & Design Foundation (documentation under review). Phase 1 product decisions were approved and committed at `3cd972b`.
 **Status rule:** A phase is complete only when its exit criteria have evidence. Future phases below are planned, not implemented.
 
 The sequence reduces rework by resolving product and UX decisions before UI implementation, protecting transactional correctness before real-time distribution, and delaying operationally expensive infrastructure until a demonstrated need exists.
@@ -19,21 +19,21 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Resolve the highest-impact product ambiguities and design role-specific flows before visual styling or backend contracts harden.
 
-**Working specifications:** Personas, prioritized stories, use cases, locked PUBLIC/PRIVATE discovery and public-detail allowlist, verified account/guest OTP registration, attendance/volunteer/alert/certificate/forecast rules, lifecycle and least-privilege permissions, journeys, information architecture, screen/state inventory, MVP thread, traceability, and an explicit decision register. Final product approval and implementation-phase workload/technical choices still require review.
+**Approved product specifications:** Personas, prioritized stories, use cases, locked PUBLIC/PRIVATE discovery and public-detail allowlist, verified account/guest OTP registration, attendance/volunteer/alert/certificate/forecast rules, lifecycle and least-privilege permissions, journeys, information architecture, screen/state inventory, MVP thread, traceability, and an explicit decision register. Implementation-phase workload/technical choices are addressed or explicitly deferred in Phase 2.
 
 **Exit criteria:** Approved MVP journey/state maps, permission matrix, key policy decisions, low-fidelity UX architecture, updated PRD/requirements, and owned remaining TBDs.
 
-## Phase 2 - Design system and UI direction
+## Phase 2 - Technical architecture and design foundation
 
-**Goal:** Establish an intentional, accessible visual and interaction system from representative product screens.
+**Goal:** Convert locked Phase 1 product/UX behavior into implementation-ready technical boundaries, contracts, sequence, and an accessible design-system foundation without starting application implementation.
 
-**Planned work:** Evaluate typography/color directions, tokens, themes, component states/variants, density, responsive behavior, scanner feedback, dashboard/chart requirements, and Figma use if beneficial. Install only selected dependencies.
+**Planned work:** Frontend/backend/database/API/RBAC/live/certificate/forecast/environment/testing/observability blueprints, semantic design tokens and state patterns, and the vertical-slice handoff in [ROADMAP_PHASE_2.md](ROADMAP_PHASE_2.md). No code, schema, migration, dependency installation or deployment is authorized by this phase.
 
-**Exit criteria:** Reviewed design direction, tokens, representative prototypes, accessibility checks, chosen UI/chart tools with rationale, and implementation-ready component guidance.
+**Exit criteria:** Reviewed architecture and design foundation consistent with Phase 1; explicit deferred choices and implementation gates; contracts and sequence adequate to start the first approved vertical slice. Representative visual prototypes/final palette/font remain future design validation, not falsely claimed complete here.
 
 ## Phase 3 - Backend foundation
 
-**Goal:** Create a maintainable Node.js/TypeScript/Express application skeleton with production-minded contracts and diagnostics.
+**Goal:** Begin the approved vertical-slice implementation with a maintainable Node.js/TypeScript/Express application skeleton and diagnostics.
 
 **Planned work:** Backend package/tooling, domain-module conventions, configuration validation, health/readiness, error/validation patterns, OpenAPI foundation, structured logging/correlation, and test harness.
 
@@ -67,7 +67,7 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 
 **Goal:** Provide a trustworthy live operational view without weakening transactional correctness.
 
-**Planned work:** Authoritative snapshot, WebSocket/SSE decision, live event schemas, reconnect/reconciliation, live INSIDE occupancy distinct from registration capacity, gate activity, data freshness, degraded states, and three in-product alert conditions (live-occupancy capacity, assigned-gate/scanner failure, data/forecast staleness) with ACTIVE/ACKNOWLEDGED/RESOLVED lifecycle and deduplication. Organizer/Admin may acknowledge/resolve; assigned-gate alerts are read-only for Gate/Security. Registration-full is not an alert. Kafka only if its need is demonstrated.
+**Planned work:** Authoritative snapshot, the Phase 2 Socket.IO/WebSocket contract, live event schemas, reconnect/reconciliation, live INSIDE occupancy distinct from registration capacity, gate activity, data freshness, degraded states, and three in-product alert conditions (live-occupancy capacity, assigned-gate/scanner failure, data/forecast staleness) with ACTIVE/ACKNOWLEDGED/RESOLVED lifecycle and deduplication. Organizer/Admin may acknowledge/resolve; assigned-gate alerts are read-only for Gate/Security. Registration-full is not an alert. Kafka only if its need is demonstrated.
 
 **Exit criteria:** Live latency target passes under documented workload; reconnect cannot silently miss state; stale/degraded states are visible; optional dependencies cannot lose attendance writes.
 
@@ -112,6 +112,8 @@ The sequence reduces rework by resolving product and UX decisions before UI impl
 **Exit criteria:** Demonstration covers core journeys and selected failures; setup is reproducible; documents match implementation; metrics/security/forecast claims have evidence; known limitations and future work are explicit.
 
 ## Cross-phase controls
+
+The numbered phases below are planning groupings. After Phase 2, use the dependency-oriented [vertical-slice sequence](ROADMAP_PHASE_2.md) for implementation order; cross-cutting security, accessibility, audit, tests and observability accompany each slice rather than waiting for their later phase heading.
 
 - Do not enter a later phase merely because a technology is available.
 - Update upstream product requirements before implementing scope changes.

@@ -6,15 +6,15 @@ Sources: [PRD](../PRD.md), [requirements](REQUIREMENTS.md), [stories](USER_STORI
 
 | PRD capability / journey | Requirement IDs | Story IDs | Use cases | Screens | Future implementation area |
 | --- | --- | --- | --- | --- | --- |
-| Event creation and configuration | FR-EVT-001, FR-EVT-004 | US-ORG-01, US-ADM-01 | UC-01 | S-ORG-01, S-ORG-02 | `backend` event domain; `frontend` organizer feature; `database` |
-| Organizer-only lifecycle/Live cancellation | FR-EVT-002, FR-EVT-003 | US-ORG-02 | UC-02 | S-ORG-02, S-PAR-01, S-GAT-01 | `backend` event/authorization; `database` retained registration history; `frontend` organizer/participant/gate |
-| Published editing/Live policy restriction | FR-EVT-005 | US-ADM-03 | UC-02, UC-13 | S-ORG-02, S-ORG-07 | `backend` event/audit domains |
-| PUBLIC allowlist/PRIVATE non-leakage | FR-DISC-001 | US-PAR-01 | UC-15 | S-PUB-01, S-PUB-02 | `frontend` public feature; `backend` scoped allowlisted event read; `database` visibility |
+| Event creation and configuration | FR-EVT-001, FR-EVT-004 | US-ORG-01, US-ADM-01 | UC-01 | S-ORG-01, S-ORG-02 | `backend` event domain; `frontend` organizer feature; `database`; assigned Admin narrow Draft details and gate setup |
+| Organizer-only lifecycle/Live cancellation | FR-EVT-002, FR-EVT-003, FR-EVT-004 | US-ORG-02 | UC-02 | S-ORG-02, S-ORG-03, S-PAR-01, S-GAT-01 | `backend` event/authorization; configured Event–Gate guard at Publish and Live; `database` retained registration history; `frontend` organizer/participant/gate |
+| Published editing/Live policy restriction | FR-EVT-005 | US-ADM-01, US-ADM-03 | UC-01, UC-02, UC-13 | S-ORG-02, S-ORG-07 | `backend` event/audit domains; assigned Admin only named Draft/Published public details; no generic Live policy edit |
+| PUBLIC allowlist/PRIVATE non-leakage | FR-DISC-001 | US-PAR-01, US-ORG-10 | UC-15 | S-PUB-01, S-PUB-02, S-ORG-02 | `frontend` public detail and bounded Organizer link controls; `backend` Published-only allowlisted event read and owner-only link issue/revoke/reissue; `database` visibility and one-active protected verifier; no timed MVP expiry |
 | Publication opening, timed/manual/capacity/Live closure | FR-REG-001, FR-EVT-004 | US-ORG-09, US-PAR-02 | UC-03 | S-ORG-02, S-PUB-02/03 | `backend` availability guard; `database` times/closure cause/REGISTERED count; `frontend` reason states |
 | Account/guest registration and own status | FR-REG-001–004 | US-PAR-02 | UC-03 | S-PUB-03, S-PAR-01 | `frontend` participant/OTP entry; `backend` registration/verification; `database` identity/REGISTERED status |
 | Pre-check-in-only cancellation and new registration | FR-REG-005, FR-QR-004, FR-CERT-001/008 | US-PAR-06 | UC-18 | S-PAR-01/02, S-PUB-03, S-ORG-05/06, S-GAT-01 | `backend` registration/credential/certificate; `database` retained history, capacity, audit; reject all post-check-in cancellation |
 | Own QR generation/identity/reissue | FR-QR-001, FR-QR-002, FR-QR-003, FR-QR-004 | US-PAR-03 | UC-04 | S-PAR-01 | `backend` credential domain; `frontend` participant feature; `database` |
-| Gate configuration, scope, identity allowlist | FR-GATE-001–003 | US-ADM-01, US-GAT-01/02 | UC-16, UC-05 | S-ORG-03, S-GAT-01 | `backend` gate/role authorization and response allowlist; `frontend` staff features |
+| Gate configuration, scope, identity allowlist | FR-GATE-001–003 | US-ADM-01, US-GAT-01/02 | UC-02, UC-16, UC-05 | S-ORG-02/03, S-GAT-01 | `backend` gate/role authorization and response allowlist; persistent Event–Gate association is Publish/Live guard, operational scanner readiness later; `frontend` staff features |
 | QR scan/validation/duplicate protection/failure | FR-SCAN-001–005 | US-GAT-02, US-GAT-03 | UC-05, UC-06, UC-07 | S-GAT-01 | `backend` attendance domain; `frontend` scanner; `database` scan_id/decision |
 | Check-in/check-out and occupancy | FR-ATT-001, FR-ATT-002 | US-GAT-03, US-GAT-04 | UC-06, UC-08 | S-GAT-01, S-ORG-04 | `backend` attendance/live domains; `database` |
 | Authorized attendance correction | FR-ATT-003 | US-ADM-05 | UC-08, UC-13 | S-ORG-04/05/07 | `backend` attendance/audit; `database` append-only correction; `frontend` staff action |
