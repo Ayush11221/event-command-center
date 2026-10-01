@@ -6,13 +6,19 @@
   "scripts": {
     "dev": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "start": "node --env-file-if-exists=.env dist/server.js",
+    "bootstrap": "node --env-file-if-exists=.env --import tsx src/bootstrap.ts",
+    "capability": "node --env-file-if-exists=.env --import tsx src/capability.ts",
     "typecheck": "tsc --noEmit --project tsconfig.json",
     "test": "vitest run --environment node",
     "build": "tsc --project tsconfig.build.json"
   },
   "dependencies": {
+    "@prisma/adapter-pg": "7.10.0",
+    "@prisma/client": "7.10.0",
     "cors": "2.8.6",
     "express": "5.2.1",
+    "jose": "6.2.12",
+    "nodemailer": "10.0.13",
     "pino": "10.3.1"
   },
   "devDependencies": {

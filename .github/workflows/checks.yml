@@ -1,4 +1,4 @@
-name: Slice 1 checks
+name: Slice 2 checks
 
 on:
   push:
@@ -7,6 +7,21 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: eoc_test
+          POSTGRES_PASSWORD: slice2_ci_only
+          POSTGRES_DB: eoc_slice2
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U eoc_test -d eoc_slice2"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://eoc_test:slice2_ci_only@127.0.0.1:5432/eoc_slice2
+      TEST_DATABASE_URL: postgresql://eoc_test:slice2_ci_only@127.0.0.1:5432/eoc_slice2
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -14,6 +29,8 @@ jobs:
           node-version: "22.12.0"
           cache: npm
       - run: npm ci
+      - run: npm run db:generate
+      - run: npm run db:migrate
       - run: npm run format:check
       - run: npm run lint
       - run: npm run typecheck

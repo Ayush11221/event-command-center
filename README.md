@@ -6,7 +6,7 @@ The project exists to give event teams one trustworthy operational view instead 
 
 ## Current status
 
-**Slice 1: runnable repository/tooling foundation, in progress.** Phase 1 product/UX decisions were approved and committed at `3cd972b`. The Phase 2 architecture and Slice 1 plan guide this minimal developer bootstrap. No event, registration, gate, database, authentication, or other product workflow has been implemented.
+**Slice 2: persistence and identity/RBAC foundation, under implementation review.** Slice 1 is committed. Slice 2 adds a narrow PostgreSQL/Prisma schema, OTP proof, persisted account sessions, and fixture-backed staff authorization. Event creation and all participant/gate operational workflows remain future slices.
 
 ## Planned capabilities
 
@@ -41,11 +41,11 @@ The authoritative technical boundaries are in [ARCHITECTURE.md](docs/architectur
 ```text
 .
 |-- .codex/                    # Project-scoped Codex/Graphify configuration
-|-- .github/workflows/         # Slice 1 verification workflow
-|-- frontend/                  # React + TypeScript diagnostic bootstrap
-|-- backend/                   # Node.js + TypeScript + Express liveness API
+|-- .github/workflows/         # Slice 2 verification with disposable PostgreSQL
+|-- frontend/                  # React + TypeScript diagnostic and proof entry
+|-- backend/                   # Express liveness, identity proof, and staff scope API
 |-- ai-service/                # Planned Python + FastAPI forecasting service
-|-- database/                  # Planned PostgreSQL/Prisma assets
+|-- database/                  # Slice 2 Prisma schema and reviewed migration
 |-- tests/                     # Cross-system integration, E2E, load, and security tests
 |-- docs/
 |   |-- api/                   # Planned API contracts and conventions
@@ -66,23 +66,23 @@ The authoritative technical boundaries are in [ARCHITECTURE.md](docs/architectur
 `-- README.md                  # Project entry point
 ```
 
-Only the frontend and backend Slice 1 source trees are now populated. Other top-level boundaries remain empty until they gain real work; the intended layout is documented in [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
+The remaining top-level boundaries stay empty until their owning slices. The intended layout is documented in [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
 
 ## Documentation map
 
-| Document | Purpose |
-| --- | --- |
-| [PRD](docs/PRD.md) | Product vision, users, scope, journeys, outcomes, assumptions, and risks |
-| [Requirements](docs/requirements/REQUIREMENTS.md) | Traceable functional and non-functional requirements |
-| [Architecture](docs/architecture/ARCHITECTURE.md) | System boundaries, data flow, and architectural decisions |
-| [Database plan](docs/architecture/DATABASE_PLAN.md) | Conceptual data model, integrity, privacy, and migration approach |
-| [API plan](docs/api/API_PLAN.md) | Planned API resources, real-time events, and contract conventions |
-| [Security plan](docs/security/SECURITY_PLAN.md) | Threats, controls, privacy, and security verification |
-| [Test strategy](docs/testing/TEST_STRATEGY.md) | Test layers, environments, quality gates, and failure testing |
-| [Design system](docs/design/DESIGN_SYSTEM.md) | UX principles and provisional UI technology direction |
-| [Roadmap](docs/ROADMAP.md) | Sequenced phases and completion criteria |
-| [Phase 2 architecture](docs/architecture/TECHNICAL_ARCHITECTURE.md) | Implementation boundaries and links to detailed Phase 2 contracts |
-| [Phase 2 vertical slices](docs/ROADMAP_PHASE_2.md) | Dependency-oriented implementation handoff after approval |
+| Document                                                            | Purpose                                                                  |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| [PRD](docs/PRD.md)                                                  | Product vision, users, scope, journeys, outcomes, assumptions, and risks |
+| [Requirements](docs/requirements/REQUIREMENTS.md)                   | Traceable functional and non-functional requirements                     |
+| [Architecture](docs/architecture/ARCHITECTURE.md)                   | System boundaries, data flow, and architectural decisions                |
+| [Database plan](docs/architecture/DATABASE_PLAN.md)                 | Conceptual data model, integrity, privacy, and migration approach        |
+| [API plan](docs/api/API_PLAN.md)                                    | Planned API resources, real-time events, and contract conventions        |
+| [Security plan](docs/security/SECURITY_PLAN.md)                     | Threats, controls, privacy, and security verification                    |
+| [Test strategy](docs/testing/TEST_STRATEGY.md)                      | Test layers, environments, quality gates, and failure testing            |
+| [Design system](docs/design/DESIGN_SYSTEM.md)                       | UX principles and provisional UI technology direction                    |
+| [Roadmap](docs/ROADMAP.md)                                          | Sequenced phases and completion criteria                                 |
+| [Phase 2 architecture](docs/architecture/TECHNICAL_ARCHITECTURE.md) | Implementation boundaries and links to detailed Phase 2 contracts        |
+| [Phase 2 vertical slices](docs/ROADMAP_PHASE_2.md)                  | Dependency-oriented implementation handoff after approval                |
 
 Phase 1 product specifications: [personas](docs/requirements/PERSONAS.md), [user stories](docs/requirements/USER_STORIES.md), [use cases](docs/requirements/USE_CASES.md), [event lifecycle](docs/requirements/EVENT_LIFECYCLE.md), [role permissions](docs/requirements/ROLE_PERMISSION_MATRIX.md), [MVP scope](docs/requirements/MVP_SCOPE.md), [traceability](docs/requirements/TRACEABILITY.md), and [open product decisions](docs/requirements/OPEN_PRODUCT_DECISIONS.md).
 
@@ -110,17 +110,21 @@ The canonical phase numbering and exit criteria are maintained in the [roadmap](
 
 ## Development setup
 
-Slice 1 uses the installed Node.js 22.12.0/npm 10.9.0 convention and npm workspaces. It does not require Docker, PostgreSQL, Prisma, or an identity provider. The health check is **process liveness only**; it does not imply database/write readiness or any product capability.
+Slice 2 uses Node.js 22.12.0/npm 10.9.0, npm workspaces, and PostgreSQL 16 for the first persistence boundary. No external identity provider is used. `GET /health/live` remains process liveness only; `GET /health/ready` checks database access.
 
 1. From the repository root, run `npm ci` (or `npm install` when deliberately updating the lockfile).
-2. Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env`. The examples contain only the local port and origins. Real `.env` files are ignored by Git. The defaults use backend `http://127.0.0.1:3000` and frontend `http://127.0.0.1:5173`.
-3. In separate terminals, run `npm run dev:backend` and `npm run dev:frontend`. Open `http://127.0.0.1:5173`.
+2. Start a disposable local PostgreSQL 16 database. Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env`; fill in the local database URL and three independent randomly generated 32-byte hex keys. Real `.env` files are ignored by Git. The defaults use backend `http://127.0.0.1:3000` and frontend `http://127.0.0.1:5173`.
+3. Set `DATABASE_URL` in the root shell, run `npm run db:generate` and `npm run db:migrate`, then start `npm run dev:backend` and `npm run dev:frontend` in separate terminals. Open `http://127.0.0.1:5173`. Root database scripts do not read `backend/.env` automatically.
 
-`GET http://127.0.0.1:3000/health/live` returns only `status: alive` and an opaque correlation ID in the JSON body and `x-correlation-id` header. It is public and has no domain data. The frontend shows **Checking**, **Available**, or **Unavailable** for that process; if the backend stops, select **Retry check** to observe the unavailable state, then restart the backend and retry to see recovery. It does not poll automatically. A missing/invalid backend port or frontend origin fails startup with a safe configuration message; a missing/invalid `VITE_API_ORIGIN` leaves the frontend in the unavailable state. Only `VITE_API_ORIGIN` is browser-exposed; do not put secrets in any `VITE_` variable.
+`GET http://127.0.0.1:3000/health/live` reports process liveness, while `/health/ready` reports database reachability without connection details. The frontend retains the Slice 1 process check and adds minimal account/guest OTP proof. Account sign-in requires a verified contact already provisioned by the controlled bootstrap command; no public signup or event workflow exists. Email delivery requires local SMTP configuration. Phone delivery requires `SMS_GATEWAY_MODULE` set to an absolute local path to an operator-provided ESM module whose default export has an async `sendSms(destination, message)` method. The Android gateway's wire protocol remains outside this application boundary; without an adapter, phone challenges fail with a generic dependency-unavailable response for every contact. Challenge acceptance means pending delivery, not confirmed receipt. Do not use real contact data until retention, key management, and deployment controls are reviewed. Only `VITE_API_ORIGIN` is browser-exposed; never put secrets in a `VITE_` variable.
 
-From the root, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` run the local checks. `npm run format` formats only Slice 1 implementation files. A built backend can be started with `npm run start --workspace=backend` after setting its two environment variables; the development script loads the ignored `backend/.env` if present. GitHub Actions runs `npm ci` and the same checks. Stop each development process with Ctrl+C.
+From the root, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` run local checks. Set `TEST_DATABASE_URL` to a disposable migrated PostgreSQL database to include the integration suite; without it, only those integration tests skip. GitHub Actions provisions PostgreSQL, applies the migration, and runs the full suite. A built backend can be started with `npm run start --workspace=backend` after setting its environment variables; the development script loads the ignored `backend/.env` if present.
 
-The [Slice 1 plan](docs/implementation/SLICE_1_PLAN.md) defines the boundary: this is a developer/system bootstrap, **not** a user-facing Event Command Center screen. PostgreSQL and application readiness, role-scoped data, and product API routes begin only in later slices.
+Slice 2 routes under `/api/v1/auth` are `POST /account/challenge`, `POST /account/verify`, `POST /guest/challenge`, `POST /guest/verify`, `GET /guest/self`, `GET /me`, and `POST /logout`. Fixture-backed staff scope routes are `GET/POST /api/v1/events/:eventId/assignments`, `DELETE /api/v1/events/:eventId/assignments/:assignmentId`, and the minimal `GET /api/v1/events/:eventId/gates/:gateId/scope` authorization proof. These routes cannot create events or gates. Account JWTs are HttpOnly cookies backed by persisted Sessions; mutating authenticated routes require the current session's CSRF token from `/me` and the configured Origin. The controlled `npm run bootstrap --workspace=backend -- --confirm` command additionally requires `BOOTSTRAP_APPROVED=yes`, `BOOTSTRAP_CONTACT_TYPE`, `BOOTSTRAP_CONTACT_VALUE`, and `BOOTSTRAP_ORGANIZER=yes|no` in its environment; use only approved synthetic/local contacts during development.
+
+An existing user's Organizer capability can be changed only through the controlled `npm run capability --workspace=backend -- --confirm` command with `CAPABILITY_APPROVED=yes`, `CAPABILITY_USER_ID`, and `CAPABILITY_ENABLED=yes|no`. Both administrative commands require protected database/key configuration and write durable audit evidence atomically with the change; neither is a public API.
+
+The [Slice 2 plan](docs/implementation/SLICE_2_PLAN.md) defines the current boundary. The proof entry is not a complete Phase 1 product screen; registration, scanning, occupancy, alerts, forecasting, and certificates have not begun.
 
 ## Decision policy
 

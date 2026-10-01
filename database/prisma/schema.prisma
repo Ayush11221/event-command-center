@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ContactType {
+  EMAIL
+  PHONE
+}
+
+enum ProofPurpose {
+  ACCOUNT
+  GUEST_OWNERSHIP
+}
+
+enum StaffRole {
+  EVENT_ADMIN
+  GATE_SECURITY
+  VOLUNTEER
+}
+
+enum AuditActorKind {
+  ACCOUNT
+  GUEST
+  SYSTEM
+}
+
+model User {
+  id                    String                @id @default(uuid()) @db.Uuid
+  organizerCapable      Boolean               @default(false)
+  createdAt             DateTime              @default(now()) @db.Timestamptz(3)
+  contacts              VerifiedContact[]
+  sessions              Session[]
+  ownedEvents           Event[]               @relation("EventOwner")
+  assignments           EventRoleAssignment[] @relation("AssignmentTarget")
+  grantedAssignments    EventRoleAssignment[] @relation("AssignmentGrantActor")
+  revokedAssignments    EventRoleAssignment[] @relation("AssignmentRevokeActor")
+}
+
+model VerifiedContact {
+  id           String      @id @default(uuid()) @db.Uuid
+  userId       String      @db.Uuid
+  type         ContactType
+  lookupHash   String      @db.Char(64)
+  encrypted    String      @db.Text
+  verifiedAt   DateTime    @db.Timestamptz(3)
+  user         User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@unique([type, lookupHash])
+  @@index([userId])
+}
+
+model Session {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  expiresAt DateTime  @db.Timestamptz(3)
+  revokedAt DateTime? @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+}
+
+model OtpChallenge {
+  id                String       @id @default(uuid()) @db.Uuid
+  contactType       ContactType
+  contactLookupHash String       @db.Char(64)
+  purpose           ProofPurpose
+  contextEventId    String?      @db.Uuid
+  codeHash          String       @db.Char(64)
+  attempts          Int          @default(0)
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  expiresAt         DateTime     @db.Timestamptz(3)
+  lastSentAt        DateTime     @db.Timestamptz(3)
+  deliveredAt       DateTime?    @db.Timestamptz(3)
+  consumedAt        DateTime?    @db.Timestamptz(3)
+  lockedAt          DateTime?    @db.Timestamptz(3)
+
+  @@index([contactType, contactLookupHash, createdAt(sort: Desc)])
+}
+
+model Event {
+  id          String                @id @default(uuid()) @db.Uuid
+  ownerUserId String                @db.Uuid
+  state       String                @default("DRAFT") @db.VarChar(16)
+  createdAt   DateTime              @default(now()) @db.Timestamptz(3)
+  owner       User                  @relation("EventOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  gates       Gate[]
+  assignments EventRoleAssignment[]
+
+  @@index([ownerUserId])
+}
+
+model Gate {
+  id          String                @id @default(uuid()) @db.Uuid
+  eventId     String                @db.Uuid
+  event       Event                 @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  assignments EventRoleAssignment[] @relation("AssignmentGate")
+
+  @@unique([eventId, id])
+  @@index([eventId])
+}
+
+model EventRoleAssignment {
+  id              String    @id @default(uuid()) @db.Uuid
+  eventId         String    @db.Uuid
+  userId          String    @db.Uuid
+  role            StaffRole
+  gateId          String?   @db.Uuid
+  scopeKey        String    @db.VarChar(40)
+  grantedByUserId String    @db.Uuid
+  grantedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  revokedByUserId String?   @db.Uuid
+  revokedAt       DateTime? @db.Timestamptz(3)
+  event           Event     @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user            User      @relation("AssignmentTarget", fields: [userId], references: [id], onDelete: Restrict)
+  gate            Gate?     @relation("AssignmentGate", fields: [eventId, gateId], references: [eventId, id], onDelete: Restrict)
+  grantedBy       User      @relation("AssignmentGrantActor", fields: [grantedByUserId], references: [id], onDelete: Restrict)
+  revokedBy       User?     @relation("AssignmentRevokeActor", fields: [revokedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([userId, eventId, revokedAt])
+  @@index([eventId, role, revokedAt])
+  @@index([eventId, gateId, revokedAt])
+}
+
+model AuditEvent {
+  id            String         @id @default(uuid()) @db.Uuid
+  actorKind     AuditActorKind
+  actorUserId   String?        @db.Uuid
+  eventId       String?        @db.Uuid
+  targetUserId  String?        @db.Uuid
+  action        String         @db.VarChar(80)
+  outcome       String         @db.VarChar(24)
+  correlationId String         @db.VarChar(64)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  metadata      Json?
+
+  @@index([eventId, createdAt])
+  @@index([actorUserId, createdAt])
+}

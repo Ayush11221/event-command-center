@@ -11,20 +11,28 @@
     "backend",
     "frontend"
   ],
+  "overrides": {
+    "deepmerge-ts": "8.0.2",
+    "mysql2": "3.24.5"
+  },
   "scripts": {
     "dev:backend": "npm run dev --workspace=backend",
     "dev:frontend": "npm run dev --workspace=frontend",
-    "format": "prettier --write package.json backend frontend eslint.config.mjs .github/workflows/checks.yml",
-    "format:check": "prettier --check package.json backend frontend eslint.config.mjs .github/workflows/checks.yml",
-    "lint": "eslint backend/src frontend/src frontend/vite.config.ts",
+    "db:generate": "prisma generate --config database/prisma7.config.ts",
+    "db:migrate": "prisma migrate deploy --config database/prisma7.config.ts",
+    "format": "prettier --write package.json backend frontend database/prisma7.config.ts eslint.config.mjs .github/workflows/checks.yml",
+    "format:check": "prettier --check package.json backend frontend database/prisma7.config.ts eslint.config.mjs .github/workflows/checks.yml",
+    "lint": "eslint backend/src frontend/src frontend/vite.config.ts database/prisma7.config.ts",
     "typecheck": "npm run typecheck --workspace=backend && npm run typecheck --workspace=frontend",
     "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
     "build": "npm run build --workspace=backend && npm run build --workspace=frontend"
   },
   "devDependencies": {
     "@types/node": "22.20.4",
+    "@types/nodemailer": "7.0.7",
     "eslint": "9.39.5",
     "prettier": "3.9.9",
+    "prisma": "7.10.0",
     "typescript": "5.9.3",
     "typescript-eslint": "8.50.0",
     "vite": "8.3.1",

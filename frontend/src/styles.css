@@ -41,6 +41,33 @@ h2 {
   line-height: 1.5;
 }
 
+.proof-section {
+  margin-top: 24px;
+}
+.proof-section form {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+.proof-section label {
+  font-weight: 600;
+}
+.proof-section input,
+.proof-section select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #8998a8;
+  border-radius: 4px;
+  font: inherit;
+  background: #fff;
+  color: #17212b;
+}
+.proof-section input:focus-visible,
+.proof-section select:focus-visible {
+  outline: 3px solid #2367a8;
+  outline-offset: 2px;
+}
+
 .intro {
   margin: 0 0 32px;
   font-size: 16px;

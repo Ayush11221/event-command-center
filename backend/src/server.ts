@@ -1,11 +1,35 @@
 import { createApp } from "./app.js";
 import { parseConfig } from "./config/env.js";
 import { createLogger } from "./config/logger.js";
+import { createDatabase } from "./config/database.js";
+import { parseFoundationConfig } from "./config/foundation.js";
+import { OtpService } from "./modules/auth/otp.js";
+import { createOtpSender, loadSmsGateway } from "./modules/auth/sender.js";
+import { ContactType } from "@prisma/client";
 
-try {
+async function main() {
   const config = parseConfig(process.env);
+  const foundation = parseFoundationConfig(process.env);
   const logger = createLogger();
-  const app = createApp(config, logger);
+  const db = createDatabase(foundation.databaseUrl);
+  const smsGateway = foundation.smsGatewayModule
+    ? await loadSmsGateway(foundation.smsGatewayModule)
+    : undefined;
+  const sender = createOtpSender(foundation, smsGateway);
+  if (!sender.available(ContactType.PHONE)) {
+    logger.warn(
+      "Phone OTP delivery unavailable: SMS gateway is not configured",
+    );
+  }
+  const otp = new OtpService(db, foundation, sender, (message) => {
+    logger.warn(message);
+  });
+  const app = createApp(config, logger, {
+    db,
+    config: foundation,
+    otp,
+    frontendOrigin: config.frontendOrigin,
+  });
   const server = app.listen(config.port, "127.0.0.1", () => {
     logger.info("backend listening");
   });
@@ -17,14 +41,17 @@ try {
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, () => {
-      server.close(() => {
+      server.close(async () => {
+        await db.$disconnect();
         logger.info("backend stopped");
       });
     });
   }
-} catch (error) {
+}
+
+main().catch((error: unknown) => {
   const message =
     error instanceof Error ? error.message : "Invalid backend configuration";
   process.stderr.write(`${message}\n`);
   process.exitCode = 1;
-}
+});

@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { checkHealth } from "../services/health";
 import { App } from "./App";
@@ -19,9 +25,11 @@ describe("developer bootstrap", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Developer bootstrap",
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Checking API process",
-    );
+    expect(
+      within(screen.getByRole("region", { name: "API process" })).getByRole(
+        "status",
+      ),
+    ).toHaveTextContent("Checking API process");
     expect(screen.getByRole("button", { name: "Retry check" })).toBeDisabled();
     expect(
       screen.getByText(/Event Command Center is not implemented yet/),
@@ -35,7 +43,11 @@ describe("developer bootstrap", () => {
     });
     render(<App />);
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Available");
+    expect(
+      await within(
+        screen.getByRole("region", { name: "API process" }),
+      ).findByRole("status"),
+    ).toHaveTextContent("Available");
     expect(screen.getByRole("button", { name: "Retry check" })).toBeEnabled();
     expect(screen.getByText(/does not verify a database/)).toBeVisible();
   });
@@ -48,7 +60,11 @@ describe("developer bootstrap", () => {
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Unavailable");
     fireEvent.click(screen.getByRole("button", { name: "Retry check" }));
-    expect(await screen.findByRole("status")).toHaveTextContent("Available");
+    expect(
+      await within(
+        screen.getByRole("region", { name: "API process" }),
+      ).findByRole("status"),
+    ).toHaveTextContent("Available");
     expect(checkHealth).toHaveBeenCalledTimes(2);
   });
 });

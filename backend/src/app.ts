@@ -2,10 +2,18 @@ import cors from "cors";
 import express from "express";
 import type { Logger } from "pino";
 import type { AppConfig } from "./config/env.js";
+import type { AuthDependencies } from "./modules/auth/http.js";
+import { authRouter } from "./modules/auth/http.js";
+import { ApiError } from "./modules/auth/errors.js";
+import { staffRouter } from "./modules/staff/http.js";
 import { correlation } from "./middleware/correlation.js";
 import { healthRouter } from "./routes/health.js";
 
-export function createApp(config: AppConfig, logger: Logger) {
+export function createApp(
+  config: AppConfig,
+  logger: Logger,
+  foundation?: AuthDependencies,
+) {
   const app = express();
   app.disable("x-powered-by");
 
@@ -14,8 +22,9 @@ export function createApp(config: AppConfig, logger: Logger) {
     cors({
       origin: (origin, callback) =>
         callback(null, origin === config.frontendOrigin),
-      methods: ["GET"],
-      allowedHeaders: ["X-Correlation-Id"],
+      methods: ["GET", "POST", "DELETE"],
+      allowedHeaders: ["Content-Type", "X-Correlation-Id", "X-CSRF-Token"],
+      credentials: true,
     }),
   );
   app.use((request, response, next) => {
@@ -34,6 +43,26 @@ export function createApp(config: AppConfig, logger: Logger) {
   });
 
   app.use("/health", healthRouter());
+  if (foundation) {
+    app.use(express.json({ limit: "16kb", strict: true }));
+    app.get("/health/ready", async (_request, response) => {
+      try {
+        await foundation.db.$queryRaw`SELECT 1`;
+        response.json({
+          status: "ready",
+          correlation_id: response.locals.correlationId,
+        });
+      } catch {
+        response.status(503).json({
+          code: "DEPENDENCY_UNAVAILABLE",
+          message: "Service unavailable",
+          correlation_id: response.locals.correlationId,
+        });
+      }
+    });
+    app.use("/api/v1/auth", authRouter(foundation));
+    app.use("/api/v1/events", staffRouter(foundation));
+  }
   app.use((_request, response) => {
     response.status(404).json({
       code: "NOT_FOUND",
@@ -41,6 +70,36 @@ export function createApp(config: AppConfig, logger: Logger) {
       correlation_id: response.locals.correlationId as string,
     });
   });
+
+  app.use(
+    (
+      error: unknown,
+      _request: express.Request,
+      response: express.Response,
+      _next: express.NextFunction,
+    ) => {
+      void _next;
+      if (response.headersSent) return;
+      const known =
+        error instanceof ApiError
+          ? error
+          : error instanceof SyntaxError &&
+              "status" in error &&
+              error.status === 400
+            ? new ApiError(400, "VALIDATION", "Invalid JSON body")
+            : undefined;
+      if (!known)
+        logger.error(
+          { correlation_id: response.locals.correlationId },
+          "request failed",
+        );
+      response.status(known?.status ?? 500).json({
+        code: known?.code ?? "INTERNAL_ERROR",
+        message: known?.message ?? "Request failed",
+        correlation_id: response.locals.correlationId,
+      });
+    },
+  );
 
   return app;
 }
