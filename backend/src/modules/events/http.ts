@@ -3,7 +3,11 @@ import type { AuthDependencies } from "../auth/http.js";
 import { authenticate, requireCsrf } from "../auth/http.js";
 import { accountActor } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
-import { createDraftEvent, listManagementEvents } from "./service.js";
+import {
+  createDraftEvent,
+  getManagementEvent,
+  listManagementEvents,
+} from "./service.js";
 import {
   parseCreateDraftBody,
   parseCreateDraftKey,
@@ -73,6 +77,28 @@ export function eventRouter(deps: AuthDependencies) {
           response.locals.correlationId as string,
         );
       }
+      throw error;
+    }
+  });
+
+  router.get("/:eventId", async (request, response) => {
+    const actor = await authenticate(request, deps);
+    try {
+      response.setHeader("Cache-Control", "no-store");
+      response.json(
+        await getManagementEvent(
+          deps,
+          actor.userId,
+          request.params.eventId,
+          response.locals.correlationId as string,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404)
+        await auditForbidden(
+          actor.userId,
+          response.locals.correlationId as string,
+        );
       throw error;
     }
   });

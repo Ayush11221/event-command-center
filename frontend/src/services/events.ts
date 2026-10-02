@@ -26,6 +26,50 @@ export interface DraftResponse {
   correlation_id: string;
 }
 
+export interface ManagementDetail extends Omit<
+  ManagementEvent,
+  "relationship"
+> {
+  description: string | null;
+  visibility: "PUBLIC" | "PRIVATE" | null;
+  public_location: string | null;
+  image_url: string | null;
+  category: string | null;
+  tags: string[];
+  registration_capacity: number | null;
+  registration_opens_at: string | null;
+  registration_closes_at: string | null;
+  registration_cancellation_cutoff_at: string | null;
+  registration_manually_closed: boolean;
+  checkout_enabled: boolean;
+  gates: { gate_id: string; event_id: string }[];
+  readiness: {
+    configured_gate_present: boolean;
+    publish_blockers: string[];
+    live_blockers: string[];
+  };
+  availability: {
+    policy_status: "OPEN" | "CLOSED";
+    reasons: ("NOT_OPEN_YET" | "SCHEDULED_CLOSE_REACHED" | "MANUALLY_CLOSED")[];
+    opens_at: string | null;
+    closes_at: string | null;
+    as_of: string;
+  };
+  permitted_actions: string[];
+  revision: number;
+  as_of: string;
+  correlation_id: string;
+}
+
+export function getEventDetail(
+  eventId: string,
+  signal?: AbortSignal,
+): Promise<ManagementDetail> {
+  return eventRequest<ManagementDetail>(`/${encodeURIComponent(eventId)}`, {
+    signal,
+  });
+}
+
 export class EventApiError extends Error {
   constructor(
     public readonly code: string,

@@ -1,13 +1,24 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { listAllEvents, type ManagementEvent } from "../services/events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  EventApiError,
+  getEventDetail,
+  listAllEvents,
+  type ManagementEvent,
+} from "../services/events";
+import { eventDetailFixture } from "../test/event-fixture";
 import { currentActor, type ActorState } from "../services/proof";
 import { Workspace } from "./Workspace";
 
 vi.mock("../services/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/events")>();
-  return { ...actual, listAllEvents: vi.fn(), createDraft: vi.fn() };
+  return {
+    ...actual,
+    listAllEvents: vi.fn(),
+    createDraft: vi.fn(),
+    getEventDetail: vi.fn(),
+  };
 });
 vi.mock("../services/proof", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/proof")>();
@@ -30,6 +41,10 @@ const owned: ManagementEvent = {
   relationship: "owned",
 };
 const assigned: ManagementEvent = { ...owned, relationship: "assigned" };
+
+beforeEach(() =>
+  vi.mocked(getEventDetail).mockResolvedValue(eventDetailFixture()),
+);
 
 afterEach(() => {
   cleanup();
@@ -132,5 +147,116 @@ describe("authenticated Event workspace", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry event list" }));
     expect(await screen.findByText("No owned events yet")).toBeVisible();
+  });
+
+  it("shows only assigned events for Admin, supports detail navigation and preserves role limits", async () => {
+    const admin: ActorState = {
+      ...actor,
+      organizer_capable: false,
+      assignments: [
+        { id: "a", event_id: "one", role: "EVENT_ADMIN", gate_id: null },
+      ],
+    };
+    vi.mocked(currentActor).mockResolvedValue(admin);
+    vi.mocked(listAllEvents).mockResolvedValue([assigned]);
+    render(
+      <Workspace
+        initialActor={admin}
+        onSessionExpired={vi.fn()}
+        onSignedOut={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Assigned events" }),
+    ).toBeVisible();
+    expect(listAllEvents).toHaveBeenCalledWith("assigned");
+    expect(listAllEvents).not.toHaveBeenCalledWith("owned");
+    expect(
+      screen.queryByRole("button", { name: "Create Draft" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Event setup" }));
+    expect(
+      await screen.findByRole("heading", { name: "Owned draft" }),
+    ).toBeVisible();
+    expect(getEventDetail).toHaveBeenCalledWith("one", expect.any(AbortSignal));
+    expect(
+      screen.queryByRole("button", {
+        name: /publish|cancel|live|capacity|edit|gate|certificate/i,
+      }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Assigned events" }));
+    expect(
+      await screen.findByRole("heading", { name: "Assigned events" }),
+    ).toBeVisible();
+  });
+
+  it("shows assigned-list loading, retry and empty states without restoring a stale context", async () => {
+    const admin: ActorState = {
+      ...actor,
+      organizer_capable: false,
+      assignments: [
+        { id: "a", event_id: "one", role: "EVENT_ADMIN", gate_id: null },
+      ],
+    };
+    localStorage.setItem(
+      "eoc.active_context.v1",
+      JSON.stringify({ eventId: "one", relationship: "assigned" }),
+    );
+    vi.mocked(currentActor).mockResolvedValue(admin);
+    vi.mocked(listAllEvents)
+      .mockRejectedValueOnce(new EventApiError("DEPENDENCY_UNAVAILABLE", 503))
+      .mockResolvedValueOnce([]);
+    render(
+      <Workspace
+        initialActor={admin}
+        onSessionExpired={vi.fn()}
+        onSignedOut={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Loading authorized events",
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "could not be loaded",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry event list" }));
+    expect(await screen.findByText("No assigned events.")).toBeVisible();
+    expect(localStorage.getItem("eoc.active_context.v1")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Event setup" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("refreshes contexts after detail concealment and removes the lost Event data", async () => {
+    const admin: ActorState = {
+      ...actor,
+      organizer_capable: false,
+      assignments: [
+        { id: "a", event_id: "one", role: "EVENT_ADMIN", gate_id: null },
+      ],
+    };
+    vi.mocked(currentActor)
+      .mockResolvedValueOnce(admin)
+      .mockResolvedValue({ ...admin, assignments: [] });
+    vi.mocked(listAllEvents).mockResolvedValue([assigned]);
+    vi.mocked(getEventDetail).mockRejectedValue(
+      new EventApiError("EVENT_NOT_FOUND", 404),
+    );
+    render(
+      <Workspace
+        initialActor={admin}
+        onSessionExpired={vi.fn()}
+        onSignedOut={vi.fn()}
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Assigned events" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Event setup" }));
+    expect(
+      await screen.findByRole("heading", { name: "No event context" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Owned draft")).not.toBeInTheDocument();
+    expect(localStorage.getItem("eoc.active_context.v1")).toBeNull();
   });
 });

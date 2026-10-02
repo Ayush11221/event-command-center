@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Writable } from "node:stream";
 import { StaffRole } from "@prisma/client";
 import request from "supertest";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../app.js";
 import { createDatabase } from "../../config/database.js";
 import type { FoundationConfig } from "../../config/foundation.js";
@@ -342,6 +342,317 @@ describe.skipIf(!databaseUrl)("Slice 3 V2 Event API", () => {
         `DROP TRIGGER "${triggerName}" ON "AuditEvent"`,
       );
       await db.$executeRawUnsafe(`DROP FUNCTION "${functionName}"()`);
+    }
+  });
+
+  it("V3 conceals absent, malformed, cross-event and non-Admin detail with audited denial", async () => {
+    const owner = await actor(true);
+    const outsider = await actor(true);
+    const event = await db.event.create({
+      data: { name: "Confidential configuration", ownerUserId: owner.id },
+    });
+    expect((await request(app).get(`/api/v1/events/${event.id}`)).status).toBe(
+      401,
+    );
+    for (const id of [event.id, randomUUID(), "malformed"]) {
+      const response = await request(app)
+        .get(`/api/v1/events/${id}?role=Organizer`)
+        .set("Cookie", outsider.cookie);
+      expect(response.status).toBe(404);
+      expect(response.body).toMatchObject({
+        code: "EVENT_NOT_FOUND",
+        message: "Event not found",
+      });
+      expect(response.body).not.toHaveProperty("event_id");
+    }
+    for (const role of [StaffRole.VOLUNTEER, StaffRole.GATE_SECURITY]) {
+      const staff = await actor(false);
+      const gate =
+        role === StaffRole.GATE_SECURITY
+          ? await db.gate.create({ data: { eventId: event.id } })
+          : null;
+      await db.eventRoleAssignment.create({
+        data: {
+          eventId: event.id,
+          userId: staff.id,
+          role,
+          gateId: gate?.id,
+          scopeKey: gate?.id ?? "EVENT",
+          grantedByUserId: owner.id,
+        },
+      });
+      expect(
+        (
+          await request(app)
+            .get(`/api/v1/events/${event.id}`)
+            .set("Cookie", staff.cookie)
+        ).status,
+      ).toBe(404);
+    }
+    expect(
+      await db.auditEvent.count({
+        where: { actorUserId: outsider.id, action: "EVENT_ACTION_DENIED" },
+      }),
+    ).toBe(3);
+  });
+
+  it("V3 returns only management fields, scoped gates and role-limited guidance without PRIVATE secrets", async () => {
+    const owner = await actor(true);
+    const admin = await actor(false);
+    const event = await db.event.create({
+      data: {
+        name: "Assigned detail",
+        ownerUserId: owner.id,
+        visibility: "PRIVATE",
+        registrationCapacity: 100,
+        revision: 3,
+      },
+    });
+    const gate = await db.gate.create({ data: { eventId: event.id } });
+    await db.eventRoleAssignment.create({
+      data: {
+        eventId: event.id,
+        userId: admin.id,
+        role: "EVENT_ADMIN",
+        scopeKey: "EVENT",
+        grantedByUserId: owner.id,
+      },
+    });
+    const verifier = randomUUID().replaceAll("-", "").repeat(2);
+    await db.privateAccessLink.create({
+      data: { eventId: event.id, verifierHash: verifier },
+    });
+    for (const [user, actions] of [
+      [owner, ["EDIT_EVENT", "CREATE_GATE", "CANCEL"]],
+      [admin, ["EDIT_EVENT", "CREATE_GATE"]],
+    ] as const) {
+      const response = await request(app)
+        .get(`/api/v1/events/${event.id}`)
+        .set("Cookie", user.cookie)
+        .set("If-Match", '"1"');
+      expect(response.status).toBe(200);
+      expect(response.headers["cache-control"]).toBe("no-store");
+      expect(response.body).toMatchObject({
+        event_id: event.id,
+        revision: 3,
+        visibility: "PRIVATE",
+        registration_capacity: 100,
+        permitted_actions: [...actions],
+        gates: [{ gate_id: gate.id, event_id: event.id }],
+        readiness: { configured_gate_present: true },
+      });
+      expect(Object.keys(response.body).sort()).toEqual(
+        [
+          "event_id",
+          "name",
+          "description",
+          "state",
+          "visibility",
+          "public_location",
+          "image_url",
+          "category",
+          "tags",
+          "start_at",
+          "end_at",
+          "time_zone",
+          "registration_capacity",
+          "registration_opens_at",
+          "registration_closes_at",
+          "registration_cancellation_cutoff_at",
+          "registration_manually_closed",
+          "checkout_enabled",
+          "gates",
+          "readiness",
+          "availability",
+          "permitted_actions",
+          "revision",
+          "as_of",
+          "correlation_id",
+        ].sort(),
+      );
+      expect(JSON.stringify(response.body)).not.toContain(verifier);
+    }
+  });
+
+  it("V3 rechecks assignment, session and Organizer capability on the next detail request", async () => {
+    const owner = await actor(true);
+    const admin = await actor(false);
+    const event = await db.event.create({
+      data: { name: "Revocable detail", ownerUserId: owner.id },
+    });
+    const assignment = await db.eventRoleAssignment.create({
+      data: {
+        eventId: event.id,
+        userId: admin.id,
+        role: "EVENT_ADMIN",
+        scopeKey: "EVENT",
+        grantedByUserId: owner.id,
+      },
+    });
+    const read = (cookie: string) =>
+      request(app).get(`/api/v1/events/${event.id}`).set("Cookie", cookie);
+    expect((await read(admin.cookie)).status).toBe(200);
+    await db.eventRoleAssignment.update({
+      where: { id: assignment.id },
+      data: { revokedAt: new Date(), revokedByUserId: owner.id },
+    });
+    expect((await read(admin.cookie)).status).toBe(404);
+    await db.user.update({
+      where: { id: owner.id },
+      data: { organizerCapable: false },
+    });
+    expect((await read(owner.cookie)).status).toBe(404);
+    await db.session.updateMany({
+      where: { userId: admin.id },
+      data: { revokedAt: new Date() },
+    });
+    expect((await read(admin.cookie)).status).toBe(401);
+  });
+
+  it("V3 returns configuration-derived availability separately from every lifecycle state", async () => {
+    const owner = await actor(true);
+    const admin = await actor(false);
+    const event = await db.event.create({
+      data: { name: "Availability detail", ownerUserId: owner.id },
+    });
+    await db.eventRoleAssignment.create({
+      data: {
+        eventId: event.id,
+        userId: admin.id,
+        role: "EVENT_ADMIN",
+        scopeKey: "EVENT",
+        grantedByUserId: owner.id,
+      },
+    });
+    const future = new Date(Date.now() + 86_400_000);
+    const past = new Date(Date.now() - 86_400_000);
+    for (const state of [
+      "DRAFT",
+      "PUBLISHED",
+      "LIVE",
+      "COMPLETED",
+      "CANCELLED",
+    ] as const) {
+      for (const [configuration, reasons] of [
+        [
+          {
+            registrationOpensAt: null,
+            registrationClosesAt: null,
+            startAt: future,
+            registrationManuallyClosed: false,
+          },
+          [],
+        ],
+        [
+          {
+            registrationOpensAt: future,
+            registrationClosesAt: null,
+            startAt: null,
+            registrationManuallyClosed: false,
+          },
+          ["NOT_OPEN_YET"],
+        ],
+        [
+          {
+            registrationOpensAt: null,
+            registrationClosesAt: null,
+            startAt: past,
+            registrationManuallyClosed: false,
+          },
+          ["SCHEDULED_CLOSE_REACHED"],
+        ],
+        [
+          {
+            registrationOpensAt: null,
+            registrationClosesAt: past,
+            startAt: future,
+            registrationManuallyClosed: true,
+          },
+          ["SCHEDULED_CLOSE_REACHED", "MANUALLY_CLOSED"],
+        ],
+      ] as const) {
+        await db.event.update({
+          where: { id: event.id },
+          data: {
+            state,
+            ...configuration,
+            endAt: configuration.startAt
+              ? new Date(configuration.startAt.getTime() + 3_600_000)
+              : null,
+          },
+        });
+        for (const cookie of [owner.cookie, admin.cookie]) {
+          const response = await request(app)
+            .get(`/api/v1/events/${event.id}`)
+            .set("Cookie", cookie);
+          expect(response.status).toBe(200);
+          expect(response.body.state).toBe(state);
+          expect(response.body.availability).toEqual({
+            policy_status: reasons.length ? "CLOSED" : "OPEN",
+            reasons: [...reasons],
+            opens_at: configuration.registrationOpensAt?.toISOString() ?? null,
+            closes_at:
+              (
+                configuration.registrationClosesAt ?? configuration.startAt
+              )?.toISOString() ?? null,
+            as_of: response.body.as_of,
+          });
+        }
+      }
+    }
+  });
+
+  it("V3 keeps dual owner/Admin relationships valid without trusting the selected client role", async () => {
+    const owner = await actor(true);
+    const event = await db.event.create({
+      data: { name: "Dual context", ownerUserId: owner.id },
+    });
+    await db.eventRoleAssignment.create({
+      data: {
+        eventId: event.id,
+        userId: owner.id,
+        role: "EVENT_ADMIN",
+        scopeKey: "EVENT",
+        grantedByUserId: owner.id,
+      },
+    });
+    for (const view of ["owned", "assigned"]) {
+      const response = await request(app)
+        .get(`/api/v1/events?view=${view}`)
+        .set("Cookie", owner.cookie);
+      expect(response.status).toBe(200);
+      expect(response.body.items).toEqual([
+        expect.objectContaining({ event_id: event.id, relationship: view }),
+      ]);
+    }
+    expect(
+      (
+        await request(app)
+          .get(`/api/v1/events/${event.id}?role=EVENT_ADMIN`)
+          .set("Cookie", owner.cookie)
+      ).body.permitted_actions,
+    ).toContain("CANCEL");
+  });
+  it("V3 returns safe dependency errors without exposing Event data", async () => {
+    const owner = await actor(true);
+    const failed = vi
+      .spyOn(db.event, "findFirst")
+      .mockRejectedValueOnce(new Error("private storage failure"));
+    try {
+      const response = await request(app)
+        .get(`/api/v1/events/${randomUUID()}`)
+        .set("Cookie", owner.cookie);
+      expect(response.status).toBe(503);
+      expect(response.body).toMatchObject({
+        code: "DEPENDENCY_UNAVAILABLE",
+        retryable: true,
+      });
+      expect(response.body).not.toHaveProperty("event_id");
+      expect(JSON.stringify(response.body)).not.toContain(
+        "private storage failure",
+      );
+    } finally {
+      failed.mockRestore();
     }
   });
 });

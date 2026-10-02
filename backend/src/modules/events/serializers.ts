@@ -1,4 +1,6 @@
 import type { Event, Gate } from "@prisma/client";
+import { managementAvailability } from "./availability.js";
+import { managementActions } from "./policy.js";
 
 export type ManagementListEvent = Pick<
   Event,
@@ -22,11 +24,12 @@ export function managementListItem(
   };
 }
 
-export function managementDraftDetail(
+export function managementDetail(
   event: Event,
   gates: Pick<Gate, "id" | "eventId">[],
   asOf: Date,
   correlationId: string,
+  owner: boolean,
 ) {
   const configuredGatePresent = gates.length > 0;
   const publishBlockers = [
@@ -63,14 +66,8 @@ export function managementDraftDetail(
       publish_blockers: publishBlockers,
       live_blockers: configuredGatePresent ? [] : ["CONFIGURED_GATE_REQUIRED"],
     },
-    availability: {
-      policy_status: "OPEN",
-      reasons: [],
-      opens_at: timestamp(event.registrationOpensAt),
-      closes_at: timestamp(event.registrationClosesAt ?? event.startAt),
-      as_of: asOf.toISOString(),
-    },
-    permitted_actions: ["EDIT_EVENT", "CREATE_GATE", "CANCEL"],
+    availability: managementAvailability(event, asOf),
+    permitted_actions: managementActions(event.state, owner),
     revision: event.revision,
     as_of: asOf.toISOString(),
     correlation_id: correlationId,

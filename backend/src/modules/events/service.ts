@@ -4,7 +4,8 @@ import { accountActor, recordAudit } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
 import { executeIdempotentCommand } from "./command-safety.js";
 import { decodeEventCursor, encodeEventCursor } from "./cursor.js";
-import { managementDraftDetail, managementListItem } from "./serializers.js";
+import { managementDetail, managementListItem } from "./serializers.js";
+import { managementEventScope } from "./policy.js";
 import type { EventListQuery } from "./validation.js";
 
 export async function listManagementEvents(
@@ -152,9 +153,45 @@ export async function createDraftEvent(
         });
         return {
           status: 201,
-          body: managementDraftDetail(event, [], new Date(), correlationId),
+          body: managementDetail(event, [], new Date(), correlationId, true),
         };
       },
+    );
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw unavailable();
+  }
+}
+
+export async function getManagementEvent(
+  deps: AuthDependencies,
+  actorUserId: string,
+  eventId: string,
+  correlationId: string,
+) {
+  const notFound = () =>
+    new ApiError(404, "EVENT_NOT_FOUND", "Event not found");
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      eventId,
+    )
+  )
+    throw notFound();
+  try {
+    const event = await deps.db.event.findFirst({
+      where: { id: eventId, ...managementEventScope(actorUserId) },
+      include: {
+        gates: { select: { id: true, eventId: true } },
+        owner: { select: { organizerCapable: true } },
+      },
+    });
+    if (!event) throw notFound();
+    return managementDetail(
+      event,
+      event.gates,
+      new Date(),
+      correlationId,
+      event.ownerUserId === actorUserId && event.owner.organizerCapable,
     );
   } catch (error) {
     if (error instanceof ApiError) throw error;

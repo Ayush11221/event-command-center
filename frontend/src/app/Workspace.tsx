@@ -19,6 +19,7 @@ import {
   type EventContext,
 } from "./contexts";
 import { CreateDraftForm } from "./CreateDraftForm";
+import { EventDetail } from "./EventDetail";
 
 interface Props {
   initialActor: ActorState;
@@ -32,6 +33,7 @@ type WorkspaceState =
   | {
       phase: "ready";
       owned: ManagementEvent[];
+      assigned: ManagementEvent[];
       contexts: EventContext[];
       selected: EventContext | null;
       asOf: string;
@@ -68,7 +70,13 @@ export function Workspace({
   });
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
+  const [detailOpen, setDetailOpen] = useState(false);
   const generation = useRef(0);
+
+  const expireSession = useCallback(() => {
+    rememberContext(null);
+    onSessionExpired();
+  }, [onSessionExpired]);
 
   const reload = useCallback(
     async (
@@ -98,6 +106,7 @@ export function Workspace({
         setWorkspace({
           phase: "ready",
           owned,
+          assigned,
           contexts,
           selected,
           asOf: new Date().toISOString(),
@@ -109,7 +118,7 @@ export function Workspace({
           error.status === 401
         ) {
           rememberContext(null);
-          onSessionExpired();
+          expireSession();
           return;
         }
         const reference =
@@ -122,7 +131,7 @@ export function Workspace({
         });
       }
     },
-    [onSessionExpired],
+    [expireSession],
   );
 
   useEffect(() => {
@@ -148,8 +157,7 @@ export function Workspace({
       await logout(actor.csrf_token);
       onSignedOut();
     } catch (error) {
-      if (error instanceof ProofError && error.status === 401)
-        onSessionExpired();
+      if (error instanceof ProofError && error.status === 401) expireSession();
       else
         setSignOutError(
           "Sign out could not be confirmed. Check your connection and retry.",
@@ -164,6 +172,12 @@ export function Workspace({
     workspace.phase === "ready" &&
     (selected?.relationship === "owned" ||
       (!selected && actor.organizer_capable));
+
+  const onScopeLost = useCallback(() => {
+    rememberContext(null);
+    setDetailOpen(false);
+    void reload(null);
+  }, [reload]);
 
   return (
     <>
@@ -255,32 +269,87 @@ export function Workspace({
           </div>
         ) : (
           <>
+            {(selected || actor.organizer_capable) && (
+              <nav className="workspace-nav" aria-label="Workspace navigation">
+                <button
+                  type="button"
+                  className="text-button"
+                  aria-current={!detailOpen ? "page" : undefined}
+                  onClick={() => setDetailOpen(false)}
+                >
+                  {showOwned ? "Owned events" : "Assigned events"}
+                </button>
+                {selected && (
+                  <button
+                    type="button"
+                    className="text-button"
+                    aria-current={detailOpen ? "page" : undefined}
+                    onClick={() => setDetailOpen(true)}
+                  >
+                    Event setup
+                  </button>
+                )}
+                {showOwned && (
+                  <a href="#create-draft" onClick={() => setDetailOpen(false)}>
+                    Create Draft
+                  </a>
+                )}
+              </nav>
+            )}
             {workspace.contexts.length === 0 && !actor.organizer_capable && (
               <section className="notice" aria-label="No event context">
                 <h2>No event context</h2>
                 <p>You do not currently have an Event management assignment.</p>
               </section>
             )}
-            {selected?.relationship === "assigned" && (
+            {selected?.relationship === "assigned" && !detailOpen && (
               <section className="notice" aria-label="Event Admin context">
-                <h2>{selected.name}</h2>
+                <h2>Assigned events</h2>
                 <p>
-                  Event Admin context. No management actions are available in
-                  this workspace yet.
+                  Events you are currently authorized to manage as Event Admin.
                 </p>
+                <ul className="event-list">
+                  {workspace.assigned.map((event) => (
+                    <li key={event.event_id}>
+                      <button
+                        type="button"
+                        className="event-row"
+                        onClick={() => {
+                          setDetailOpen(true);
+                          void reload({
+                            eventId: event.event_id,
+                            relationship: "assigned",
+                          });
+                        }}
+                      >
+                        <span className="event-row-title">{event.name}</span>
+                        <span className="event-row-date">
+                          {schedule(event)}
+                        </span>
+                        <span
+                          className={`state-pill state-${event.state.toLowerCase()}`}
+                        >
+                          {stateLabel(event.state)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </section>
             )}
-            {showOwned && (
+            {workspace.assigned.length === 0 &&
+              !actor.organizer_capable &&
+              !detailOpen && <p className="empty-state">No assigned events.</p>}
+            {detailOpen && selected && (
+              <EventDetail
+                key={contextKey(selected)}
+                context={selected}
+                onSessionExpired={expireSession}
+                onScopeLost={onScopeLost}
+              />
+            )}
+            {showOwned && !detailOpen && (
               <>
-                <nav
-                  className="workspace-nav"
-                  aria-label="Workspace navigation"
-                >
-                  <a href="#owned-events" aria-current="page">
-                    Owned events
-                  </a>
-                  <a href="#create-draft">Create Draft</a>
-                </nav>
                 <section
                   id="owned-events"
                   className="event-section"

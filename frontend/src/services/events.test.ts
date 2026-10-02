@@ -1,5 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createDraft, EventApiError, listAllEvents } from "./events";
+import {
+  createDraft,
+  EventApiError,
+  getEventDetail,
+  listAllEvents,
+} from "./events";
 
 beforeEach(() => vi.stubEnv("VITE_API_ORIGIN", "http://127.0.0.1:3000"));
 afterEach(() => {
@@ -8,6 +13,26 @@ afterEach(() => {
 });
 
 describe("scoped Event API client", () => {
+  it("reads management detail with cookies and no client role or revision claim", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ event_id: "one", revision: 3 }),
+    });
+    vi.stubGlobal("fetch", fetcher);
+    expect(await getEventDetail("one")).toMatchObject({
+      event_id: "one",
+      revision: 3,
+    });
+    const [url, options] = fetcher.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/events/one");
+    expect(url.search).toBe("");
+    expect(options).toMatchObject({
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+      headers: {},
+    });
+  });
   it("follows cursor pages and sends account cookies without a client role claim", async () => {
     const fetcher = vi
       .fn()

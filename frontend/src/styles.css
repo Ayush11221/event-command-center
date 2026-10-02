@@ -339,6 +339,27 @@ p {
 .workspace-nav a[aria-current="page"] {
   border-bottom: 3px solid var(--action);
 }
+.workspace-nav button[aria-current="page"] {
+  border-bottom: 3px solid var(--action);
+  border-radius: 0;
+}
+.event-detail-fields {
+  margin: 24px 0;
+}
+.event-detail-fields > div {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) minmax(0, 2fr);
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.event-detail-fields dt {
+  font-weight: 650;
+}
+.event-detail-fields dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 .section-heading {
   max-width: 680px;
 }
