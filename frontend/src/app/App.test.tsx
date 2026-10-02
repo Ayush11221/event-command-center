@@ -1,70 +1,63 @@
 import "@testing-library/jest-dom/vitest";
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  within,
-} from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { checkHealth } from "../services/health";
+import { currentActor, ProofError } from "../services/proof";
 import { App } from "./App";
 
-vi.mock("../services/health", () => ({ checkHealth: vi.fn() }));
+vi.mock("../services/proof", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/proof")>();
+  return { ...actual, currentActor: vi.fn() };
+});
+vi.mock("./Workspace", () => ({
+  Workspace: () => <p>Authorized workspace</p>,
+}));
 
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  localStorage.clear();
 });
 
-describe("developer bootstrap", () => {
-  it("shows a semantic loading state without claiming product readiness", () => {
-    vi.mocked(checkHealth).mockReturnValue(new Promise(() => {}));
+describe("application entry", () => {
+  it("waits for a verified session before showing the workspace", () => {
+    vi.mocked(currentActor).mockReturnValue(new Promise(() => {}));
     render(<App />);
-
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Developer bootstrap",
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Checking your session",
     );
+    expect(screen.queryByText("Authorized workspace")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Appearance")).toBeVisible();
+  });
+
+  it("shows the account entry for an expired session", async () => {
+    vi.mocked(currentActor).mockRejectedValue(
+      new ProofError("UNAUTHENTICATED", 401),
+    );
+    render(<App />);
     expect(
-      within(screen.getByRole("region", { name: "API process" })).getByRole(
-        "status",
-      ),
-    ).toHaveTextContent("Checking API process");
-    expect(screen.getByRole("button", { name: "Retry check" })).toBeDisabled();
-    expect(
-      screen.getByText(/Event Command Center is not implemented yet/),
+      await screen.findByRole("heading", {
+        name: /Sign in to your event workspace/,
+      }),
     ).toBeVisible();
+    expect(screen.queryByText("Authorized workspace")).not.toBeInTheDocument();
   });
 
-  it("shows available after the API responds", async () => {
-    vi.mocked(checkHealth).mockResolvedValue({
-      status: "alive",
-      correlation_id: "test-id",
-    });
+  it("offers retry when session status is unknown", async () => {
+    vi.mocked(currentActor)
+      .mockRejectedValueOnce(new Error("network"))
+      .mockResolvedValueOnce({
+        user_id: "u",
+        organizer_capable: true,
+        assignments: [],
+        csrf_token: "csrf",
+      });
     render(<App />);
-
-    expect(
-      await within(
-        screen.getByRole("region", { name: "API process" }),
-      ).findByRole("status"),
-    ).toHaveTextContent("Available");
-    expect(screen.getByRole("button", { name: "Retry check" })).toBeEnabled();
-    expect(screen.getByText(/does not verify a database/)).toBeVisible();
-  });
-
-  it("shows unavailable and recovers on retry", async () => {
-    vi.mocked(checkHealth)
-      .mockRejectedValueOnce(new Error("network unavailable"))
-      .mockResolvedValueOnce({ status: "alive", correlation_id: "retry-id" });
-    render(<App />);
-
-    expect(await screen.findByRole("alert")).toHaveTextContent("Unavailable");
-    fireEvent.click(screen.getByRole("button", { name: "Retry check" }));
-    expect(
-      await within(
-        screen.getByRole("region", { name: "API process" }),
-      ).findByRole("status"),
-    ).toHaveTextContent("Available");
-    expect(checkHealth).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "could not be checked",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Retry session check" }),
+    );
+    expect(await screen.findByText("Authorized workspace")).toBeVisible();
   });
 });
