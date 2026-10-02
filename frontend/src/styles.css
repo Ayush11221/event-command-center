@@ -65,6 +65,7 @@ body {
 }
 button,
 input,
+textarea,
 select {
   font: inherit;
 }
@@ -90,12 +91,14 @@ button:disabled {
 }
 button:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 select:focus-visible,
 a:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 input,
+textarea,
 select {
   min-height: 44px;
   border: 1px solid var(--border);
@@ -104,8 +107,47 @@ select {
   background: var(--surface);
   color: var(--text);
 }
-input[aria-invalid="true"] {
+input[aria-invalid="true"],
+textarea[aria-invalid="true"] {
   border-color: var(--critical);
+}
+
+.event-edit-form {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+}
+.event-edit-form fieldset {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 20px;
+  border: 0;
+  padding: 12px 0;
+  min-width: 0;
+}
+.event-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 650;
+}
+.event-edit-form input,
+.event-edit-form textarea,
+.event-edit-form select {
+  width: 100%;
+  min-width: 0;
+}
+.event-edit-form textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+.event-edit-form input[type="checkbox"] {
+  width: 44px;
+}
+.event-edit-form button {
+  align-self: end;
+  justify-self: start;
 }
 a {
   color: var(--action);

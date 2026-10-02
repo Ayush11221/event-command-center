@@ -3,6 +3,8 @@ import type { AuthDependencies } from "../auth/http.js";
 import { authenticate, requireCsrf } from "../auth/http.js";
 import { accountActor } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
+import { editManagementEvent } from "./edit.js";
+import { parseRevisionPrecondition } from "./command-safety.js";
 import {
   createDraftEvent,
   getManagementEvent,
@@ -95,6 +97,35 @@ export function eventRouter(deps: AuthDependencies) {
       );
     } catch (error) {
       if (error instanceof ApiError && error.status === 404)
+        await auditForbidden(
+          actor.userId,
+          response.locals.correlationId as string,
+        );
+      throw error;
+    }
+  });
+
+  router.patch("/:eventId", async (request, response) => {
+    const actor = await authenticate(request, deps);
+    try {
+      requireCsrf(request, actor, deps);
+      const revision = parseRevisionPrecondition(request.header("If-Match"));
+      response.setHeader("Cache-Control", "no-store");
+      response.json(
+        await editManagementEvent(
+          deps,
+          actor,
+          request.params.eventId,
+          revision,
+          request.body,
+          response.locals.correlationId as string,
+        ),
+      );
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404)
+      )
         await auditForbidden(
           actor.userId,
           response.locals.correlationId as string,

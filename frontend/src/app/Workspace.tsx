@@ -344,6 +344,57 @@ export function Workspace({
               <EventDetail
                 key={contextKey(selected)}
                 context={selected}
+                csrf={actor.csrf_token}
+                onUpdated={(detail) =>
+                  setWorkspace((current) =>
+                    current.phase !== "ready"
+                      ? current
+                      : {
+                          ...current,
+                          owned: current.owned.map((item) =>
+                            item.event_id === detail.event_id
+                              ? {
+                                  ...item,
+                                  name: detail.name,
+                                  state: detail.state,
+                                  start_at: detail.start_at,
+                                  end_at: detail.end_at,
+                                  time_zone: detail.time_zone,
+                                }
+                              : item,
+                          ),
+                          assigned: current.assigned.map((item) =>
+                            item.event_id === detail.event_id
+                              ? {
+                                  ...item,
+                                  name: detail.name,
+                                  state: detail.state,
+                                  start_at: detail.start_at,
+                                  end_at: detail.end_at,
+                                  time_zone: detail.time_zone,
+                                }
+                              : item,
+                          ),
+                          contexts: current.contexts.map((item) =>
+                            item.eventId === detail.event_id
+                              ? {
+                                  ...item,
+                                  name: detail.name,
+                                  state: detail.state,
+                                }
+                              : item,
+                          ),
+                          selected:
+                            current.selected?.eventId === detail.event_id
+                              ? {
+                                  ...current.selected,
+                                  name: detail.name,
+                                  state: detail.state,
+                                }
+                              : current.selected,
+                        },
+                  )
+                }
                 onSessionExpired={expireSession}
                 onScopeLost={onScopeLost}
               />

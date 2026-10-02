@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDraft,
+  editEvent,
   EventApiError,
   getEventDetail,
   listAllEvents,
@@ -8,11 +9,50 @@ import {
 
 beforeEach(() => vi.stubEnv("VITE_API_ORIGIN", "http://127.0.0.1:3000"));
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.unstubAllEnvs();
 });
 
 describe("scoped Event API client", () => {
+  it("bounds a stalled PATCH and returns an unknown result without retrying", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn(
+      (_url: URL, options: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          options.signal!.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const result = editEvent("one", 3, { name: "Edited" }, "csrf");
+    const rejected = expect(result).rejects.toMatchObject({
+      code: "NETWORK",
+      status: 0,
+    });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await rejected;
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("sends a partial PATCH with quoted revision, CSRF and no role or replay key", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ revision: 4 }) });
+    vi.stubGlobal("fetch", fetcher);
+    await editEvent("one", 3, { name: "Edited" }, "csrf");
+    const [url, options] = fetcher.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/events/one");
+    expect(options).toMatchObject({
+      method: "PATCH",
+      credentials: "include",
+      cache: "no-store",
+      headers: { "If-Match": '"3"', "X-CSRF-Token": "csrf" },
+      body: JSON.stringify({ name: "Edited" }),
+    });
+    expect(options.headers).not.toHaveProperty("Idempotency-Key");
+    expect(options.headers).not.toHaveProperty("X-Role");
+  });
   it("reads management detail with cookies and no client role or revision claim", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,

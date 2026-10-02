@@ -85,10 +85,11 @@ export class EventApiError extends Error {
 async function eventRequest<T>(
   path: string,
   options: {
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PATCH";
     body?: object;
     csrf?: string;
     key?: string;
+    revision?: number;
     signal?: AbortSignal;
   } = {},
 ): Promise<T> {
@@ -105,6 +106,9 @@ async function eventRequest<T>(
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(options.csrf ? { "X-CSRF-Token": options.csrf } : {}),
         ...(options.key ? { "Idempotency-Key": options.key } : {}),
+        ...(options.revision !== undefined
+          ? { "If-Match": `"${options.revision}"` }
+          : {}),
       },
       body: options.body ? JSON.stringify(options.body) : undefined,
     });
@@ -133,6 +137,57 @@ async function eventRequest<T>(
     );
   }
   return data as T;
+}
+
+export type EventEdit = Partial<
+  Pick<
+    ManagementDetail,
+    | "name"
+    | "description"
+    | "public_location"
+    | "image_url"
+    | "category"
+    | "tags"
+    | "start_at"
+    | "end_at"
+    | "time_zone"
+    | "visibility"
+    | "registration_capacity"
+    | "registration_opens_at"
+    | "registration_closes_at"
+    | "registration_cancellation_cutoff_at"
+    | "registration_manually_closed"
+    | "checkout_enabled"
+  >
+>;
+
+export async function editEvent(
+  eventId: string,
+  revision: number,
+  body: EventEdit,
+  csrf: string,
+  signal?: AbortSignal,
+): Promise<ManagementDetail> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(abort, 15_000);
+  try {
+    return await eventRequest<ManagementDetail>(
+      `/${encodeURIComponent(eventId)}`,
+      {
+        method: "PATCH",
+        body,
+        revision,
+        csrf,
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
 }
 
 export function listEvents(

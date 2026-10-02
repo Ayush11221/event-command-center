@@ -5,9 +5,12 @@ import {
   type ManagementDetail,
 } from "../services/events";
 import type { EventContext } from "./contexts";
+import { EditEventForm } from "./EditEventForm";
 
 interface Props {
   context: EventContext;
+  csrf?: string;
+  onUpdated?: (detail: ManagementDetail) => void;
   onSessionExpired: () => void;
   onScopeLost: () => void;
 }
@@ -21,7 +24,14 @@ function instant(value: string | null): string {
   return value ? new Date(value).toLocaleString() : "Not configured";
 }
 
-export function EventDetail({ context, onSessionExpired, onScopeLost }: Props) {
+export function EventDetail({
+  context,
+  csrf,
+  onUpdated,
+  onSessionExpired,
+  onScopeLost,
+}: Props) {
+  const [editing, setEditing] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<DetailState>({ phase: "loading" });
   const heading = useRef<HTMLHeadingElement>(null);
@@ -91,8 +101,7 @@ export function EventDetail({ context, onSessionExpired, onScopeLost }: Props) {
       <div className="page-heading">
         <div>
           <p className="eyebrow">
-            {relationship === "assigned" ? "EVENT ADMIN" : "ORGANIZER"} · READ
-            ONLY
+            {relationship === "assigned" ? "EVENT ADMIN" : "ORGANIZER"}
           </p>
           <h2 id="event-detail-heading" ref={heading} tabIndex={-1}>
             {detail.name}
@@ -185,6 +194,26 @@ export function EventDetail({ context, onSessionExpired, onScopeLost }: Props) {
       <p className="freshness">
         Revision {detail.revision} · Confirmed {instant(detail.as_of)}.
       </p>
+      {csrf &&
+        detail.permitted_actions.includes("EDIT_EVENT") &&
+        (detail.state === "DRAFT" || detail.state === "PUBLISHED") &&
+        (editing ? (
+          <EditEventForm
+            detail={detail}
+            owner={relationship === "owned"}
+            csrf={csrf}
+            onCurrent={(current) => {
+              setState({ phase: "ready", detail: current });
+              onUpdated?.(current);
+            }}
+            onSessionExpired={onSessionExpired}
+            onScopeLost={onScopeLost}
+          />
+        ) : (
+          <button type="button" onClick={() => setEditing(true)}>
+            Edit event
+          </button>
+        ))}
     </section>
   );
 }
