@@ -8,6 +8,7 @@ import type { EventContext } from "./contexts";
 import { EditEventForm } from "./EditEventForm";
 import { GatePanel } from "./GatePanel";
 import { LifecyclePanel } from "./LifecyclePanel";
+import { PrivateLinkPanel } from "./PrivateLinkPanel";
 
 interface Props {
   context: EventContext;
@@ -197,6 +198,18 @@ export function EventDetail({
       />
       <GatePanel
         detail={detail}
+        csrf={csrf}
+        onCurrent={(current) => {
+          setState({ phase: "ready", detail: current });
+          onUpdated?.(current);
+        }}
+        onSessionExpired={onSessionExpired}
+        onScopeLost={onScopeLost}
+      />
+      <PrivateLinkPanel
+        key={`${detail.event_id}:${relationship}`}
+        detail={detail}
+        owner={relationship === "owned"}
         csrf={csrf}
         onCurrent={(current) => {
           setState({ phase: "ready", detail: current });

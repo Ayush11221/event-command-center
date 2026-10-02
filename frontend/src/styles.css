@@ -640,6 +640,16 @@ p {
   align-items: start;
   gap: 12px;
 }
+.private-link-result {
+  display: grid;
+  gap: 12px;
+  max-width: 720px;
+}
+.private-link-result textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+}
 
 .entry-nav {
   display: flex;

@@ -241,6 +241,43 @@ export interface GateResponse {
   correlation_id: string;
 }
 
+export interface PrivateIssueResponse {
+  event_id: string;
+  link_state: "ACTIVE";
+  access_url: string;
+  issued_at: string;
+  revision: number;
+  as_of: string;
+  correlation_id: string;
+}
+
+export async function issuePrivateLink(
+  eventId: string,
+  revision: number,
+  csrf: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<PrivateIssueResponse> {
+  const controller = new AbortController(),
+    abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(abort, 15_000);
+  try {
+    return await eventRequest(`/${encodeURIComponent(eventId)}/private-link`, {
+      method: "POST",
+      body: {},
+      revision,
+      csrf,
+      key,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 export interface TransitionBody {
   target_state: ManagementEvent["state"];
   reason?: string;

@@ -36,6 +36,7 @@ export class DiscoveryApiError extends Error {
 async function publicRequest<T>(
   path: string,
   signal?: AbortSignal,
+  proof?: string | null,
 ): Promise<T> {
   const origin = import.meta.env.VITE_API_ORIGIN;
   if (!origin) throw new DiscoveryApiError("NETWORK", 0);
@@ -49,6 +50,8 @@ async function publicRequest<T>(
       method: "GET",
       credentials: "omit",
       cache: "no-store",
+      referrerPolicy: "no-referrer",
+      ...(proof ? { headers: { Authorization: `PrivateLink ${proof}` } } : {}),
       signal: controller.signal,
     });
     const body: unknown = await response.json();
@@ -83,4 +86,11 @@ export function getPublicDetail(
   signal?: AbortSignal,
 ): Promise<PublicDetail> {
   return publicRequest(`/events/${encodeURIComponent(eventId)}`, signal);
+}
+
+export function getPrivateDetail(
+  proof: string | null,
+  signal?: AbortSignal,
+): Promise<PublicDetail> {
+  return publicRequest("/private", signal, proof);
 }

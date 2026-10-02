@@ -4,6 +4,20 @@ import { ApiError, unavailable } from "../auth/errors.js";
 import { decodePublicCursor, encodePublicCursor } from "../events/cursor.js";
 import { parsePaginationQuery } from "../events/validation.js";
 import { publicCatalogItem, publicEventDetail } from "./serializers.js";
+import {
+  privateLinkKeys,
+  privateLinkVerifier,
+  privateLinkVerifierMatches,
+} from "../events/private-links.js";
+
+export const privateUnavailable = () =>
+  new ApiError(404, "PRIVATE_UNAVAILABLE", "Private event unavailable");
+
+export function parsePrivateAuthorization(header: string | undefined): string {
+  const match = header?.match(/^PrivateLink ([A-Za-z0-9_-]{43})$/);
+  if (!match) throw privateUnavailable();
+  return match[1]!;
+}
 
 export function parsePublicCatalogQuery(query: Record<string, unknown>) {
   if (
@@ -28,6 +42,38 @@ const publicSelection = {
   registrationClosesAt: true,
   registrationManuallyClosed: true,
 } satisfies Prisma.EventSelect;
+
+export async function getPrivateEvent(
+  deps: AuthDependencies,
+  proof: string,
+  correlationId: string,
+) {
+  try {
+    const { verifier } = privateLinkKeys(deps.config.contactKey);
+    const hash = privateLinkVerifier(proof, verifier);
+    const link = await deps.db.privateAccessLink.findFirst({
+      where: {
+        verifierHash: hash,
+        verifierKeyVersion: verifier.version,
+        revokedAt: null,
+        event: { state: "PUBLISHED", visibility: "PRIVATE" },
+      },
+      select: {
+        verifierHash: true,
+        event: { select: { ...publicSelection, description: true } },
+      },
+    });
+    if (
+      !link ||
+      !privateLinkVerifierMatches(proof, link.verifierHash, verifier)
+    )
+      throw privateUnavailable();
+    return publicEventDetail(link.event, new Date(), correlationId);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw unavailable();
+  }
+}
 
 export async function listPublicEvents(
   deps: AuthDependencies,

@@ -5,6 +5,8 @@ import { ThemeControl } from "./ThemeControl";
 import { Workspace } from "./Workspace";
 import { PublicCatalog } from "./PublicCatalog";
 import { PublicEventDetail } from "./PublicEventDetail";
+import { PrivateEventDetail } from "./PrivateEventDetail";
+import type { PrivateEntry } from "./private-entry";
 
 function ManagementEntry() {
   const [session, setSession] = useState<
@@ -80,9 +82,10 @@ function ManagementEntry() {
   );
 }
 
-export function App() {
+export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   const path = window.location.pathname;
   const catalog = /^\/events\/?$/.test(path);
+  const privatePage = /^\/private\/?$/.test(path);
   const detail = path.match(/^\/events\/([^/]+)\/?$/);
   let eventId = detail?.[1];
   if (eventId) {
@@ -93,8 +96,8 @@ export function App() {
     }
   }
   useEffect(() => {
-    document.title = `${catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
-  }, [catalog, eventId]);
+    document.title = `${privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+  }, [catalog, eventId, privatePage]);
   return (
     <div className="app-frame">
       <header className="topbar">
@@ -115,7 +118,9 @@ export function App() {
         </nav>
         <ThemeControl />
       </header>
-      {catalog ? (
+      {privatePage ? (
+        <PrivateEventDetail entry={privateEntry} />
+      ) : catalog ? (
         <PublicCatalog />
       ) : eventId ? (
         <PublicEventDetail key={eventId} eventId={eventId} />

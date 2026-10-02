@@ -11,6 +11,39 @@ export interface PrivateVerifierKey {
   key: Uint8Array;
 }
 
+// Purpose-separated, versioned keys from the existing server-only storage key.
+// Keep CONTACT_KEY stable: replacing it invalidates verifiers and protected replay.
+export function privateLinkKeys(root: Uint8Array) {
+  if (root.length !== 32)
+    throw new TypeError("Private-link root key is invalid");
+  const derive = (purpose: string) => ({
+    version: 1,
+    key: createHmac("sha256", root).update(purpose).digest(),
+  });
+  return {
+    verifier: derive("eoc.private-link.verifier.v1"),
+    replay: derive("eoc.private-link.replay.v1"),
+  };
+}
+
+export function privateAccessUrl(origin: string, proof: string): string {
+  const url = new URL(origin);
+  if (
+    url.origin !== origin ||
+    url.username ||
+    url.password ||
+    (url.protocol !== "https:" &&
+      !(
+        url.protocol === "http:" &&
+        ["127.0.0.1", "localhost"].includes(url.hostname)
+      ))
+  )
+    throw new TypeError("Private-link public origin is invalid");
+  url.pathname = "/private";
+  url.hash = `access=${proof}`;
+  return url.toString();
+}
+
 export interface LockedEvent {
   id: string;
   revision: number;

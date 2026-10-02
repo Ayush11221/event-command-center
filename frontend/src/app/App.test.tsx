@@ -14,6 +14,9 @@ vi.mock("./Workspace", () => ({
 vi.mock("./PublicCatalog", () => ({
   PublicCatalog: () => <h1>Anonymous public catalog</h1>,
 }));
+vi.mock("./PrivateEventDetail", () => ({
+  PrivateEventDetail: () => <h1>Controlled private detail</h1>,
+}));
 vi.mock("./PublicEventDetail", () => ({
   PublicEventDetail: ({ eventId }: { eventId: string }) => (
     <h1>Anonymous public detail {eventId}</h1>
@@ -28,6 +31,14 @@ afterEach(() => {
 });
 
 describe("application entry", () => {
+  it("opens private entry without account or Event+Role context", () => {
+    window.history.replaceState(null, "", "/private");
+    render(<App />);
+    expect(
+      screen.getByRole("heading", { name: "Controlled private detail" }),
+    ).toBeVisible();
+    expect(currentActor).not.toHaveBeenCalled();
+  });
   it("opens public catalog without checking an account or Event+Role context", () => {
     window.history.replaceState(null, "", "/events");
     render(<App />);

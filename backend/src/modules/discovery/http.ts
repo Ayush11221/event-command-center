@@ -5,6 +5,9 @@ import {
   getPublicEvent,
   listPublicEvents,
   parsePublicCatalogQuery,
+  getPrivateEvent,
+  parsePrivateAuthorization,
+  privateUnavailable,
 } from "./service.js";
 
 export function discoveryRouter(deps: AuthDependencies) {
@@ -19,6 +22,17 @@ export function discoveryRouter(deps: AuthDependencies) {
       await listPublicEvents(
         deps,
         parsePublicCatalogQuery(request.query),
+        response.locals.correlationId as string,
+      ),
+    );
+  });
+  router.get("/private", async (request, response) => {
+    response.setHeader("Referrer-Policy", "no-referrer");
+    if (Object.keys(request.query).length) throw privateUnavailable();
+    response.json(
+      await getPrivateEvent(
+        deps,
+        parsePrivateAuthorization(request.header("Authorization")),
         response.locals.correlationId as string,
       ),
     );
