@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getPrivateDetail } from "./discovery";
-import { issuePrivateLink } from "./events";
+import {
+  issuePrivateLink,
+  reissuePrivateLink,
+  revokePrivateLink,
+} from "./events";
 beforeEach(() => vi.stubEnv("VITE_API_ORIGIN", "http://127.0.0.1:3000"));
 afterEach(() => {
   vi.useRealTimers();
@@ -31,6 +35,41 @@ describe("V8 private API transport", () => {
       },
     });
   });
+  it.each(["reissue", "revoke"] as const)(
+    "sends approved %s route with existing safety headers and empty body",
+    async (operation) => {
+      const fetcher = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          link_state: operation === "revoke" ? "REVOKED" : "ACTIVE",
+        }),
+      });
+      vi.stubGlobal("fetch", fetcher);
+      await (operation === "reissue" ? reissuePrivateLink : revokePrivateLink)(
+        "event/one",
+        4,
+        "csrf",
+        "same-key",
+      );
+      const [url, options] = fetcher.mock.calls[0] as [URL, RequestInit];
+      expect(url.pathname).toBe(
+        `/api/v1/events/event%2Fone/private-link/${operation}`,
+      );
+      expect(url.search).toBe("");
+      expect(options).toMatchObject({
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        body: "{}",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": "csrf",
+          "If-Match": '"4"',
+          "Idempotency-Key": "same-key",
+        },
+      });
+    },
+  );
   it("sends proof only as the approved bearer header without cookies, query, referrer or OTP", async () => {
     const fetcher = vi
       .fn()

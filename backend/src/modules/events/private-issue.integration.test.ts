@@ -528,7 +528,7 @@ describe.skipIf(!databaseUrl)(
       expect(logs.join("")).not.toContain(proof);
       expect(logs.join("")).not.toContain(issued.body.access_url);
     });
-    it("does not implement standalone revoke/reissue routes", async () => {
+    it("requires CSRF on standalone revoke/reissue routes", async () => {
       const { owner, event } = await fixture();
       for (const suffix of ["revoke", "reissue"]) {
         expect(
@@ -538,7 +538,7 @@ describe.skipIf(!databaseUrl)(
               .set("Cookie", owner.cookie)
               .send({})
           ).status,
-        ).toBe(404);
+        ).toBe(403);
       }
     });
   },

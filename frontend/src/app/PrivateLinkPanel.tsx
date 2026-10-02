@@ -3,6 +3,8 @@ import {
   EventApiError,
   getEventDetail,
   issuePrivateLink,
+  reissuePrivateLink,
+  revokePrivateLink,
   type ManagementDetail,
   type PrivateIssueResponse,
 } from "../services/events";
@@ -16,6 +18,7 @@ interface Props {
   onScopeLost: () => void;
 }
 interface Attempt {
+  action: "ISSUE" | "REISSUE" | "REVOKE";
   key: string;
   revision: number;
 }
@@ -30,15 +33,21 @@ export function PrivateLinkPanel({
   const [busy, setBusy] = useState(false),
     [attempt, setAttempt] = useState<Attempt | null>(null);
   const [result, setResult] = useState<PrivateIssueResponse | null>(null);
+  const [confirmation, setConfirmation] = useState<Attempt | null>(null);
+  const [linkState, setLinkState] = useState<"ACTIVE" | "REVOKED" | null>(null);
   const [reloadRequired, setReloadRequired] = useState(false),
     [feedback, setFeedback] = useState("");
   const controller = useRef<AbortController | null>(null),
     resultHeading = useRef<HTMLHeadingElement>(null);
+  const confirmationHeading = useRef<HTMLHeadingElement>(null);
+  const panelHeading = useRef<HTMLHeadingElement>(null);
   const eventId = detail.event_id;
   useEffect(() => {
     const discard = () => {
       controller.current?.abort();
       setResult(null);
+      setConfirmation(null);
+      setLinkState(null);
       setAttempt(null);
       setReloadRequired(true);
       setBusy(false);
@@ -54,13 +63,20 @@ export function PrivateLinkPanel({
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
     if (!eligible) {
+      controller.current?.abort();
       setResult(null);
       setAttempt(null);
+      setConfirmation(null);
+      setLinkState(null);
+      setBusy(false);
     }
   }, [eligible, eventId]);
   useEffect(() => {
     if (result) resultHeading.current?.focus();
   }, [result]);
+  useEffect(() => {
+    if (confirmation) confirmationHeading.current?.focus();
+  }, [confirmation]);
   function denied(error: unknown) {
     if (
       error instanceof EventApiError &&
@@ -68,6 +84,8 @@ export function PrivateLinkPanel({
     ) {
       setResult(null);
       setAttempt(null);
+      setConfirmation(null);
+      setLinkState(null);
       if (error.status === 401) onSessionExpired();
       else {
         setFeedback(
@@ -86,8 +104,16 @@ export function PrivateLinkPanel({
     setBusy(true);
     setFeedback("");
     setResult(null);
+    setConfirmation(null);
+    setLinkState(null);
     try {
-      const issued = await issuePrivateLink(
+      const command =
+        next.action === "REISSUE"
+          ? reissuePrivateLink
+          : next.action === "REVOKE"
+            ? revokePrivateLink
+            : issuePrivateLink;
+      const issued = await command(
         eventId,
         next.revision,
         csrf!,
@@ -95,12 +121,17 @@ export function PrivateLinkPanel({
         signal,
       );
       if (signal.aborted) return;
-      setResult(issued);
+      if (issued.link_state === "ACTIVE") setResult(issued);
+      setLinkState(issued.link_state);
       setAttempt(null);
       setReloadRequired(true);
       onCurrent({ ...detail, revision: issued.revision, as_of: issued.as_of });
       setFeedback(
-        "Private link issued. Copy the shareable URL before leaving this result.",
+        next.action === "REVOKE"
+          ? "Private link revoked. The previous URL no longer grants access."
+          : next.action === "REISSUE"
+            ? "Private link reissued. The previous URL stopped working immediately. Copy the new shareable URL before leaving this result."
+            : "Private link issued. Copy the shareable URL before leaving this result.",
       );
     } catch (error) {
       if (signal.aborted || denied(error)) return;
@@ -113,12 +144,16 @@ export function PrivateLinkPanel({
         setFeedback(
           error.code === "LINK_ALREADY_ACTIVE"
             ? "A private link is already active. Its URL cannot be recovered here."
-            : "Issuance was rejected or event data changed. Reload current detail before trying again.",
+            : error.code === "LINK_NOT_ACTIVE"
+              ? "No private link is active. Reload current detail before choosing another command."
+              : "The private-link command was rejected or event data changed. Reload current detail before trying again.",
         );
       } else {
         setAttempt(next);
         setFeedback(
-          "The issuance result is unknown. Retry the same request within 24 hours to confirm it safely.",
+          next.action === "ISSUE"
+            ? "The issuance result is unknown. Retry the same request within 24 hours to confirm it safely."
+            : "The private-link result is unknown. Retry the same request to confirm it safely; reissue results can be replayed for 24 hours.",
         );
       }
     } finally {
@@ -131,6 +166,8 @@ export function PrivateLinkPanel({
     const signal = controller.current.signal;
     setBusy(true);
     setResult(null);
+    setConfirmation(null);
+    setLinkState(null);
     try {
       const current = await getEventDetail(eventId, signal);
       if (signal.aborted) return;
@@ -138,7 +175,7 @@ export function PrivateLinkPanel({
       setAttempt(null);
       setReloadRequired(false);
       setFeedback(
-        "Current detail loaded. Review PRIVATE Published eligibility before issuing.",
+        "Current detail loaded. Review PRIVATE Published eligibility before changing a link. An active link is required for revoke or reissue.",
       );
     } catch (error) {
       if (!signal.aborted && !denied(error))
@@ -161,10 +198,16 @@ export function PrivateLinkPanel({
   if (!owner) return null;
   return (
     <section className="lifecycle-panel" aria-label="Private controlled link">
-      <h3>PRIVATE controlled link</h3>
+      <h3 ref={panelHeading} tabIndex={-1}>
+        PRIVATE controlled link
+      </h3>
       <p>
         Share event details by possession of a controlled link. This grants no
         management or registration authority and has no automatic expiry.
+      </p>
+      <p>
+        Revoke and reissue require an active link. The server checks current
+        eligibility before changing it.
       </p>
       {!eligible && <p>Issuance requires an owned PRIVATE Published event.</p>}
       {feedback && (
@@ -173,6 +216,56 @@ export function PrivateLinkPanel({
         </p>
       )}
       {busy && <p role="status">Checking private-link request…</p>}
+      {linkState && (
+        <p>
+          Last confirmed link state: <strong>{linkState}</strong>. Refresh
+          detail before another command.
+        </p>
+      )}
+      {confirmation && eligible && (
+        <section
+          className="notice"
+          role="group"
+          aria-labelledby="private-link-confirmation"
+        >
+          <h4
+            id="private-link-confirmation"
+            ref={confirmationHeading}
+            tabIndex={-1}
+          >
+            {confirmation.action === "REISSUE"
+              ? "Confirm private-link reissue"
+              : "Confirm private-link revocation"}
+          </h4>
+          <p>
+            {confirmation.action === "REISSUE"
+              ? "Reissuing immediately stops the previous private URL from working. Only the new URL will grant event detail access."
+              : "Revoking immediately stops the current private URL from granting event detail access."}
+          </p>
+          <div className="lifecycle-actions">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void send(confirmation)}
+            >
+              {confirmation.action === "REISSUE"
+                ? "Confirm reissue"
+                : "Confirm revoke"}
+            </button>
+            <button
+              type="button"
+              className="secondary-button"
+              disabled={busy}
+              onClick={() => {
+                setConfirmation(null);
+                panelHeading.current?.focus();
+              }}
+            >
+              Keep current link
+            </button>
+          </div>
+        </section>
+      )}
       {result && eligible && (
         <div className="private-link-result">
           <h4 ref={resultHeading} tabIndex={-1}>
@@ -208,7 +301,11 @@ export function PrivateLinkPanel({
           disabled={busy || !eligible}
           onClick={() => void send(attempt)}
         >
-          Retry same issuance
+          {attempt.action === "ISSUE"
+            ? "Retry same issuance"
+            : attempt.action === "REISSUE"
+              ? "Retry same reissue"
+              : "Retry same revoke"}
         </button>
       )}
       {reloadRequired && (
@@ -216,16 +313,51 @@ export function PrivateLinkPanel({
           Load current private-link detail
         </button>
       )}
-      {eligible && !attempt && !reloadRequired && !result && (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() =>
-            void send({ key: crypto.randomUUID(), revision: detail.revision })
-          }
-        >
-          Issue private link
-        </button>
+      {eligible && !attempt && !reloadRequired && !result && !confirmation && (
+        <div className="lifecycle-actions">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              void send({
+                action: "ISSUE",
+                key: crypto.randomUUID(),
+                revision: detail.revision,
+              })
+            }
+          >
+            Issue private link
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              setResult(null);
+              setConfirmation({
+                action: "REISSUE",
+                key: crypto.randomUUID(),
+                revision: detail.revision,
+              });
+            }}
+          >
+            Reissue private link
+          </button>
+          <button
+            type="button"
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => {
+              setResult(null);
+              setConfirmation({
+                action: "REVOKE",
+                key: crypto.randomUUID(),
+                revision: detail.revision,
+              });
+            }}
+          >
+            Revoke private link
+          </button>
+        </div>
       )}
     </section>
   );

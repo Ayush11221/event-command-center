@@ -258,20 +258,64 @@ export async function issuePrivateLink(
   key: string,
   signal?: AbortSignal,
 ): Promise<PrivateIssueResponse> {
+  return privateLinkRequest("", eventId, revision, csrf, key, signal);
+}
+
+export interface PrivateReissueResponse extends PrivateIssueResponse {
+  previous_revoked_at: string;
+}
+export interface PrivateRevokeResponse {
+  event_id: string;
+  link_state: "REVOKED";
+  revoked_at: string;
+  revision: number;
+  as_of: string;
+  correlation_id: string;
+}
+export function reissuePrivateLink(
+  eventId: string,
+  revision: number,
+  csrf: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<PrivateReissueResponse> {
+  return privateLinkRequest("/reissue", eventId, revision, csrf, key, signal);
+}
+export function revokePrivateLink(
+  eventId: string,
+  revision: number,
+  csrf: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<PrivateRevokeResponse> {
+  return privateLinkRequest("/revoke", eventId, revision, csrf, key, signal);
+}
+
+async function privateLinkRequest<T>(
+  suffix: "" | "/reissue" | "/revoke",
+  eventId: string,
+  revision: number,
+  csrf: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<T> {
   const controller = new AbortController(),
     abort = () => controller.abort();
   if (signal?.aborted) abort();
   signal?.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, 15_000);
   try {
-    return await eventRequest(`/${encodeURIComponent(eventId)}/private-link`, {
-      method: "POST",
-      body: {},
-      revision,
-      csrf,
-      key,
-      signal: controller.signal,
-    });
+    return await eventRequest(
+      `/${encodeURIComponent(eventId)}/private-link${suffix}`,
+      {
+        method: "POST",
+        body: {},
+        revision,
+        csrf,
+        key,
+        signal: controller.signal,
+      },
+    );
   } finally {
     clearTimeout(timeout);
     signal?.removeEventListener("abort", abort);

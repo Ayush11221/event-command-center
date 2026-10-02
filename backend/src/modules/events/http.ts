@@ -11,6 +11,7 @@ import {
 import { createEventGate, parseGateBody } from "./gates.js";
 import { transitionEvent } from "./transitions.js";
 import { issueEventPrivateLink } from "./issue-private-link.js";
+import { manageEventPrivateLink } from "./manage-private-link.js";
 import {
   createDraftEvent,
   getManagementEvent,
@@ -199,6 +200,41 @@ export function eventRouter(deps: AuthDependencies) {
       throw error;
     }
   });
+
+  for (const operation of ["REISSUE", "REVOKE"] as const) {
+    router.post(
+      `/:eventId/private-link/${operation.toLowerCase()}`,
+      async (request, response) => {
+        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Referrer-Policy", "no-referrer");
+        const actor = await authenticate(request, deps);
+        try {
+          requireCsrf(request, actor, deps);
+          const result = await manageEventPrivateLink(
+            deps,
+            actor,
+            request.params.eventId,
+            parseRevisionPrecondition(request.header("If-Match")),
+            parseIdempotencyKey(request.header("Idempotency-Key")),
+            request.body,
+            operation,
+            response.locals.correlationId as string,
+          );
+          response.status(result.status).json(result.body);
+        } catch (error) {
+          if (
+            error instanceof ApiError &&
+            (error.status === 403 || error.status === 404)
+          )
+            await auditForbidden(
+              actor.userId,
+              response.locals.correlationId as string,
+            );
+          throw error;
+        }
+      },
+    );
+  }
 
   router.post("/:eventId/transitions", async (request, response) => {
     const actor = await authenticate(request, deps);
