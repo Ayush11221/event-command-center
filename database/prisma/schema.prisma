@@ -46,17 +46,24 @@ enum CommandReplayStatus {
   COMPLETED
 }
 
+enum RegistrationState {
+  REGISTERED
+  CANCELLED
+}
+
 model User {
-  id                 String                @id @default(uuid()) @db.Uuid
-  organizerCapable   Boolean               @default(false)
-  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
-  contacts           VerifiedContact[]
-  sessions           Session[]
-  ownedEvents        Event[]               @relation("EventOwner")
-  assignments        EventRoleAssignment[] @relation("AssignmentTarget")
-  grantedAssignments EventRoleAssignment[] @relation("AssignmentGrantActor")
-  revokedAssignments EventRoleAssignment[] @relation("AssignmentRevokeActor")
-  commandReplays     CommandReplay[]
+  id                     String                @id @default(uuid()) @db.Uuid
+  organizerCapable       Boolean               @default(false)
+  createdAt              DateTime              @default(now()) @db.Timestamptz(3)
+  contacts               VerifiedContact[]
+  sessions               Session[]
+  ownedEvents            Event[]               @relation("EventOwner")
+  assignments            EventRoleAssignment[] @relation("AssignmentTarget")
+  grantedAssignments     EventRoleAssignment[] @relation("AssignmentGrantActor")
+  revokedAssignments     EventRoleAssignment[] @relation("AssignmentRevokeActor")
+  commandReplays         CommandReplay[]
+  registrations          Registration[]        @relation("RegistrationOwner")
+  cancelledRegistrations Registration[]        @relation("RegistrationCancelActor")
 }
 
 model VerifiedContact {
@@ -128,6 +135,7 @@ model Event {
   gates                            Gate[]
   assignments                      EventRoleAssignment[]
   privateAccessLinks               PrivateAccessLink[]
+  registrations                    Registration[]
 
   @@index([ownerUserId, createdAt(sort: Desc), id(sort: Desc)])
 }
@@ -197,7 +205,8 @@ model PrivateAccessLink {
 
 model CommandReplay {
   id                          String              @id @default(uuid()) @db.Uuid
-  actorUserId                 String              @db.Uuid
+  actorUserId                 String?             @db.Uuid
+  actorGuestIdentityId        String?             @db.Uuid
   action                      String              @db.VarChar(80)
   resourceKey                 String              @db.VarChar(120)
   idempotencyKeyHash          String              @db.Char(64)
@@ -211,8 +220,54 @@ model CommandReplay {
   createdAt                   DateTime            @default(now()) @db.Timestamptz(3)
   completedAt                 DateTime?           @db.Timestamptz(3)
   expiresAt                   DateTime            @db.Timestamptz(3)
-  actor                       User                @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  actor                       User?               @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+  guestActor                  GuestIdentity?      @relation(fields: [actorGuestIdentityId], references: [id], onDelete: Restrict)
 
   @@unique([actorUserId, action, resourceKey, idempotencyKeyHash], map: "CommandReplay_actor_action_resource_key_key")
+  @@unique([actorGuestIdentityId, action, resourceKey, idempotencyKeyHash], map: "CommandReplay_guest_action_resource_key_key")
   @@index([expiresAt])
+}
+
+model GuestIdentity {
+  id             String          @id @default(uuid()) @db.Uuid
+  lookupHash     String          @unique @db.Char(64)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  registrations  Registration[]
+  commandReplays CommandReplay[]
+}
+
+model Registration {
+  id                     String            @id @default(uuid()) @db.Uuid
+  eventId                String            @db.Uuid
+  userId                 String?           @db.Uuid
+  guestIdentityId        String?           @db.Uuid
+  state                  RegistrationState @default(REGISTERED)
+  createdAt              DateTime          @default(now()) @db.Timestamptz(3)
+  cancelledAt            DateTime?         @db.Timestamptz(3)
+  cancelledByUserId      String?           @db.Uuid
+  cancelledActorKind     AuditActorKind?
+  firstAcceptedCheckInAt DateTime?         @db.Timestamptz(3)
+  event                  Event             @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user                   User?             @relation("RegistrationOwner", fields: [userId], references: [id], onDelete: Restrict)
+  guest                  GuestIdentity?    @relation(fields: [guestIdentityId], references: [id], onDelete: Restrict)
+  cancelledBy            User?             @relation("RegistrationCancelActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  credentials            QRCredential[]
+
+  @@index([eventId, state])
+  @@index([userId, eventId, createdAt(sort: Desc)])
+  @@index([guestIdentityId, eventId, createdAt(sort: Desc)])
+}
+
+model QRCredential {
+  id                      String       @id @default(uuid()) @db.Uuid
+  registrationId          String       @db.Uuid
+  verifierHash            String       @unique @db.Char(64)
+  keyVersion              Int          @default(1) @db.SmallInt
+  protectedRepresentation Bytes?
+  issuedAt                DateTime     @default(now()) @db.Timestamptz(3)
+  expiresAt               DateTime?    @db.Timestamptz(3)
+  revokedAt               DateTime?    @db.Timestamptz(3)
+  registration            Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+
+  @@index([registrationId])
 }

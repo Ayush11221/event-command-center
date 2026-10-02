@@ -21,6 +21,27 @@ export async function lockManagementEvent(
 ) {
   validateManagementEventId(eventId);
   if (!(await lockEventForCommand(tx, eventId))) throw notFound();
+  const organizerCapable = await lockCommandActor(tx, actor);
+  const event = await tx.event.findUniqueOrThrow({
+    where: { id: eventId },
+    include: { gates: { select: { id: true, eventId: true } } },
+  });
+  const owner = event.ownerUserId === actor.userId && organizerCapable;
+  if (!owner) {
+    const assignments = await tx.$queryRaw<{ id: string }[]>`
+      SELECT id FROM "EventRoleAssignment" WHERE "eventId" = ${eventId}::uuid
+      AND "userId" = ${actor.userId}::uuid AND role = 'EVENT_ADMIN' AND "revokedAt" IS NULL FOR SHARE
+    `;
+    if (!assignments.length) throw notFound();
+  }
+  return { event, owner };
+}
+
+// Reuse the same current session/capability locks for commands without an Event yet.
+export async function lockCommandActor(
+  tx: Prisma.TransactionClient,
+  actor: AuthContext,
+) {
   const sessions = await tx.$queryRaw<
     { expiresAt: Date; revokedAt: Date | null }[]
   >`
@@ -36,18 +57,5 @@ export async function lockManagementEvent(
   const users = await tx.$queryRaw<{ organizerCapable: boolean }[]>`
     SELECT "organizerCapable" FROM "User" WHERE id = ${actor.userId}::uuid FOR SHARE
   `;
-  const event = await tx.event.findUniqueOrThrow({
-    where: { id: eventId },
-    include: { gates: { select: { id: true, eventId: true } } },
-  });
-  const owner =
-    event.ownerUserId === actor.userId && users[0]?.organizerCapable === true;
-  if (!owner) {
-    const assignments = await tx.$queryRaw<{ id: string }[]>`
-      SELECT id FROM "EventRoleAssignment" WHERE "eventId" = ${eventId}::uuid
-      AND "userId" = ${actor.userId}::uuid AND role = 'EVENT_ADMIN' AND "revokedAt" IS NULL FOR SHARE
-    `;
-    if (!assignments.length) throw notFound();
-  }
-  return { event, owner };
+  return users[0]?.organizerCapable === true;
 }

@@ -1,6 +1,6 @@
 # Phase 2 Test Architecture
 
-**Status:** planned test contracts, not suites. Complements [TEST_STRATEGY.md](TEST_STRATEGY.md) and [traceability](../requirements/TRACEABILITY.md). Add suites alongside the implementation slice they prove; do not create empty test folders.
+**Status:** Slice 1-3 have implemented unit, frontend and PostgreSQL suites, including Slice 3 contract, authorization and accessibility verification through V10; later-domain test contracts remain planned. Complements [TEST_STRATEGY.md](TEST_STRATEGY.md) and [traceability](../requirements/TRACEABILITY.md). Add suites alongside the implementation slice they prove; do not create empty test folders.
 
 | Layer | Tool direction | Primary evidence |
 | --- | --- | --- |

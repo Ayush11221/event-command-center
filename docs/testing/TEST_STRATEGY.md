@@ -1,6 +1,6 @@
 # Test Strategy
 
-**Status:** Planned; no application tests exist yet. [Phase 2 test architecture](TEST_ARCHITECTURE.md) selects tool directions and high-risk scenario coverage.
+**Status:** Slice 1-3 unit, frontend, PostgreSQL and migration suites are implemented, with Slice 3 release verification through V10; later-domain scenarios remain planned. [Phase 2 test architecture](TEST_ARCHITECTURE.md) selects tool directions and high-risk scenario coverage.
 **Quality sources:** [requirements](../requirements/REQUIREMENTS.md), [security plan](../security/SECURITY_PLAN.md), and future executable contracts
 
 ## Objectives

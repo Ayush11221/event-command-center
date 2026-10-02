@@ -41,6 +41,8 @@ export function PrivateLinkPanel({
     resultHeading = useRef<HTMLHeadingElement>(null);
   const confirmationHeading = useRef<HTMLHeadingElement>(null);
   const panelHeading = useRef<HTMLHeadingElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const reloadButton = useRef<HTMLButtonElement>(null);
   const eventId = detail.event_id;
   useEffect(() => {
     const discard = () => {
@@ -77,6 +79,12 @@ export function PrivateLinkPanel({
   useEffect(() => {
     if (confirmation) confirmationHeading.current?.focus();
   }, [confirmation]);
+  useEffect(() => {
+    if (!busy && !result) {
+      if (attempt) retryButton.current?.focus();
+      else if (reloadRequired) reloadButton.current?.focus();
+    }
+  }, [attempt, reloadRequired, busy, result]);
   function denied(error: unknown) {
     if (
       error instanceof EventApiError &&
@@ -177,6 +185,7 @@ export function PrivateLinkPanel({
       setFeedback(
         "Current detail loaded. Review PRIVATE Published eligibility before changing a link. An active link is required for revoke or reissue.",
       );
+      panelHeading.current?.focus();
     } catch (error) {
       if (!signal.aborted && !denied(error))
         setFeedback(
@@ -298,6 +307,7 @@ export function PrivateLinkPanel({
       {attempt && (
         <button
           type="button"
+          ref={retryButton}
           disabled={busy || !eligible}
           onClick={() => void send(attempt)}
         >
@@ -309,7 +319,12 @@ export function PrivateLinkPanel({
         </button>
       )}
       {reloadRequired && (
-        <button type="button" disabled={busy} onClick={() => void reload()}>
+        <button
+          ref={reloadButton}
+          type="button"
+          disabled={busy}
+          onClick={() => void reload()}
+        >
           Load current private-link detail
         </button>
       )}

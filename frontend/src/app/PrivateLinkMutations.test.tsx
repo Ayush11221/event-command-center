@@ -134,6 +134,9 @@ describe("V9 Organizer standalone link controls", () => {
       screen.queryByRole("button", { name: "Copy private URL" }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("REVOKED")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Load current private-link detail" }),
+    ).toHaveFocus();
   });
   it.each(["reissue", "revoke"] as const)(
     "disables duplicate %s and aborts on unmount",
@@ -171,9 +174,11 @@ describe("V9 Organizer standalone link controls", () => {
       render(<PrivateLinkPanel {...props()} />);
       begin(operation);
       confirm(operation);
-      fireEvent.click(
-        await screen.findByRole("button", { name: `Retry same ${operation}` }),
-      );
+      const retry = await screen.findByRole("button", {
+        name: `Retry same ${operation}`,
+      });
+      await waitFor(() => expect(retry).toHaveFocus());
+      fireEvent.click(retry);
       await waitFor(() => expect(command).toHaveBeenCalledTimes(2));
       expect(vi.mocked(command).mock.calls[0].slice(0, 4)).toEqual(
         vi.mocked(command).mock.calls[1].slice(0, 4),
@@ -218,6 +223,11 @@ describe("V9 Organizer standalone link controls", () => {
       ),
     );
     expect(reissuePrivateLink).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "PRIVATE controlled link" }),
+      ).toHaveFocus(),
+    );
     expect(screen.queryByLabelText("Shareable URL")).not.toBeInTheDocument();
   });
   it.each([401, 403, 404])(

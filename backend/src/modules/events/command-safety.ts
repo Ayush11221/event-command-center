@@ -24,7 +24,8 @@ export interface ProtectedReplayKey {
 }
 
 export interface IdempotentCommandInput {
-  actorUserId: string;
+  actorUserId?: string;
+  actorGuestIdentityId?: string;
   action: string;
   resourceKey: string;
   idempotencyKey: string;
@@ -126,14 +127,17 @@ export function idempotencyKeyHash(value: string): string {
 }
 
 function replayAad(
-  input: Pick<IdempotentCommandInput, "actorUserId" | "action" | "resourceKey">,
+  input: Pick<
+    IdempotentCommandInput,
+    "actorUserId" | "actorGuestIdentityId" | "action" | "resourceKey"
+  >,
   keyHash: string,
   fingerprint: string,
   keyVersion: number,
 ): Buffer {
   return Buffer.from(
     canonicalJson({
-      actor_user_id: input.actorUserId,
+      actor_user_id: input.actorUserId ?? `guest:${input.actorGuestIdentityId}`,
       action: input.action,
       resource_key: input.resourceKey,
       idempotency_key_hash: keyHash,
@@ -202,6 +206,8 @@ export function decryptProtectedResponse<T extends JsonObject>(
 }
 
 function validateScope(input: IdempotentCommandInput): void {
+  if (Boolean(input.actorUserId) === Boolean(input.actorGuestIdentityId))
+    throw new TypeError("Exactly one command identity is required");
   if (!input.action.trim() || input.action.length > 80)
     throw new TypeError("Command action is invalid");
   if (!input.resourceKey.trim() || input.resourceKey.length > 120)
@@ -243,6 +249,7 @@ export async function executeIdempotentCommand<T extends JsonObject>(
   await db.commandReplay.deleteMany({
     where: {
       actorUserId: input.actorUserId,
+      actorGuestIdentityId: input.actorGuestIdentityId,
       action: input.action,
       resourceKey: input.resourceKey,
       idempotencyKeyHash: keyHash,
@@ -255,28 +262,30 @@ export async function executeIdempotentCommand<T extends JsonObject>(
       // Resource commands must authorize even a replay under current scope.
       await authorize?.(tx);
       const replayId = randomUUID();
+      const conflict = input.actorUserId
+        ? Prisma.sql`("actorUserId", "action", "resourceKey", "idempotencyKeyHash")`
+        : Prisma.sql`("actorGuestIdentityId", "action", "resourceKey", "idempotencyKeyHash")`;
       const inserted = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO "CommandReplay" (
-          "id", "actorUserId", "action", "resourceKey",
+          "id", "actorUserId", "actorGuestIdentityId", "action", "resourceKey",
           "idempotencyKeyHash", "requestFingerprint", "createdAt", "expiresAt"
         ) VALUES (
-          ${replayId}::uuid, ${input.actorUserId}::uuid, ${input.action},
+          ${replayId}::uuid, ${input.actorUserId ?? null}::uuid, ${input.actorGuestIdentityId ?? null}::uuid, ${input.action},
           ${input.resourceKey}, ${keyHash}, ${fingerprint}, ${now}, ${expiresAt}
         )
-        ON CONFLICT ("actorUserId", "action", "resourceKey", "idempotencyKeyHash")
+        ON CONFLICT ${conflict}
         DO NOTHING
         RETURNING "id"
       `;
 
       if (inserted.length === 0) {
-        const existing = await tx.commandReplay.findUnique({
+        const existing = await tx.commandReplay.findFirst({
           where: {
-            actorUserId_action_resourceKey_idempotencyKeyHash: {
-              actorUserId: input.actorUserId,
-              action: input.action,
-              resourceKey: input.resourceKey,
-              idempotencyKeyHash: keyHash,
-            },
+            actorUserId: input.actorUserId,
+            actorGuestIdentityId: input.actorGuestIdentityId,
+            action: input.action,
+            resourceKey: input.resourceKey,
+            idempotencyKeyHash: keyHash,
           },
         });
         if (!existing) throw unavailable();

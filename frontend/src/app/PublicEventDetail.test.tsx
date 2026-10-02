@@ -37,7 +37,7 @@ describe("V7 public event detail", () => {
     expect(signal?.aborted).toBe(true);
   });
   it.each(["light", "dark", "system"] satisfies ThemeMode[])(
-    "renders approved fields, banner and policy without registration in %s",
+    "renders approved fields, banner, policy and participant entry in %s",
     async (mode) => {
       applyTheme(mode, false);
       vi.mocked(getPublicDetail).mockResolvedValue(publicDetailFixture());
@@ -57,7 +57,7 @@ describe("V7 public event detail", () => {
         "no-referrer",
       );
       expect(
-        screen.getByText(/Participant registration is currently unavailable/),
+        screen.getByText(/Registration also requires a Published event/),
       ).toBeVisible();
       expect(
         screen.queryByRole("button", {

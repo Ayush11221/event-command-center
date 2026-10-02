@@ -68,7 +68,7 @@ describe("V8 private bearer detail", () => {
       await screen.findByRole("heading", { name: "Community conference" });
       expect(screen.getByText(/PRIVATE access/)).toBeVisible();
       expect(
-        screen.getByText(/registration is currently unavailable/),
+        screen.getByText(/Registration also requires a Published event/),
       ).toBeVisible();
       expect(
         screen.getByRole("region", { name: "Registration policy" }),

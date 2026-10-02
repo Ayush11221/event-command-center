@@ -103,6 +103,53 @@ describe("V6 lifecycle and availability UI", () => {
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
     },
   );
+  it.each([
+    ["DRAFT", "PUBLISH", "Publish event"],
+    ["PUBLISHED", "LIVE", "Start live event"],
+    ["LIVE", "COMPLETE", "Complete event"],
+  ] as const)(
+    "focuses %s confirmation and returns focus on cancellation",
+    (state, action, label) => {
+      panel({ ...ready, state, permitted_actions: [action] });
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      expect(
+        screen.getByRole("heading", { name: `Confirm: ${label}.` }),
+      ).toHaveFocus();
+      expect(screen.getByRole("form")).toHaveAccessibleName(
+        `Confirm: ${label}.`,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Keep current lifecycle" }),
+      );
+      expect(
+        screen.getByRole("heading", {
+          name: "Lifecycle and registration policy",
+        }),
+      ).toHaveFocus();
+      expect(transitionEvent).not.toHaveBeenCalled();
+    },
+  );
+  it("associates cancellation validation with the focused reason and restores focus when dismissed", () => {
+    panel();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel event" }));
+    const reason = screen.getByRole("textbox", { name: "Cancellation reason" });
+    expect(reason).toHaveFocus();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm cancel event" }),
+    );
+    expect(reason).toHaveAttribute("aria-invalid", "true");
+    expect(reason).toHaveAccessibleDescription(
+      "Enter a nonblank cancellation reason.",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Keep current lifecycle" }),
+    );
+    expect(
+      screen.getByRole("heading", {
+        name: "Lifecycle and registration policy",
+      }),
+    ).toHaveFocus();
+  });
   it("requires server-permitted controls, CSRF, and readiness", () => {
     const props = panel(eventDetailFixture({ permitted_actions: [] }));
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
@@ -254,11 +301,11 @@ describe("V6 lifecycle and availability UI", () => {
     );
     panel();
     confirmPublish();
-    fireEvent.click(
-      await screen.findByRole("button", {
-        name: "Retry same lifecycle request",
-      }),
-    );
+    const retry = await screen.findByRole("button", {
+      name: "Retry same lifecycle request",
+    });
+    await waitFor(() => expect(retry).toHaveFocus());
+    fireEvent.click(retry);
     await waitFor(() => expect(transitionEvent).toHaveBeenCalledTimes(2));
     const first = vi.mocked(transitionEvent).mock.calls[0],
       second = vi.mocked(transitionEvent).mock.calls[1];
@@ -284,6 +331,11 @@ describe("V6 lifecycle and availability UI", () => {
       const props = panel();
       confirmPublish();
       expect(await screen.findByRole("alert")).toHaveTextContent("safe-ref");
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Reload lifecycle detail" }),
+        ).toHaveFocus(),
+      );
       expect(
         screen.queryByRole("button", { name: "Retry same lifecycle request" }),
       ).not.toBeInTheDocument();

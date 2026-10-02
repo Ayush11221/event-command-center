@@ -25,10 +25,14 @@ export function CreateDraftForm({
   const [feedback, setFeedback] = useState("");
   const [fieldError, setFieldError] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (fieldError && !pending) input.current?.focus();
   }, [fieldError, pending]);
+  useEffect(() => {
+    if (attempt && !pending) retryButton.current?.focus();
+  }, [attempt, pending]);
 
   async function send(next: Attempt) {
     setPending(true);
@@ -102,7 +106,7 @@ export function CreateDraftForm({
         <h2 id="create-heading">Create a Draft</h2>
         <p>
           A name is enough to start. Your event remains a Draft until it is
-          configured and published in a later step.
+          fully configured and you publish it.
         </p>
       </div>
       <form className="draft-form" onSubmit={submit} noValidate>
@@ -139,6 +143,7 @@ export function CreateDraftForm({
         )}
         {attempt && (
           <button
+            ref={retryButton}
             type="button"
             className="secondary-button"
             disabled={pending}

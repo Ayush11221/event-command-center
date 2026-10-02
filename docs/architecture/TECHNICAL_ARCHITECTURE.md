@@ -1,6 +1,6 @@
 # Phase 2 Technical Architecture
 
-**Status:** implementation blueprint, not implemented. [PRD](../PRD.md) and the [locked decision register](../requirements/OPEN_PRODUCT_DECISIONS.md) govern behavior. This document selects boundaries, not packages to install.
+**Status:** implementation blueprint; Slice 1-3 foundations, event management and discovery are implemented through V10; later domains remain planned. [PRD](../PRD.md) and the [locked decision register](../requirements/OPEN_PRODUCT_DECISIONS.md) govern behavior. This document selects boundaries, not packages to install.
 
 The decision register's Phase 1 list of technical TBDs is historical. Phase 2 selects Socket.IO/WebSocket and tool directions below without changing a locked product decision; all other deferred choices remain explicit.
 
@@ -34,4 +34,4 @@ Event state and registration availability differ. One capacity limits REGISTERED
 
 ## Deferred implementation proofs
 
-Session/OTP provider details, database locking/isolation and projection publication, outbox/job runner, QR credential verifier/expiry, later-slice routes/reason codes, artifact/email providers, workload and recovery objectives, deployment topology, visual palette and chart library require focused decisions/tests before their slices. The Slice 3 PRIVATE-link proof, no-TTL validity, Organizer-only issue/revoke/reissue, one-active invariant, secure transport/verifier and exact event/discovery routes are finalized in [API_CONTRACT.md](../api/API_CONTRACT.md) and [AUTH_RBAC_ARCHITECTURE.md](../security/AUTH_RBAC_ARCHITECTURE.md); they remain unimplemented. PRIVATE bearer authority is only for allowlisted PRIVATE Published detail, never management or registration ownership.
+Session/OTP provider details, database locking/isolation and projection publication, outbox/job runner, QR credential verifier/expiry, later-slice routes/reason codes, artifact/email providers, workload and recovery objectives, deployment topology, visual palette and chart library require focused decisions/tests before their slices. The Slice 3 PRIVATE-link proof, no-TTL validity, Organizer-only issue/revoke/reissue, one-active invariant, secure transport/verifier and exact event/discovery routes are finalized in [API_CONTRACT.md](../api/API_CONTRACT.md) and [AUTH_RBAC_ARCHITECTURE.md](../security/AUTH_RBAC_ARCHITECTURE.md); they are implemented through Slice 3 V9 and verified in V10. PRIVATE bearer authority is only for allowlisted PRIVATE Published detail, never management or registration ownership.

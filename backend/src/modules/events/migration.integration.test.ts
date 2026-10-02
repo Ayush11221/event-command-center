@@ -6,12 +6,14 @@ import { createDatabase } from "../../config/database.js";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
-const prismaExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
+const prismaCli = resolve(repositoryRoot, "node_modules/prisma/build/index.js");
 const foundationMigration = "20260930210710_slice2_foundation";
 const securityMigration = "20261001000000_slice2_security_invariants";
 
 function prisma(targetUrl: string, ...arguments_: string[]): void {
-  execFileSync(prismaExecutable, ["prisma", ...arguments_], {
+  // Use the installed workspace CLI: Windows cannot execute npx.cmd directly
+  // without a shell, and verification must not download another Prisma version.
+  execFileSync(process.execPath, [prismaCli, ...arguments_], {
     cwd: repositoryRoot,
     env: { ...process.env, DATABASE_URL: targetUrl },
     encoding: "utf8",
@@ -67,14 +69,120 @@ describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
             SELECT table_name
             FROM information_schema.tables
             WHERE table_schema = current_schema()
-              AND table_name IN ('Event', 'PrivateAccessLink', 'CommandReplay')
+              AND table_name IN ('Event', 'PrivateAccessLink', 'CommandReplay', 'GuestIdentity', 'Registration', 'QRCredential')
             ORDER BY table_name
           `;
         expect(tables.map(({ table_name }) => table_name)).toEqual([
           "CommandReplay",
           "Event",
+          "GuestIdentity",
           "PrivateAccessLink",
+          "QRCredential",
+          "Registration",
         ]);
+      } finally {
+        await target.$disconnect();
+      }
+    });
+  }, 120_000);
+
+  it("preserves populated Slice 3 event, link lineage and protected account replay on Slice 4 upgrade", async () => {
+    await withTemporaryDatabase("registration", async (targetUrl) => {
+      for (const migration of [
+        foundationMigration,
+        securityMigration,
+        "20261002000000_slice3_persistence_safety",
+      ]) {
+        prisma(
+          targetUrl,
+          "db",
+          "execute",
+          "--file",
+          resolve(
+            repositoryRoot,
+            "database/prisma/migrations",
+            migration,
+            "migration.sql",
+          ),
+          "--config",
+          "database/prisma7.config.ts",
+        );
+        prisma(
+          targetUrl,
+          "migrate",
+          "resolve",
+          "--applied",
+          migration,
+          "--config",
+          "database/prisma7.config.ts",
+        );
+      }
+      const target = createDatabase(targetUrl);
+      try {
+        const owner = await target.user.create({
+          data: { organizerCapable: true },
+        });
+        const event = await target.event.create({
+          data: {
+            ownerUserId: owner.id,
+            name: "Preserved published private event",
+            state: "PUBLISHED",
+            visibility: "PRIVATE",
+            publishedAt: new Date(),
+            registrationCapacity: 50,
+            startAt: new Date(Date.now() + 3600000),
+            endAt: new Date(Date.now() + 7200000),
+            timeZone: "UTC",
+            revision: 7,
+          },
+        });
+        const old = await target.privateAccessLink.create({
+          data: {
+            eventId: event.id,
+            verifierHash: "a".repeat(64),
+            issuedAt: new Date(Date.now() - 1000),
+            revokedAt: new Date(),
+          },
+        });
+        const active = await target.privateAccessLink.create({
+          data: {
+            eventId: event.id,
+            verifierHash: "b".repeat(64),
+            replacesLinkId: old.id,
+          },
+        });
+        // The pre-Slice 4 table has no guest column; seed its existing account replay directly.
+        const replayId = randomUUID(),
+          bytes = Buffer.alloc(70, 9),
+          expiresAt = new Date(Date.now() + 3600000);
+        await target.$executeRaw`INSERT INTO "CommandReplay" (id, "actorUserId", action, "resourceKey", "idempotencyKeyHash", "requestFingerprint", status, "responseStatus", "protectedResponse", "protectedResponseKeyVersion", "protectedReplayExpiresAt", "completedAt", "expiresAt") VALUES (${replayId}::uuid, ${owner.id}::uuid, 'PRIVATE_LINK_REISSUE', ${`event:${event.id}`}, ${"c".repeat(64)}, ${"d".repeat(64)}, 'COMPLETED', 201, ${bytes}, 1, ${expiresAt}, NOW(), ${expiresAt})`;
+        const before = { event, links: [old, active] };
+        prisma(
+          targetUrl,
+          "migrate",
+          "deploy",
+          "--config",
+          "database/prisma7.config.ts",
+        );
+        expect(
+          await target.event.findUnique({ where: { id: event.id } }),
+        ).toEqual(before.event);
+        expect(
+          await target.privateAccessLink.findUnique({ where: { id: old.id } }),
+        ).toEqual(old);
+        expect(
+          await target.privateAccessLink.findUnique({
+            where: { id: active.id },
+          }),
+        ).toEqual(active);
+        const replay = await target.commandReplay.findUniqueOrThrow({
+          where: { id: replayId },
+        });
+        expect(replay.actorUserId).toBe(owner.id);
+        expect(replay.actorGuestIdentityId).toBeNull();
+        expect(Buffer.from(replay.protectedResponse!)).toEqual(bytes);
+        expect(replay.protectedReplayExpiresAt).toEqual(expiresAt);
+        expect(await target.registration.count()).toBe(0);
       } finally {
         await target.$disconnect();
       }

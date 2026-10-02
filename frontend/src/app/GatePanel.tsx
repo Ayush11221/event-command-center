@@ -38,7 +38,15 @@ export function GatePanel({
   const [feedback, setFeedback] = useState("");
   const controller = useRef<AbortController | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const reloadButton = useRef<HTMLButtonElement>(null);
   useEffect(() => () => controller.current?.abort(), []);
+  useEffect(() => {
+    if (!busy) {
+      if (attempt) retryButton.current?.focus();
+      else if (refreshRequired) reloadButton.current?.focus();
+    }
+  }, [attempt, refreshRequired, busy]);
   const canCreate =
     !!csrf &&
     detail.permitted_actions.includes("CREATE_GATE") &&
@@ -219,6 +227,7 @@ export function GatePanel({
       )}
       {canCreate && attempt && (
         <button
+          ref={retryButton}
           type="button"
           disabled={busy}
           onClick={() => void send(attempt)}
@@ -227,7 +236,12 @@ export function GatePanel({
         </button>
       )}
       {refreshRequired && (
-        <button type="button" disabled={busy} onClick={() => void reload()}>
+        <button
+          ref={reloadButton}
+          type="button"
+          disabled={busy}
+          onClick={() => void reload()}
+        >
           {busy ? "Loading current detail…" : "Reload gate detail"}
         </button>
       )}

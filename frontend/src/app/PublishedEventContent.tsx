@@ -1,18 +1,21 @@
 import { useEffect, useState, type RefObject } from "react";
 import type { PublicDetail } from "../services/discovery";
 import { publicEventTime, PublicPolicy, PublicTags } from "./PublicEventInfo";
+import { RegistrationPanel } from "./RegistrationPanel";
 export function PublishedEventContent({
   detail,
   heading,
   onRefresh,
   accessLabel = "PUBLISHED EVENT",
   refreshLabel = "Refresh event detail",
+  privateProof,
 }: {
   detail: PublicDetail;
   heading: RefObject<HTMLHeadingElement | null>;
   onRefresh: () => void;
   accessLabel?: string;
   refreshLabel?: string;
+  privateProof?: () => string | null;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [detail.image_url]);
@@ -63,6 +66,11 @@ export function PublishedEventContent({
       </dl>
       <h2>Registration policy</h2>
       <PublicPolicy event={detail} />
+      <RegistrationPanel
+        key={detail.event_id}
+        eventId={detail.event_id}
+        privateProof={privateProof}
+      />
       <p className="freshness">
         Event confirmed {new Date(detail.as_of).toLocaleString()}.
       </p>

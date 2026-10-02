@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -190,6 +191,11 @@ describe("V5 Gate configuration and readiness", () => {
         screen.queryByRole("button", { name: "Create gate" }),
       ).not.toBeInTheDocument();
       expect(createGate).toHaveBeenCalledTimes(1);
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Retry same gate request" }),
+        ).toHaveFocus(),
+      );
       fireEvent.click(
         screen.getByRole("button", { name: "Retry same gate request" }),
       );
@@ -215,6 +221,11 @@ describe("V5 Gate configuration and readiness", () => {
         .mockResolvedValueOnce({ ...missing, revision: 8 });
       fireEvent.click(screen.getByRole("button", { name: "Create gate" }));
       await screen.findByRole("alert");
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Reload gate detail" }),
+        ).toHaveFocus(),
+      );
       expect(
         screen.queryByRole("button", { name: "Create gate" }),
       ).not.toBeInTheDocument();

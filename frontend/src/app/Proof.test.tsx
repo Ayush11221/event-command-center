@@ -78,7 +78,10 @@ describe("Slice 2 browser proof states", () => {
     const authenticated = vi.fn();
     vi.mocked(challenge).mockResolvedValue();
     vi.mocked(verify).mockResolvedValue();
-    vi.mocked(currentGuest).mockResolvedValue({ status: "verified" });
+    vi.mocked(currentGuest).mockResolvedValue({
+      status: "verified",
+      csrf_token: "guest-csrf",
+    });
     render(<ProofEntry onAccountAuthenticated={authenticated} />);
     fireEvent.change(screen.getByLabelText("Proof type"), {
       target: { value: "guest" },

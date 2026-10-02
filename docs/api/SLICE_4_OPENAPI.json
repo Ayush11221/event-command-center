@@ -1,0 +1,1149 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Event Command Center - Slice 4 implemented operations",
+    "version": "1.0.0",
+    "description": "Additive participant registration and owner QR contract. Slice 3 operations remain in SLICE_3_OPENAPI.json. No scanner, attendance, occupancy or standalone credential reissue."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/events/{eventId}/registrations": {
+      "post": {
+        "operationId": "createRegistration",
+        "summary": "Create own registration and protected QR atomically.",
+        "security": [
+          {
+            "AccountCookie": []
+          },
+          {
+            "GuestCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^PrivateLink [A-Za-z0-9_-]{43}$"
+            },
+            "description": "Current PRIVATE Published event bearer proof required for new PRIVATE registration; no proof in URL, query or body."
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 200,
+              "pattern": "^[!-~]+$"
+            },
+            "description": "Reuse exact key/body on unknown outcomes. Secret-free replay retention is seven days; current authority checked before replay."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Configured frontend Origin."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN/CSRF_INVALID; cancellation also FRESH_GUEST_PROOF_REQUIRED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Privacy-safe EVENT_NOT_FOUND on event routes, REGISTRATION_NOT_FOUND on registration routes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE; required database/audit fail closed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: body/header unsupported or malformed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT; creation: REGISTRATION_NOT_OPEN/REGISTRATION_CLOSED/EVENT_CANCELLED/DUPLICATE_ACTIVE/CAPACITY_FULL; cancellation: CANCELLATION_CUTOFF_REACHED/ALREADY_CHECKED_IN",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "getOwnLatestRegistration",
+        "summary": "Recover only the verified owner latest registration; no list or query parameters.",
+        "security": [
+          {
+            "AccountCookie": []
+          },
+          {
+            "GuestCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^PrivateLink [A-Za-z0-9_-]{43}$"
+            },
+            "description": "Current PRIVATE Published event bearer proof required for new PRIVATE registration; no proof in URL, query or body."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LatestRegistrationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN/CSRF_INVALID; cancellation also FRESH_GUEST_PROOF_REQUIRED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Privacy-safe EVENT_NOT_FOUND on event routes, REGISTRATION_NOT_FOUND on registration routes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE; required database/audit fail closed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: query fields not supported",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/registrations/{registrationId}": {
+      "get": {
+        "operationId": "getRegistration",
+        "summary": "Own or current event-scoped Organizer/Admin minimal metadata; no raw credential.",
+        "security": [
+          {
+            "AccountCookie": []
+          },
+          {
+            "GuestCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN/CSRF_INVALID; cancellation also FRESH_GUEST_PROOF_REQUIRED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Privacy-safe EVENT_NOT_FOUND on event routes, REGISTRATION_NOT_FOUND on registration routes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE; required database/audit fail closed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/registrations/{registrationId}/cancel": {
+      "post": {
+        "operationId": "cancelRegistration",
+        "summary": "Cancel before accepted check-in; self before cutoff; guest fresh OTP; scoped Organizer/Admin regardless of cutoff.",
+        "security": [
+          {
+            "AccountCookie": []
+          },
+          {
+            "GuestCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 200,
+              "pattern": "^[!-~]+$"
+            },
+            "description": "Reuse exact key/body on unknown outcomes. Secret-free replay retention is seven days; current authority checked before replay."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Configured frontend Origin."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegistrationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN/CSRF_INVALID; cancellation also FRESH_GUEST_PROOF_REQUIRED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Privacy-safe EVENT_NOT_FOUND on event routes, REGISTRATION_NOT_FOUND on registration routes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE; required database/audit fail closed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: body/header unsupported or malformed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT; creation: REGISTRATION_NOT_OPEN/REGISTRATION_CLOSED/EVENT_CANCELLED/DUPLICATE_ACTIVE/CAPACITY_FULL; cancellation: CANCELLATION_CUTOFF_REACHED/ALREADY_CHECKED_IN",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmptyCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/registrations/{registrationId}/credential": {
+      "get": {
+        "operationId": "getOwnCredential",
+        "summary": "Owner-only QR representation. Staff scope does not grant credential access.",
+        "security": [
+          {
+            "AccountCookie": []
+          },
+          {
+            "GuestCookie": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CredentialResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "FORBIDDEN/CSRF_INVALID; cancellation also FRESH_GUEST_PROOF_REQUIRED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Privacy-safe EVENT_NOT_FOUND on event routes, REGISTRATION_NOT_FOUND on registration routes",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE; required database/audit fail closed",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "CREDENTIAL_REVOKED or CREDENTIAL_EXPIRED",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "enum": ["no-referrer"]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AccountCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_session"
+      },
+      "GuestCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_guest_proof"
+      }
+    },
+    "schemas": {
+      "Registration": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "registration_id",
+          "event_id",
+          "state",
+          "created_at",
+          "cancelled_at",
+          "event_state",
+          "cancellation_cutoff_at",
+          "relationship"
+        ],
+        "properties": {
+          "registration_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["REGISTERED", "CANCELLED"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "cancelled_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "event_state": {
+            "type": "string",
+            "enum": ["DRAFT", "PUBLISHED", "LIVE", "COMPLETED", "CANCELLED"]
+          },
+          "cancellation_cutoff_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "relationship": {
+            "type": "string",
+            "enum": ["own", "managed"],
+            "description": "Current request relationship only; no owner identity. Staff scope does not grant QR retrieval."
+          }
+        }
+      },
+      "RegistrationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["registration", "correlation_id"],
+        "properties": {
+          "registration": {
+            "$ref": "#/components/schemas/Registration"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "LatestRegistrationResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["registration", "correlation_id"],
+        "properties": {
+          "registration": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Registration"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "EmptyCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "maxProperties": 0
+      },
+      "CredentialResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "credential_id",
+          "registration_id",
+          "status",
+          "expires_at",
+          "qr_svg",
+          "correlation_id"
+        ],
+        "properties": {
+          "credential_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registration_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE"]
+          },
+          "expires_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "qr_svg": {
+            "type": "string",
+            "description": "Server-generated SVG QR encoding only a random opaque token; owner-only, no-store. No admission authorization."
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": ["code", "message", "correlation_id"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "details": {},
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

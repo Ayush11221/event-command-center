@@ -73,7 +73,7 @@ export function eventRouter(deps: AuthDependencies) {
       const key = parseCreateDraftKey(request.header("Idempotency-Key"));
       const result = await createDraftEvent(
         deps,
-        actor.userId,
+        actor,
         body.name,
         key,
         response.locals.correlationId as string,

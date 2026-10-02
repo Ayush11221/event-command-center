@@ -74,6 +74,7 @@ export function PrivateEventDetail({ entry }: { entry?: PrivateEntry }) {
             onRefresh={() => setRetry((value) => value + 1)}
             accessLabel="PRIVATE PUBLISHED EVENT"
             refreshLabel="Refresh private detail"
+            privateProof={() => entry?.read() ?? null}
           />
         </>
       ) : (

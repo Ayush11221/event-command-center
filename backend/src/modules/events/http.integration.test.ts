@@ -51,6 +51,7 @@ describe.skipIf(!databaseUrl)("Slice 3 V2 Event API", () => {
     const token = await signAccountToken(user.id, session.id, config.jwtSecret);
     return {
       id: user.id,
+      sessionId: session.id,
       cookie: `eoc_session=${token}`,
       csrf: csrfToken(session.id, config.jwtSecret),
     };
@@ -243,6 +244,114 @@ describe.skipIf(!databaseUrl)("Slice 3 V2 Event API", () => {
     ).toBe(1);
   });
 
+  it.each([false, true])(
+    "rejects capability loss inside Draft create/replay (replay=%s)",
+    async (replay) => {
+      const owner = await actor(true),
+        key = randomUUID();
+      const create = () =>
+        request(app)
+          .post("/api/v1/events")
+          .set("Cookie", owner.cookie)
+          .set("Origin", origin)
+          .set("X-CSRF-Token", owner.csrf)
+          .set("Idempotency-Key", key)
+          .send({ name: "Revoked Organizer" });
+      if (replay) expect((await create()).status).toBe(201);
+      const original = db.user.findUnique.bind(db.user);
+      const spy = vi.spyOn(db.user, "findUnique").mockImplementationOnce(
+        (args) =>
+          original(args).then(async (user) => {
+            await db.user.update({
+              where: { id: owner.id },
+              data: { organizerCapable: false },
+            });
+            return user;
+          }) as ReturnType<typeof db.user.findUnique>,
+      );
+      try {
+        const denied = await create();
+        expect(denied.status).toBe(403);
+        expect(denied.body.event_id).toBeUndefined();
+        expect(await db.event.count({ where: { ownerUserId: owner.id } })).toBe(
+          replay ? 1 : 0,
+        );
+        expect(
+          await db.auditEvent.count({
+            where: { actorUserId: owner.id, action: "EVENT_CREATED" },
+          }),
+        ).toBe(replay ? 1 : 0);
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+  it.each([false, true])(
+    "rejects session revocation after HTTP authentication on Draft create/replay (replay=%s)",
+    async (replay) => {
+      const owner = await actor(true),
+        key = randomUUID();
+      const create = () =>
+        request(app)
+          .post("/api/v1/events")
+          .set("Cookie", owner.cookie)
+          .set("Origin", origin)
+          .set("X-CSRF-Token", owner.csrf)
+          .set("Idempotency-Key", key)
+          .send({ name: "Revoked session" });
+      if (replay) expect((await create()).status).toBe(201);
+      const original = db.session.findUnique.bind(db.session);
+      const spy = vi.spyOn(db.session, "findUnique").mockImplementationOnce(
+        (args) =>
+          original(args).then(async (session) => {
+            await db.session.update({
+              where: { id: owner.sessionId },
+              data: { revokedAt: new Date() },
+            });
+            return session;
+          }) as ReturnType<typeof db.session.findUnique>,
+      );
+      try {
+        const denied = await create();
+        expect(denied.status).toBe(401);
+        expect(denied.body.event_id).toBeUndefined();
+        expect(await db.event.count({ where: { ownerUserId: owner.id } })).toBe(
+          replay ? 1 : 0,
+        );
+      } finally {
+        spy.mockRestore();
+      }
+    },
+  );
+  it("does not return owned rows when capability disappears after list preflight", async () => {
+    const owner = await actor(true);
+    await db.event.create({
+      data: { ownerUserId: owner.id, name: "Concealed after revocation" },
+    });
+    const original = db.user.findUnique.bind(db.user);
+    const spy = vi.spyOn(db.user, "findUnique").mockImplementationOnce(
+      (args) =>
+        original(args).then(async (user) => {
+          await db.user.update({
+            where: { id: owner.id },
+            data: { organizerCapable: false },
+          });
+          return user;
+        }) as ReturnType<typeof db.user.findUnique>,
+    );
+    try {
+      const response = await request(app)
+        .get("/api/v1/events?view=owned")
+        .set("Cookie", owner.cookie);
+      expect(response.status).toBe(200);
+      expect(response.body.items).toEqual([]);
+      expect(JSON.stringify(response.body)).not.toContain(
+        "Concealed after revocation",
+      );
+    } finally {
+      spy.mockRestore();
+    }
+  });
   it("rejects unknown Draft fields, invalid name, missing key, and failed CSRF", async () => {
     const owner = await actor(true);
     const base = () =>

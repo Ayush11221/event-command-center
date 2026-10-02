@@ -7,6 +7,7 @@ import { PublicCatalog } from "./PublicCatalog";
 import { PublicEventDetail } from "./PublicEventDetail";
 import { PrivateEventDetail } from "./PrivateEventDetail";
 import type { PrivateEntry } from "./private-entry";
+import { RegistrationPanel } from "./RegistrationPanel";
 
 function ManagementEntry() {
   const [session, setSession] = useState<
@@ -87,6 +88,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   const catalog = /^\/events\/?$/.test(path);
   const privatePage = /^\/private\/?$/.test(path);
   const detail = path.match(/^\/events\/([^/]+)\/?$/);
+  const registration = path.match(/^\/registrations\/([0-9a-f-]+)\/?$/i)?.[1];
   let eventId = detail?.[1];
   if (eventId) {
     try {
@@ -96,10 +98,23 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     }
   }
   useEffect(() => {
-    document.title = `${privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
-  }, [catalog, eventId, privatePage]);
+    document.title = `${registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+  }, [catalog, eventId, privatePage, registration]);
   return (
     <div className="app-frame">
+      <button
+        type="button"
+        className="skip-link"
+        onClick={() => {
+          const main = document.querySelector("main");
+          if (main) {
+            main.tabIndex = -1;
+            main.focus();
+          }
+        }}
+      >
+        Skip to main content
+      </button>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark" aria-hidden="true">
@@ -118,7 +133,12 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
         </nav>
         <ThemeControl />
       </header>
-      {privatePage ? (
+      {registration ? (
+        <main className="page-shell public-page">
+          <h1>Registration recovery</h1>
+          <RegistrationPanel registrationId={registration} />
+        </main>
+      ) : privatePage ? (
         <PrivateEventDetail entry={privateEntry} />
       ) : catalog ? (
         <PublicCatalog />

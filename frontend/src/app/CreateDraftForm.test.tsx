@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDraft, EventApiError } from "../services/events";
 import { CreateDraftForm } from "./CreateDraftForm";
@@ -72,6 +78,11 @@ describe("Draft creation", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create Draft" }));
     expect(await screen.findByText(/result is unknown/)).toBeVisible();
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Retry same request" }),
+      ).toHaveFocus(),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Retry same request" }));
     expect(await screen.findByText(/Draft “Uncertain” created/)).toBeVisible();
     expect(vi.mocked(createDraft).mock.calls[1]).toEqual(

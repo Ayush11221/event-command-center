@@ -1,10 +1,11 @@
 import { StaffRole, type Event } from "@prisma/client";
-import type { AuthDependencies } from "../auth/http.js";
+import type { AuthContext, AuthDependencies } from "../auth/http.js";
 import { accountActor, recordAudit } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
 import { executeIdempotentCommand } from "./command-safety.js";
 import { decodeEventCursor, encodeEventCursor } from "./cursor.js";
 import { managementDetail, managementListItem } from "./serializers.js";
+import { lockCommandActor } from "./management-command.js";
 import { managementEventScope } from "./policy.js";
 import type { EventListQuery } from "./validation.js";
 
@@ -46,7 +47,7 @@ export async function listManagementEvents(
     const rows = await deps.db.event.findMany({
       where: {
         ...(query.view === "owned"
-          ? { ownerUserId: actorUserId }
+          ? { ownerUserId: actorUserId, owner: { organizerCapable: true } }
           : {
               assignments: {
                 some: {
@@ -108,11 +109,12 @@ export async function listManagementEvents(
 
 export async function createDraftEvent(
   deps: AuthDependencies,
-  actorUserId: string,
+  actor: AuthContext,
   name: string,
   idempotencyKey: string,
   correlationId: string,
 ) {
+  const actorUserId = actor.userId;
   try {
     const owner = await deps.db.user.findUnique({
       where: { id: actorUserId },
@@ -131,15 +133,6 @@ export async function createDraftEvent(
         request: { name },
       },
       async (tx) => {
-        const currentOwner = await tx.$queryRaw<
-          { organizerCapable: boolean }[]
-        >`
-          SELECT "organizerCapable" FROM "User"
-          WHERE id = ${actorUserId}::uuid FOR SHARE
-        `;
-        if (!currentOwner[0]?.organizerCapable) {
-          throw new ApiError(403, "FORBIDDEN", "Organizer access required");
-        }
         const event: Event = await tx.event.create({
           data: { ownerUserId: actorUserId, name: name.trim() },
         });
@@ -155,6 +148,10 @@ export async function createDraftEvent(
           status: 201,
           body: managementDetail(event, [], new Date(), correlationId, true),
         };
+      },
+      async (tx) => {
+        if (!(await lockCommandActor(tx, actor)))
+          throw new ApiError(403, "FORBIDDEN", "Organizer access required");
       },
     );
   } catch (error) {

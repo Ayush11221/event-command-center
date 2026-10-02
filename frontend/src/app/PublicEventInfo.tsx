@@ -64,7 +64,8 @@ export function PublicPolicy({
           </dl>
           <p>
             Policy OPEN describes the configured registration window.
-            Participant registration is currently unavailable.
+            Registration also requires a Published event, verified identity, and
+            an available place.
           </p>
           <p className="freshness">
             Policy confirmed {new Date(availability.as_of).toLocaleString()}.

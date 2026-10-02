@@ -29,7 +29,7 @@ export interface AuthDependencies {
   frontendOrigin: string;
 }
 
-function cookie(request: Request, name: string): string | undefined {
+export function cookie(request: Request, name: string): string | undefined {
   const header = request.header("cookie") ?? "";
   for (const item of header.split(";")) {
     const [key, ...parts] = item.trim().split("=");
@@ -62,7 +62,7 @@ function clearAuthCookie(response: Response, name: string, secure: boolean) {
   });
 }
 
-function requireOrigin(request: Request, expected: string) {
+export function requireOrigin(request: Request, expected: string) {
   if (request.header("origin") !== expected) {
     throw new ApiError(403, "FORBIDDEN", "Request origin not allowed");
   }
@@ -256,6 +256,7 @@ export function authRouter(deps: AuthDependencies) {
         status: "verified",
         purpose: proof.purpose,
         context_event_id: proof.contextEventId,
+        csrf_token: csrfToken(token, deps.config.jwtSecret),
         correlation_id: response.locals.correlationId,
       });
     } catch {

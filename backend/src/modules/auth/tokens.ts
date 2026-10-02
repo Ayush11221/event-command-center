@@ -76,6 +76,8 @@ export async function verifyGuestProof(token: string, key: Uint8Array) {
     contactLookupHash: payload.sub,
     purpose: payload.purpose,
     contextEventId: payload.context_event_id as string | null,
+    issuedAt: payload.iat!,
+    expiresAt: payload.exp!,
   };
 }
 

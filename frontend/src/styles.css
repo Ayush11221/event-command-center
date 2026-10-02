@@ -11,7 +11,7 @@
   --surface: #ffffff;
   --surface-raised: #ffffff;
   --surface-inset: #eaf0eb;
-  --border: #bdcbc1;
+  --border: #788b7e;
   --text: #172b21;
   --text-muted: #435b4d;
   --focus: #125b8a;
@@ -34,7 +34,7 @@
   --surface: #1b2922;
   --surface-raised: #26372d;
   --surface-inset: #16241c;
-  --border: #52675a;
+  --border: #718776;
   --text: #f2f8f3;
   --text-muted: #b8cbbd;
   --focus: #95d6ff;
@@ -93,7 +93,8 @@ button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
-a:focus-visible {
+a:focus-visible,
+[tabindex="-1"]:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
@@ -108,7 +109,8 @@ select {
   color: var(--text);
 }
 input[aria-invalid="true"],
-textarea[aria-invalid="true"] {
+textarea[aria-invalid="true"],
+select[aria-invalid="true"] {
   border-color: var(--critical);
 }
 
@@ -734,4 +736,50 @@ p {
     flex-basis: 100%;
     margin-left: 0;
   }
+}
+
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 10;
+  transform: translateY(-200%);
+}
+.skip-link:focus {
+  transform: none;
+}
+:root .registration-panel {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+}
+.registration-panel button {
+  margin: 0.5rem 0.5rem 0.5rem 0;
+}
+.registration-panel a {
+  display: inline-block;
+  margin-right: 0.75rem;
+}
+.registration-proof {
+  display: grid;
+  gap: 0.75rem;
+  max-width: 28rem;
+}
+.registration-proof label {
+  display: grid;
+  gap: 0.375rem;
+}
+.registration-proof input,
+.registration-proof select {
+  width: 100%;
+}
+.registration-panel figure {
+  margin: 1rem 0;
+}
+.participant-qr {
+  display: block;
+  width: min(100%, 20rem);
+  height: auto;
+  background: white;
 }

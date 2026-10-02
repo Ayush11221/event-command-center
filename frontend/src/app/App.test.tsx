@@ -31,6 +31,16 @@ afterEach(() => {
 });
 
 describe("application entry", () => {
+  it("offers keyboard bypass to main content without modifying the URL fragment", () => {
+    vi.mocked(currentActor).mockReturnValue(new Promise(() => {}));
+    window.history.replaceState(null, "", "/#unchanged");
+    render(<App />);
+    const skip = screen.getByRole("button", { name: "Skip to main content" });
+    skip.focus();
+    fireEvent.click(skip);
+    expect(screen.getByRole("main")).toHaveFocus();
+    expect(window.location.hash).toBe("#unchanged");
+  });
   it("opens private entry without account or Event+Role context", () => {
     window.history.replaceState(null, "", "/private");
     render(<App />);

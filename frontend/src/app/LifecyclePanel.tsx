@@ -73,9 +73,19 @@ export function LifecyclePanel({
   const controller = useRef<AbortController | null>(null);
   const reasonInput = useRef<HTMLTextAreaElement>(null);
   const heading = useRef<HTMLHeadingElement>(null);
+  const confirmationHeading = useRef<HTMLHeadingElement>(null);
+  const retryButton = useRef<HTMLButtonElement>(null);
+  const reloadButton = useRef<HTMLButtonElement>(null);
   useEffect(() => () => controller.current?.abort(), []);
   useEffect(() => {
+    if (!busy) {
+      if (attempt) retryButton.current?.focus();
+      else if (refreshRequired) reloadButton.current?.focus();
+    }
+  }, [attempt, refreshRequired, busy]);
+  useEffect(() => {
     if (selected?.target === "CANCELLED") reasonInput.current?.focus();
+    else if (selected) confirmationHeading.current?.focus();
   }, [selected]);
   const canMutate = owner && !!csrf;
   function denied(error: unknown) {
@@ -260,6 +270,7 @@ export function LifecyclePanel({
         !refreshRequired &&
         (selected ? (
           <form
+            aria-labelledby="lifecycle-confirmation-heading"
             onSubmit={(event) => {
               event.preventDefault();
               if (busy) return;
@@ -285,11 +296,15 @@ export function LifecyclePanel({
               });
             }}
           >
-            <p>
+            <h4
+              id="lifecycle-confirmation-heading"
+              ref={confirmationHeading}
+              tabIndex={-1}
+            >
               {selected.target === "CANCELLED"
                 ? "Confirm cancellation. This event cannot be reopened."
                 : `Confirm: ${selected.label}.`}
-            </p>
+            </h4>
             {selected.target === "CANCELLED" && (
               <label className="field">
                 Cancellation reason
@@ -321,6 +336,7 @@ export function LifecyclePanel({
                 onClick={() => {
                   setSelected(null);
                   setFeedback("");
+                  heading.current?.focus();
                 }}
               >
                 Keep current lifecycle
@@ -369,6 +385,7 @@ export function LifecyclePanel({
         ))}
       {canMutate && attempt && (
         <button
+          ref={retryButton}
           type="button"
           disabled={busy}
           onClick={() => void send(attempt)}
@@ -377,7 +394,12 @@ export function LifecyclePanel({
         </button>
       )}
       {refreshRequired && (
-        <button type="button" disabled={busy} onClick={() => void reload()}>
+        <button
+          ref={reloadButton}
+          type="button"
+          disabled={busy}
+          onClick={() => void reload()}
+        >
           {busy ? "Loading current detail…" : "Reload lifecycle detail"}
         </button>
       )}

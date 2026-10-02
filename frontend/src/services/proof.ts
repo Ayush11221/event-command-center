@@ -71,8 +71,14 @@ export async function currentActor(): Promise<ActorState> {
   return api("/me", "GET") as Promise<ActorState>;
 }
 
-export async function currentGuest(): Promise<{ status: string }> {
-  return api("/guest/self", "GET") as Promise<{ status: string }>;
+export async function currentGuest(): Promise<{
+  status: string;
+  csrf_token: string;
+}> {
+  return api("/guest/self", "GET") as Promise<{
+    status: string;
+    csrf_token: string;
+  }>;
 }
 
 export async function logout(csrf: string) {
