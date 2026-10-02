@@ -418,6 +418,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
       .set("Origin", origin)
       .set("Cookie", first.cookie);
     expect(noCsrf.status).toBe(403);
+    expect(noCsrf.body.code).toBe("CSRF_INVALID");
     const wrongOrigin = await request(app)
       .post("/api/v1/auth/logout")
       .set("Origin", "http://127.0.0.1:5999")
@@ -548,10 +549,10 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const owner = await account("fk-owner", true);
     const target = await account("fk-target");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const other = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const gate = await db.gate.create({ data: { eventId: other.id } });
     await expect(
@@ -586,7 +587,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const owner = await account("immutable-owner", true);
     const other = await account("immutable-other", true);
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     expect(event.ownerUserId).toBe(owner.userId);
     await expect(
@@ -622,7 +623,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const unverified = await db.user.create({ data: {} });
     const missingId = randomUUID();
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const auth = await signIn(owner.contact);
     const grant = (userId: string) =>
@@ -654,10 +655,10 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const operator = await account("gate-scope-operator");
     const unassigned = await account("gate-scope-unassigned");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const otherEvent = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const gate = await db.gate.create({ data: { eventId: event.id } });
     const otherGate = await db.gate.create({ data: { eventId: event.id } });
@@ -805,10 +806,10 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const volunteer = await account("volunteer");
     const outsider = await account("outsider");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const other = await db.event.create({
-      data: { ownerUserId: outsider.userId },
+      data: { ownerUserId: outsider.userId, name: "Slice 2 fixture" },
     });
     const gate = await db.gate.create({ data: { eventId: event.id } });
     const otherGate = await db.gate.create({ data: { eventId: other.id } });
@@ -978,7 +979,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const owner = await account("race-owner", true);
     const target = await account("race-target");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const auth = await signIn(owner.contact);
     const send = () =>
@@ -1004,7 +1005,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const owner = await account("regrant-owner", true);
     const target = await account("regrant-target");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const auth = await signIn(owner.contact);
     const headers = {
@@ -1049,7 +1050,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const admin = await account("stale-admin");
     const target = await account("stale-target");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const ownerAuth = await signIn(owner.contact);
     const adminAuth = await signIn(admin.contact);
@@ -1134,7 +1135,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const member = await account("audit-member");
     const outsider = await account("audit-outsider");
     const event = await db.event.create({
-      data: { ownerUserId: owner.userId },
+      data: { ownerUserId: owner.userId, name: "Slice 2 fixture" },
     });
     const auth = await signIn(owner.contact);
     const outsiderAuth = await signIn(outsider.contact);

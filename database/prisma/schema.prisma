@@ -28,26 +28,45 @@ enum AuditActorKind {
   SYSTEM
 }
 
+enum EventState {
+  DRAFT
+  PUBLISHED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum EventVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum CommandReplayStatus {
+  PENDING
+  COMPLETED
+}
+
 model User {
-  id                    String                @id @default(uuid()) @db.Uuid
-  organizerCapable      Boolean               @default(false)
-  createdAt             DateTime              @default(now()) @db.Timestamptz(3)
-  contacts              VerifiedContact[]
-  sessions              Session[]
-  ownedEvents           Event[]               @relation("EventOwner")
-  assignments           EventRoleAssignment[] @relation("AssignmentTarget")
-  grantedAssignments    EventRoleAssignment[] @relation("AssignmentGrantActor")
-  revokedAssignments    EventRoleAssignment[] @relation("AssignmentRevokeActor")
+  id                 String                @id @default(uuid()) @db.Uuid
+  organizerCapable   Boolean               @default(false)
+  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
+  contacts           VerifiedContact[]
+  sessions           Session[]
+  ownedEvents        Event[]               @relation("EventOwner")
+  assignments        EventRoleAssignment[] @relation("AssignmentTarget")
+  grantedAssignments EventRoleAssignment[] @relation("AssignmentGrantActor")
+  revokedAssignments EventRoleAssignment[] @relation("AssignmentRevokeActor")
+  commandReplays     CommandReplay[]
 }
 
 model VerifiedContact {
-  id           String      @id @default(uuid()) @db.Uuid
-  userId       String      @db.Uuid
-  type         ContactType
-  lookupHash   String      @db.Char(64)
-  encrypted    String      @db.Text
-  verifiedAt   DateTime    @db.Timestamptz(3)
-  user         User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+  id         String      @id @default(uuid()) @db.Uuid
+  userId     String      @db.Uuid
+  type       ContactType
+  lookupHash String      @db.Char(64)
+  encrypted  String      @db.Text
+  verifiedAt DateTime    @db.Timestamptz(3)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   @@unique([type, lookupHash])
   @@index([userId])
@@ -83,15 +102,34 @@ model OtpChallenge {
 }
 
 model Event {
-  id          String                @id @default(uuid()) @db.Uuid
-  ownerUserId String                @db.Uuid
-  state       String                @default("DRAFT") @db.VarChar(16)
-  createdAt   DateTime              @default(now()) @db.Timestamptz(3)
-  owner       User                  @relation("EventOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
-  gates       Gate[]
-  assignments EventRoleAssignment[]
+  id                               String                @id @default(uuid()) @db.Uuid
+  ownerUserId                      String                @db.Uuid
+  state                            EventState            @default(DRAFT)
+  name                             String                @db.VarChar(200)
+  description                      String?               @db.Text
+  publicLocation                   String?               @db.VarChar(500)
+  imageUrl                         String?               @db.Text
+  category                         String?               @db.VarChar(100)
+  tags                             String[]              @default([])
+  startAt                          DateTime?             @db.Timestamptz(3)
+  endAt                            DateTime?             @db.Timestamptz(3)
+  timeZone                         String?               @db.VarChar(100)
+  visibility                       EventVisibility?
+  registrationCapacity             Int?
+  registrationOpensAt              DateTime?             @db.Timestamptz(3)
+  registrationClosesAt             DateTime?             @db.Timestamptz(3)
+  registrationCancellationCutoffAt DateTime?             @db.Timestamptz(3)
+  registrationManuallyClosed       Boolean               @default(false)
+  checkoutEnabled                  Boolean               @default(false)
+  revision                         Int                   @default(1)
+  publishedAt                      DateTime?             @db.Timestamptz(3)
+  createdAt                        DateTime              @default(now()) @db.Timestamptz(3)
+  owner                            User                  @relation("EventOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  gates                            Gate[]
+  assignments                      EventRoleAssignment[]
+  privateAccessLinks               PrivateAccessLink[]
 
-  @@index([ownerUserId])
+  @@index([ownerUserId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Gate {
@@ -140,4 +178,41 @@ model AuditEvent {
 
   @@index([eventId, createdAt])
   @@index([actorUserId, createdAt])
+}
+
+model PrivateAccessLink {
+  id                 String             @id @default(uuid()) @db.Uuid
+  eventId            String             @db.Uuid
+  verifierHash       String             @unique @db.Char(64)
+  verifierKeyVersion Int                @default(1) @db.SmallInt
+  issuedAt           DateTime           @default(now()) @db.Timestamptz(3)
+  revokedAt          DateTime?          @db.Timestamptz(3)
+  replacesLinkId     String?            @unique @db.Uuid
+  event              Event              @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  replacesLink       PrivateAccessLink? @relation("PrivateLinkReplacement", fields: [replacesLinkId], references: [id], onDelete: Restrict)
+  replacementLink    PrivateAccessLink? @relation("PrivateLinkReplacement")
+
+  @@index([eventId, issuedAt(sort: Desc)])
+}
+
+model CommandReplay {
+  id                          String              @id @default(uuid()) @db.Uuid
+  actorUserId                 String              @db.Uuid
+  action                      String              @db.VarChar(80)
+  resourceKey                 String              @db.VarChar(120)
+  idempotencyKeyHash          String              @db.Char(64)
+  requestFingerprint          String              @db.Char(64)
+  status                      CommandReplayStatus @default(PENDING)
+  responseStatus              Int?                @db.SmallInt
+  responseBody                Json?
+  protectedResponse           Bytes?
+  protectedResponseKeyVersion Int?                @db.SmallInt
+  protectedReplayExpiresAt    DateTime?           @db.Timestamptz(3)
+  createdAt                   DateTime            @default(now()) @db.Timestamptz(3)
+  completedAt                 DateTime?           @db.Timestamptz(3)
+  expiresAt                   DateTime            @db.Timestamptz(3)
+  actor                       User                @relation(fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@unique([actorUserId, action, resourceKey, idempotencyKeyHash], map: "CommandReplay_actor_action_resource_key_key")
+  @@index([expiresAt])
 }

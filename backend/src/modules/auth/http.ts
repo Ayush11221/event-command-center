@@ -148,7 +148,7 @@ export function requireCsrf(
       deps.config.jwtSecret,
     )
   ) {
-    throw new ApiError(403, "CSRF", "Request verification failed");
+    throw new ApiError(403, "CSRF_INVALID", "Request verification failed");
   }
 }
 

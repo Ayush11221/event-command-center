@@ -8,6 +8,7 @@ export interface AuditInput {
   action: string;
   outcome: string;
   correlationId: string;
+  metadata?: Prisma.InputJsonValue;
 }
 
 export async function recordAudit(
@@ -23,6 +24,7 @@ export async function recordAudit(
       action: input.action,
       outcome: input.outcome,
       correlationId: input.correlationId,
+      ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
     },
   });
 }

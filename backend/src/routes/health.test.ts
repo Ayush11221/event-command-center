@@ -72,6 +72,30 @@ describe("GET /health/live", () => {
     expect(denied.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
+  it("permits the approved Slice 3 command headers on CORS preflight", async () => {
+    const { app } = testApp();
+    const response = await request(app)
+      .options("/api/v1/events/example")
+      .set("Origin", config.frontendOrigin)
+      .set("Access-Control-Request-Method", "PATCH")
+      .set(
+        "Access-Control-Request-Headers",
+        "Authorization,If-Match,Idempotency-Key,X-CSRF-Token",
+      );
+
+    expect(response.status).toBe(204);
+    expect(response.headers["access-control-allow-methods"]).toContain("PATCH");
+    expect(response.headers["access-control-allow-headers"]).toContain(
+      "Authorization",
+    );
+    expect(response.headers["access-control-allow-headers"]).toContain(
+      "If-Match",
+    );
+    expect(response.headers["access-control-allow-headers"]).toContain(
+      "Idempotency-Key",
+    );
+  });
+
   it("does not expose a business route", async () => {
     const { app } = testApp();
     const response = await request(app).get("/api/v1/events");

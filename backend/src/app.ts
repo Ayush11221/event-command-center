@@ -22,8 +22,15 @@ export function createApp(
     cors({
       origin: (origin, callback) =>
         callback(null, origin === config.frontendOrigin),
-      methods: ["GET", "POST", "DELETE"],
-      allowedHeaders: ["Content-Type", "X-Correlation-Id", "X-CSRF-Token"],
+      methods: ["GET", "POST", "PATCH", "DELETE"],
+      allowedHeaders: [
+        "Content-Type",
+        "X-Correlation-Id",
+        "X-CSRF-Token",
+        "If-Match",
+        "Idempotency-Key",
+        "Authorization",
+      ],
       credentials: true,
     }),
   );
@@ -96,6 +103,10 @@ export function createApp(
       response.status(known?.status ?? 500).json({
         code: known?.code ?? "INTERNAL_ERROR",
         message: known?.message ?? "Request failed",
+        ...(known?.details === undefined ? {} : { details: known.details }),
+        ...(known?.retryable === undefined
+          ? {}
+          : { retryable: known.retryable }),
         correlation_id: response.locals.correlationId,
       });
     },

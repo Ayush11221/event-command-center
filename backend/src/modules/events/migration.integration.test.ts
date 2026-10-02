@@ -1,0 +1,227 @@
+import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { resolve } from "node:path";
+import { afterAll, describe, expect, it } from "vitest";
+import { createDatabase } from "../../config/database.js";
+
+const databaseUrl = process.env.TEST_DATABASE_URL;
+const repositoryRoot = resolve(import.meta.dirname, "../../../..");
+const prismaExecutable = process.platform === "win32" ? "npx.cmd" : "npx";
+const foundationMigration = "20260930210710_slice2_foundation";
+const securityMigration = "20261001000000_slice2_security_invariants";
+
+function prisma(targetUrl: string, ...arguments_: string[]): void {
+  execFileSync(prismaExecutable, ["prisma", ...arguments_], {
+    cwd: repositoryRoot,
+    env: { ...process.env, DATABASE_URL: targetUrl },
+    encoding: "utf8",
+    stdio: "pipe",
+    timeout: 90_000,
+  });
+}
+
+describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
+  const sourceUrl = new URL(databaseUrl ?? "postgresql://invalid/invalid");
+  const adminUrl = new URL(sourceUrl);
+  adminUrl.pathname = "/postgres";
+  adminUrl.searchParams.delete("schema");
+  const admin = createDatabase(adminUrl.toString());
+
+  afterAll(async () => {
+    await admin.$disconnect();
+  });
+
+  async function withTemporaryDatabase(
+    label: string,
+    test: (targetUrl: string) => Promise<void>,
+  ): Promise<void> {
+    const databaseName = `slice3_${label}_${randomUUID().replaceAll("-", "")}`;
+    if (!/^slice3_[a-z]+_[0-9a-f]{32}$/.test(databaseName))
+      throw new Error("Unsafe temporary database name");
+    await admin.$executeRawUnsafe(`CREATE DATABASE "${databaseName}"`);
+    const targetUrl = new URL(sourceUrl);
+    targetUrl.pathname = `/${databaseName}`;
+    targetUrl.searchParams.delete("schema");
+    try {
+      await test(targetUrl.toString());
+    } finally {
+      await admin.$executeRawUnsafe(
+        `SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = '${databaseName}' AND pid <> pg_backend_pid()`,
+      );
+      await admin.$executeRawUnsafe(`DROP DATABASE "${databaseName}"`);
+    }
+  }
+
+  it("applies the complete migration history to a clean database", async () => {
+    await withTemporaryDatabase("clean", async (targetUrl) => {
+      prisma(
+        targetUrl,
+        "migrate",
+        "deploy",
+        "--config",
+        "database/prisma7.config.ts",
+      );
+      const target = createDatabase(targetUrl);
+      try {
+        const tables = await target.$queryRaw<{ table_name: string }[]>`
+            SELECT table_name
+            FROM information_schema.tables
+            WHERE table_schema = current_schema()
+              AND table_name IN ('Event', 'PrivateAccessLink', 'CommandReplay')
+            ORDER BY table_name
+          `;
+        expect(tables.map(({ table_name }) => table_name)).toEqual([
+          "CommandReplay",
+          "Event",
+          "PrivateAccessLink",
+        ]);
+      } finally {
+        await target.$disconnect();
+      }
+    });
+  }, 120_000);
+
+  it("upgrades and preserves a populated Slice 2 database", async () => {
+    await withTemporaryDatabase("upgrade", async (targetUrl) => {
+      const foundationPath = resolve(
+        repositoryRoot,
+        "database/prisma/migrations",
+        foundationMigration,
+        "migration.sql",
+      );
+      const securityPath = resolve(
+        repositoryRoot,
+        "database/prisma/migrations",
+        securityMigration,
+        "migration.sql",
+      );
+      prisma(
+        targetUrl,
+        "db",
+        "execute",
+        "--file",
+        foundationPath,
+        "--config",
+        "database/prisma7.config.ts",
+      );
+      prisma(
+        targetUrl,
+        "migrate",
+        "resolve",
+        "--applied",
+        foundationMigration,
+        "--config",
+        "database/prisma7.config.ts",
+      );
+      prisma(
+        targetUrl,
+        "db",
+        "execute",
+        "--file",
+        securityPath,
+        "--config",
+        "database/prisma7.config.ts",
+      );
+      prisma(
+        targetUrl,
+        "migrate",
+        "resolve",
+        "--applied",
+        securityMigration,
+        "--config",
+        "database/prisma7.config.ts",
+      );
+
+      const legacy = createDatabase(targetUrl);
+      const ownerId = randomUUID();
+      const targetUserId = randomUUID();
+      const eventId = randomUUID();
+      const gateId = randomUUID();
+      const assignmentId = randomUUID();
+      const sessionId = randomUUID();
+      const challengeId = randomUUID();
+      const auditId = randomUUID();
+      const now = new Date("2026-10-01T00:00:00Z");
+      try {
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "User" ("id", "organizerCapable") VALUES ('${ownerId}', true), ('${targetUserId}', false)`,
+        );
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "Event" ("id", "ownerUserId") VALUES ('${eventId}', '${ownerId}')`,
+        );
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "Gate" ("id", "eventId") VALUES ('${gateId}', '${eventId}')`,
+        );
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "EventRoleAssignment" ("id", "eventId", "userId", "role", "scopeKey", "grantedByUserId") VALUES ('${assignmentId}', '${eventId}', '${targetUserId}', 'EVENT_ADMIN', 'EVENT', '${ownerId}')`,
+        );
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "Session" ("id", "userId", "createdAt", "expiresAt") VALUES ('${sessionId}', '${ownerId}', '${now.toISOString()}', '2026-10-02T00:00:00.000Z')`,
+        );
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "OtpChallenge" ("id", "contactType", "contactLookupHash", "purpose", "codeHash", "attempts", "createdAt", "expiresAt", "lastSentAt", "deliveredAt") VALUES ('${challengeId}', 'EMAIL', '${"a".repeat(64)}', 'ACCOUNT', '${"b".repeat(64)}', 0, '${now.toISOString()}', '2026-10-01T00:10:00.000Z', '${now.toISOString()}', '${now.toISOString()}')`,
+        );
+        await legacy.$executeRawUnsafe(
+          `INSERT INTO "AuditEvent" ("id", "actorKind", "actorUserId", "eventId", "action", "outcome", "correlationId") VALUES ('${auditId}', 'ACCOUNT', '${ownerId}', '${eventId}', 'SLICE2_FIXTURE', 'SUCCEEDED', 'migration-fixture')`,
+        );
+      } finally {
+        await legacy.$disconnect();
+      }
+
+      prisma(
+        targetUrl,
+        "migrate",
+        "deploy",
+        "--config",
+        "database/prisma7.config.ts",
+      );
+
+      const upgraded = createDatabase(targetUrl);
+      try {
+        const event = await upgraded.event.findUniqueOrThrow({
+          where: { id: eventId },
+        });
+        expect(event).toMatchObject({
+          ownerUserId: ownerId,
+          state: "DRAFT",
+          name: "Untitled event",
+          visibility: null,
+          startAt: null,
+          endAt: null,
+          registrationCapacity: null,
+          registrationManuallyClosed: false,
+          checkoutEnabled: false,
+          revision: 1,
+          publishedAt: null,
+        });
+        expect(await upgraded.gate.count({ where: { id: gateId } })).toBe(1);
+        expect(
+          await upgraded.eventRoleAssignment.count({
+            where: { id: assignmentId },
+          }),
+        ).toBe(1);
+        expect(await upgraded.session.count({ where: { id: sessionId } })).toBe(
+          1,
+        );
+        expect(
+          await upgraded.otpChallenge.count({ where: { id: challengeId } }),
+        ).toBe(1);
+        expect(
+          await upgraded.auditEvent.count({ where: { id: auditId } }),
+        ).toBe(1);
+
+        await expect(
+          upgraded.event.update({
+            where: { id: eventId },
+            data: { ownerUserId: targetUserId },
+          }),
+        ).rejects.toThrow();
+        await expect(
+          upgraded.auditEvent.delete({ where: { id: auditId } }),
+        ).rejects.toThrow();
+      } finally {
+        await upgraded.$disconnect();
+      }
+    });
+  }, 120_000);
+});
