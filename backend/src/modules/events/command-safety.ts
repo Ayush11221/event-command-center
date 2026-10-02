@@ -255,10 +255,10 @@ export async function executeIdempotentCommand<T extends JsonObject>(
       const inserted = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO "CommandReplay" (
           "id", "actorUserId", "action", "resourceKey",
-          "idempotencyKeyHash", "requestFingerprint", "expiresAt"
+          "idempotencyKeyHash", "requestFingerprint", "createdAt", "expiresAt"
         ) VALUES (
           ${replayId}::uuid, ${input.actorUserId}::uuid, ${input.action},
-          ${input.resourceKey}, ${keyHash}, ${fingerprint}, ${expiresAt}
+          ${input.resourceKey}, ${keyHash}, ${fingerprint}, ${now}, ${expiresAt}
         )
         ON CONFLICT ("actorUserId", "action", "resourceKey", "idempotencyKeyHash")
         DO NOTHING

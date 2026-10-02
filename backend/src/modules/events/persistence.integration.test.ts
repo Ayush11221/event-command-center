@@ -39,6 +39,22 @@ describe.skipIf(!databaseUrl)("Slice 3 PostgreSQL persistence safety", () => {
     return { owner, event };
   }
 
+  async function expectCheckConstraintViolation(
+    operation: Promise<unknown>,
+    constraintName: string,
+  ) {
+    await expect(operation).rejects.toMatchObject({
+      meta: {
+        driverAdapterError: {
+          cause: {
+            originalCode: "23514",
+            originalMessage: expect.stringContaining(constraintName),
+          },
+        },
+      },
+    });
+  }
+
   it("installs the approved constraints and cursor-supporting indexes", async () => {
     const indexes = await db.$queryRaw<{ indexname: string }[]>`
       SELECT indexname
@@ -67,10 +83,11 @@ describe.skipIf(!databaseUrl)("Slice 3 PostgreSQL persistence safety", () => {
     );
 
     const owner = await db.user.create({ data: {} });
-    await expect(
+    await expectCheckConstraintViolation(
       db.event.create({ data: { ownerUserId: owner.id, name: "   " } }),
-    ).rejects.toMatchObject({ code: "P2004" });
-    await expect(
+      "Event_name_nonblank",
+    );
+    await expectCheckConstraintViolation(
       db.event.create({
         data: {
           ownerUserId: owner.id,
@@ -78,8 +95,9 @@ describe.skipIf(!databaseUrl)("Slice 3 PostgreSQL persistence safety", () => {
           startAt: new Date("2030-01-01T10:00:00Z"),
         },
       }),
-    ).rejects.toMatchObject({ code: "P2004" });
-    await expect(
+      "Event_schedule_complete_and_ordered",
+    );
+    await expectCheckConstraintViolation(
       db.event.create({
         data: {
           ownerUserId: owner.id,
@@ -87,7 +105,8 @@ describe.skipIf(!databaseUrl)("Slice 3 PostgreSQL persistence safety", () => {
           registrationCapacity: 0,
         },
       }),
-    ).rejects.toMatchObject({ code: "P2004" });
+      "Event_registration_capacity_positive",
+    );
   });
 
   it("enforces one active PRIVATE link under concurrent writes", async () => {
