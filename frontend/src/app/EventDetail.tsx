@@ -6,6 +6,7 @@ import {
 } from "../services/events";
 import type { EventContext } from "./contexts";
 import { EditEventForm } from "./EditEventForm";
+import { GatePanel } from "./GatePanel";
 
 interface Props {
   context: EventContext;
@@ -181,16 +182,16 @@ export function EventDetail({
           <dd>{detail.checkout_enabled ? "Yes" : "No"}</dd>
         </div>
       </dl>
-      <h3>Associated gates</h3>
-      {detail.gates.length ? (
-        <ul>
-          {detail.gates.map((gate) => (
-            <li key={gate.gate_id}>{gate.gate_id}</li>
-          ))}
-        </ul>
-      ) : (
-        <p>No gates associated.</p>
-      )}
+      <GatePanel
+        detail={detail}
+        csrf={csrf}
+        onCurrent={(current) => {
+          setState({ phase: "ready", detail: current });
+          onUpdated?.(current);
+        }}
+        onSessionExpired={onSessionExpired}
+        onScopeLost={onScopeLost}
+      />
       <p className="freshness">
         Revision {detail.revision} · Confirmed {instant(detail.as_of)}.
       </p>

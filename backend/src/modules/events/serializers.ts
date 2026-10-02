@@ -1,6 +1,7 @@
 import type { Event, Gate } from "@prisma/client";
 import { managementAvailability } from "./availability.js";
 import { managementActions } from "./policy.js";
+import { managementReadiness } from "./readiness.js";
 
 export type ManagementListEvent = Pick<
   Event,
@@ -31,14 +32,6 @@ export function managementDetail(
   correlationId: string,
   owner: boolean,
 ) {
-  const configuredGatePresent = gates.length > 0;
-  const publishBlockers = [
-    ...(event.visibility ? [] : ["VISIBILITY_REQUIRED"]),
-    ...(event.startAt && event.endAt ? [] : ["SCHEDULE_REQUIRED"]),
-    ...(event.timeZone ? [] : ["TIME_ZONE_REQUIRED"]),
-    ...(event.registrationCapacity ? [] : ["REGISTRATION_CAPACITY_REQUIRED"]),
-    ...(configuredGatePresent ? [] : ["CONFIGURED_GATE_REQUIRED"]),
-  ];
   return {
     event_id: event.id,
     name: event.name,
@@ -61,11 +54,7 @@ export function managementDetail(
     registration_manually_closed: event.registrationManuallyClosed,
     checkout_enabled: event.checkoutEnabled,
     gates: gates.map((gate) => ({ gate_id: gate.id, event_id: gate.eventId })),
-    readiness: {
-      configured_gate_present: configuredGatePresent,
-      publish_blockers: publishBlockers,
-      live_blockers: configuredGatePresent ? [] : ["CONFIGURED_GATE_REQUIRED"],
-    },
+    readiness: managementReadiness(event, gates),
     availability: managementAvailability(event, asOf),
     permitted_actions: managementActions(event.state, owner),
     revision: event.revision,

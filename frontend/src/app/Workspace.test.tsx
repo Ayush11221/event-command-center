@@ -181,9 +181,10 @@ describe("authenticated Event workspace", () => {
     expect(getEventDetail).toHaveBeenCalledWith("one", expect.any(AbortSignal));
     expect(
       screen.queryByRole("button", {
-        name: /publish|cancel|live|capacity|gate|certificate/i,
+        name: /publish|cancel|live|capacity|certificate/i,
       }),
     ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create gate" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }));
     expect(screen.getByRole("form", { name: "Edit event" })).toBeVisible();
     expect(screen.queryByLabelText("Visibility")).not.toBeInTheDocument();

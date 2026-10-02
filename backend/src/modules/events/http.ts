@@ -4,7 +4,11 @@ import { authenticate, requireCsrf } from "../auth/http.js";
 import { accountActor } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
 import { editManagementEvent } from "./edit.js";
-import { parseRevisionPrecondition } from "./command-safety.js";
+import {
+  parseIdempotencyKey,
+  parseRevisionPrecondition,
+} from "./command-safety.js";
+import { createEventGate, parseGateBody } from "./gates.js";
 import {
   createDraftEvent,
   getManagementEvent,
@@ -121,6 +125,37 @@ export function eventRouter(deps: AuthDependencies) {
           response.locals.correlationId as string,
         ),
       );
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404)
+      )
+        await auditForbidden(
+          actor.userId,
+          response.locals.correlationId as string,
+        );
+      throw error;
+    }
+  });
+
+  router.post("/:eventId/gates", async (request, response) => {
+    const actor = await authenticate(request, deps);
+    try {
+      requireCsrf(request, actor, deps);
+      const revision = parseRevisionPrecondition(request.header("If-Match"));
+      const key = parseIdempotencyKey(request.header("Idempotency-Key"));
+      const body = parseGateBody(request.body);
+      const result = await createEventGate(
+        deps,
+        actor,
+        request.params.eventId,
+        revision,
+        key,
+        body,
+        response.locals.correlationId as string,
+      );
+      response.setHeader("Cache-Control", "no-store");
+      response.status(result.status).json(result.body);
     } catch (error) {
       if (
         error instanceof ApiError &&

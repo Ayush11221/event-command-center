@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createDraft,
+  createGate,
   editEvent,
   EventApiError,
   getEventDetail,
@@ -15,6 +16,46 @@ afterEach(() => {
 });
 
 describe("scoped Event API client", () => {
+  it("creates a Gate with the exact empty body, revision, CSRF and idempotency key", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ gate_id: "gate", revision: 4 }),
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await createGate("one", 3, "csrf", "stable-key");
+    const [url, options] = fetcher.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/events/one/gates");
+    expect(options).toMatchObject({
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      body: "{}",
+      headers: {
+        "If-Match": '"3"',
+        "X-CSRF-Token": "csrf",
+        "Idempotency-Key": "stable-key",
+      },
+    });
+    expect(options.headers).not.toHaveProperty("X-Role");
+  });
+  it("bounds a stalled Gate command as unknown without inventing a new retry key", async () => {
+    vi.useFakeTimers();
+    const fetcher = vi.fn(
+      (_url: URL, options: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          options.signal!.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetcher);
+    const rejected = expect(
+      createGate("one", 3, "csrf", "stable-key"),
+    ).rejects.toMatchObject({ code: "NETWORK", status: 0 });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await rejected;
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   it("bounds a stalled PATCH and returns an unknown result without retrying", async () => {
     vi.useFakeTimers();
     const fetcher = vi.fn(

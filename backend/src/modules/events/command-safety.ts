@@ -226,6 +226,7 @@ export async function executeIdempotentCommand<T extends JsonObject>(
   db: PrismaClient,
   input: IdempotentCommandInput,
   command: (tx: Prisma.TransactionClient) => Promise<CommandResponse<T>>,
+  authorize?: (tx: Prisma.TransactionClient) => Promise<void>,
 ): Promise<CommandOutcome<T>> {
   validateScope(input);
   const idempotencyKey = parseIdempotencyKey(input.idempotencyKey);
@@ -251,6 +252,8 @@ export async function executeIdempotentCommand<T extends JsonObject>(
 
   return db.$transaction(
     async (tx) => {
+      // Resource commands must authorize even a replay under current scope.
+      await authorize?.(tx);
       const replayId = randomUUID();
       const inserted = await tx.$queryRaw<{ id: string }[]>`
         INSERT INTO "CommandReplay" (

@@ -112,7 +112,8 @@ textarea[aria-invalid="true"] {
   border-color: var(--critical);
 }
 
-.event-edit-form {
+.event-edit-form,
+.gate-panel {
   margin-top: 32px;
   border-top: 1px solid var(--border);
   padding-top: 24px;
@@ -124,6 +125,9 @@ textarea[aria-invalid="true"] {
   border: 0;
   padding: 12px 0;
   min-width: 0;
+}
+.gate-panel li {
+  overflow-wrap: anywhere;
 }
 .event-edit-form label {
   display: flex;

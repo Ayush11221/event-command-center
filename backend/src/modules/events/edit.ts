@@ -3,10 +3,8 @@ import type { AuthContext, AuthDependencies } from "../auth/http.js";
 import { accountActor, recordAudit } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
 import { parseEventEdit, validateEventEdit } from "./edit-validation.js";
-import {
-  lockEventForCommand,
-  revokePrivateAccessLink,
-} from "./private-links.js";
+import { revokePrivateAccessLink } from "./private-links.js";
+import { lockManagementEvent } from "./management-command.js";
 import { managementDetail } from "./serializers.js";
 
 export async function editManagementEvent(
@@ -28,39 +26,7 @@ export async function editManagementEvent(
   try {
     return await deps.db.$transaction(
       async (tx) => {
-        // Serialize commands first. Recheck and hold current authority through commit;
-        // an in-flight assignment/session revocation cannot race a stale grant.
-        if (!(await lockEventForCommand(tx, eventId))) throw notFound();
-        const sessions = await tx.$queryRaw<
-          { expiresAt: Date; revokedAt: Date | null }[]
-        >`
-        SELECT "expiresAt", "revokedAt" FROM "Session"
-        WHERE id = ${actor.sessionId}::uuid AND "userId" = ${actor.userId}::uuid FOR SHARE
-      `;
-        if (
-          !sessions[0] ||
-          sessions[0].revokedAt ||
-          sessions[0].expiresAt <= new Date()
-        )
-          throw new ApiError(401, "UNAUTHENTICATED", "Authentication required");
-        const users = await tx.$queryRaw<{ organizerCapable: boolean }[]>`
-        SELECT "organizerCapable" FROM "User" WHERE id = ${actor.userId}::uuid FOR SHARE
-      `;
-        const event = await tx.event.findUniqueOrThrow({
-          where: { id: eventId },
-          include: { gates: { select: { id: true, eventId: true } } },
-        });
-        const owner =
-          event.ownerUserId === actor.userId &&
-          users[0]?.organizerCapable === true;
-        if (!owner) {
-          const assignments = await tx.$queryRaw<{ id: string }[]>`
-          SELECT id FROM "EventRoleAssignment"
-          WHERE "eventId" = ${eventId}::uuid AND "userId" = ${actor.userId}::uuid
-            AND role = 'EVENT_ADMIN' AND "revokedAt" IS NULL FOR SHARE
-        `;
-          if (!assignments.length) throw notFound();
-        }
+        const { event, owner } = await lockManagementEvent(tx, actor, eventId);
         const edit = parseEventEdit(body, owner);
         if (event.state !== "DRAFT" && event.state !== "PUBLISHED")
           throw new ApiError(

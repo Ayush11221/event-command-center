@@ -231,3 +231,42 @@ export function createDraft(
     key,
   });
 }
+
+export interface GateResponse {
+  gate_id: string;
+  event_id: string;
+  readiness: ManagementDetail["readiness"];
+  revision: number;
+  as_of: string;
+  correlation_id: string;
+}
+
+export async function createGate(
+  eventId: string,
+  revision: number,
+  csrf: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<GateResponse> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(abort, 15_000);
+  try {
+    return await eventRequest<GateResponse>(
+      `/${encodeURIComponent(eventId)}/gates`,
+      {
+        method: "POST",
+        body: {},
+        csrf,
+        key,
+        revision,
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+}
