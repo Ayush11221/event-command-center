@@ -11,6 +11,27 @@ const event = {
   registrationCapacity: 100,
 };
 describe("shared configured-gate readiness", () => {
+  it("blocks invalid schedule, time zone and capacity at publication", () => {
+    expect(
+      managementReadiness(
+        {
+          ...event,
+          endAt: event.startAt,
+          timeZone: "Invalid/Zone",
+          registrationCapacity: 0,
+        },
+        [{ id: "gate", eventId: event.id }],
+      ),
+    ).toEqual({
+      configured_gate_present: true,
+      publish_blockers: [
+        "SCHEDULE_REQUIRED",
+        "TIME_ZONE_REQUIRED",
+        "REGISTRATION_CAPACITY_REQUIRED",
+      ],
+      live_blockers: [],
+    });
+  });
   it("independently blocks Publish and Live when the association is absent", () => {
     expect(managementReadiness(event, [])).toEqual({
       configured_gate_present: false,

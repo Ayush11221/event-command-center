@@ -9,6 +9,7 @@ import {
   parseRevisionPrecondition,
 } from "./command-safety.js";
 import { createEventGate, parseGateBody } from "./gates.js";
+import { transitionEvent } from "./transitions.js";
 import {
   createDraftEvent,
   getManagementEvent,
@@ -152,6 +153,36 @@ export function eventRouter(deps: AuthDependencies) {
         revision,
         key,
         body,
+        response.locals.correlationId as string,
+      );
+      response.setHeader("Cache-Control", "no-store");
+      response.status(result.status).json(result.body);
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404)
+      )
+        await auditForbidden(
+          actor.userId,
+          response.locals.correlationId as string,
+        );
+      throw error;
+    }
+  });
+
+  router.post("/:eventId/transitions", async (request, response) => {
+    const actor = await authenticate(request, deps);
+    try {
+      requireCsrf(request, actor, deps);
+      const revision = parseRevisionPrecondition(request.header("If-Match"));
+      const key = parseIdempotencyKey(request.header("Idempotency-Key"));
+      const result = await transitionEvent(
+        deps,
+        actor,
+        request.params.eventId,
+        revision,
+        key,
+        request.body,
         response.locals.correlationId as string,
       );
       response.setHeader("Cache-Control", "no-store");

@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EventApiError,
@@ -25,7 +31,7 @@ const context = {
 } as const;
 
 describe("read-only management detail", () => {
-  it("loads current server data and revision without rendering mutation or availability controls", async () => {
+  it("loads current server data, revision and read-only policy without rendering mutation controls", async () => {
     vi.mocked(getEventDetail).mockReturnValueOnce(new Promise(() => {}));
     const props = { context, onSessionExpired: vi.fn(), onScopeLost: vi.fn() };
     const view = render(<EventDetail {...props} />);
@@ -41,19 +47,21 @@ describe("read-only management detail", () => {
       }),
     );
     render(<EventDetail {...props} />);
-    expect(
-      await screen.findByRole("heading", { name: "Current name" }),
-    ).toHaveFocus();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("heading", { name: "Current name" }),
+      ).toHaveFocus(),
+    );
     expect(screen.getByText(/Revision 3/)).toBeVisible();
     expect(screen.getByText("Authorized configuration")).toBeVisible();
     expect(screen.getByText("Configured registration capacity")).toBeVisible();
     expect(
       screen.getAllByRole("button").map((button) => button.textContent),
     ).toEqual(["Reload detail"]);
+    expect(screen.getByText("Registration policy status")).toBeVisible();
+    expect(screen.getByText("OPEN")).toBeVisible();
     expect(
-      screen.queryByText(
-        /policy_status|remaining places|occupancy|\bOPEN\b|certificate/i,
-      ),
+      screen.queryByText(/remaining places|occupancy|certificate/i),
     ).not.toBeInTheDocument();
   });
   it.each([503, 409])(

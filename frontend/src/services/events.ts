@@ -241,6 +241,52 @@ export interface GateResponse {
   correlation_id: string;
 }
 
+export interface TransitionBody {
+  target_state: ManagementEvent["state"];
+  reason?: string;
+}
+export interface TransitionResponse {
+  event_id: string;
+  previous_state: ManagementEvent["state"];
+  state: ManagementEvent["state"];
+  revision: number;
+  readiness: ManagementDetail["readiness"];
+  availability: ManagementDetail["availability"];
+  as_of: string;
+  correlation_id: string;
+}
+
+export async function transitionEvent(
+  eventId: string,
+  body: TransitionBody,
+  revision: number,
+  csrf: string,
+  key: string,
+  signal?: AbortSignal,
+): Promise<TransitionResponse> {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener("abort", abort, { once: true });
+  const timeout = setTimeout(abort, 15_000);
+  try {
+    return await eventRequest<TransitionResponse>(
+      `/${encodeURIComponent(eventId)}/transitions`,
+      {
+        method: "POST",
+        body,
+        csrf,
+        key,
+        revision,
+        signal: controller.signal,
+      },
+    );
+  } finally {
+    clearTimeout(timeout);
+    signal?.removeEventListener("abort", abort);
+  }
+}
+
 export async function createGate(
   eventId: string,
   revision: number,

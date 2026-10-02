@@ -7,6 +7,7 @@ import {
 import type { EventContext } from "./contexts";
 import { EditEventForm } from "./EditEventForm";
 import { GatePanel } from "./GatePanel";
+import { LifecyclePanel } from "./LifecyclePanel";
 
 interface Props {
   context: EventContext;
@@ -182,6 +183,18 @@ export function EventDetail({
           <dd>{detail.checkout_enabled ? "Yes" : "No"}</dd>
         </div>
       </dl>
+      <LifecyclePanel
+        key={detail.event_id}
+        detail={detail}
+        owner={relationship === "owned"}
+        csrf={csrf}
+        onCurrent={(current) => {
+          setState({ phase: "ready", detail: current });
+          onUpdated?.(current);
+        }}
+        onSessionExpired={onSessionExpired}
+        onScopeLost={onScopeLost}
+      />
       <GatePanel
         detail={detail}
         csrf={csrf}

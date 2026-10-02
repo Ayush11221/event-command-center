@@ -629,3 +629,14 @@ p {
     scroll-behavior: auto;
   }
 }
+
+.lifecycle-panel {
+  border-top: 1px solid var(--border);
+  padding-block: 24px;
+}
+.lifecycle-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: start;
+  gap: 12px;
+}

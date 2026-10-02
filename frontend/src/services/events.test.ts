@@ -6,6 +6,7 @@ import {
   EventApiError,
   getEventDetail,
   listAllEvents,
+  transitionEvent,
 } from "./events";
 
 beforeEach(() => vi.stubEnv("VITE_API_ORIGIN", "http://127.0.0.1:3000"));
@@ -16,6 +17,61 @@ afterEach(() => {
 });
 
 describe("scoped Event API client", () => {
+  it("sends a lifecycle command with CSRF, version and stable retry key, without client authority", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ state: "CANCELLED", revision: 4 }),
+    });
+    vi.stubGlobal("fetch", fetcher);
+    await transitionEvent(
+      "one",
+      { target_state: "CANCELLED", reason: "Venue unavailable" },
+      3,
+      "csrf",
+      "stable-retry-key",
+    );
+    const [url, options] = fetcher.mock.calls[0] as [URL, RequestInit];
+    expect(url.pathname).toBe("/api/v1/events/one/transitions");
+    expect(options).toMatchObject({
+      method: "POST",
+      credentials: "include",
+      cache: "no-store",
+      headers: {
+        "X-CSRF-Token": "csrf",
+        "If-Match": '"3"',
+        "Idempotency-Key": "stable-retry-key",
+      },
+    });
+    expect(JSON.parse(options.body as string)).toEqual({
+      target_state: "CANCELLED",
+      reason: "Venue unavailable",
+    });
+  });
+  it("bounds lifecycle timeouts as an unknown outcome", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        (_url: URL, options: RequestInit) =>
+          new Promise((_resolve, reject) =>
+            options.signal!.addEventListener("abort", () =>
+              reject(new Error("aborted")),
+            ),
+          ),
+      ),
+    );
+    const result = expect(
+      transitionEvent(
+        "one",
+        { target_state: "LIVE" },
+        3,
+        "csrf",
+        "stable-retry-key",
+      ),
+    ).rejects.toMatchObject({ code: "NETWORK", status: 0 });
+    await vi.advanceTimersByTimeAsync(15_000);
+    await result;
+  });
   it("creates a Gate with the exact empty body, revision, CSRF and idempotency key", async () => {
     const fetcher = vi.fn().mockResolvedValue({
       ok: true,

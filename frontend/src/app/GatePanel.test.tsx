@@ -1,5 +1,11 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createGate,
@@ -132,7 +138,11 @@ describe("V5 Gate configuration and readiness", () => {
       expect(updated).toHaveBeenCalledWith(configured);
       expect(screen.getByText(/Revision 4/)).toBeVisible();
       expect(
-        screen.queryByRole("button", {
+        within(
+          screen.getByRole("region", {
+            name: "Gate configuration and readiness",
+          }),
+        ).queryByRole("button", {
           name: /publish|live|scanner|registration|cancel/i,
         }),
       ).not.toBeInTheDocument();
