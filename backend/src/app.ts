@@ -6,6 +6,7 @@ import type { AuthDependencies } from "./modules/auth/http.js";
 import { authRouter } from "./modules/auth/http.js";
 import { ApiError } from "./modules/auth/errors.js";
 import { eventRouter } from "./modules/events/http.js";
+import { discoveryRouter } from "./modules/discovery/http.js";
 import { staffRouter } from "./modules/staff/http.js";
 import { correlation } from "./middleware/correlation.js";
 import { healthRouter } from "./routes/health.js";
@@ -71,6 +72,7 @@ export function createApp(
     app.use("/api/v1/auth", authRouter(foundation));
     app.use("/api/v1/events", eventRouter(foundation));
     app.use("/api/v1/events", staffRouter(foundation));
+    app.use("/api/v1/discovery", discoveryRouter(foundation));
   }
   app.use((_request, response) => {
     response.status(404).json({

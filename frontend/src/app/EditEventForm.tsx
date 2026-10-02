@@ -1,4 +1,10 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   editEvent,
   EventApiError,
@@ -120,7 +126,7 @@ export function EditEventForm({
   const fields = [...publicFields, ...(owner ? organizerFields : [])];
   const pending = useRef<EventEdit>({});
   useEffect(() => () => controller.current?.abort(), []);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (fieldError && !busy)
       document.getElementById(`edit-${fieldError}`)?.focus();
   }, [fieldError, busy]);

@@ -22,6 +22,12 @@ export function parseEventListQuery(
       details: { field: "view" },
     });
   }
+  return { view: query.view, ...parsePaginationQuery(query) };
+}
+
+export function parsePaginationQuery(
+  query: Record<string, unknown>,
+): Omit<EventListQuery, "view"> {
   if (
     query.cursor !== undefined &&
     (typeof query.cursor !== "string" ||
@@ -44,7 +50,6 @@ export function parseEventListQuery(
     });
   }
   return {
-    view: query.view,
     ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
     limit,
   };

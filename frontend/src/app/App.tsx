@@ -3,8 +3,10 @@ import { currentActor, ProofError, type ActorState } from "../services/proof";
 import { ProofEntry } from "./ProofEntry";
 import { ThemeControl } from "./ThemeControl";
 import { Workspace } from "./Workspace";
+import { PublicCatalog } from "./PublicCatalog";
+import { PublicEventDetail } from "./PublicEventDetail";
 
-export function App() {
+function ManagementEntry() {
   const [session, setSession] = useState<
     | { state: "checking" }
     | { state: "anonymous" }
@@ -32,16 +34,7 @@ export function App() {
   }, []);
 
   return (
-    <div className="app-frame">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            E
-          </span>
-          <span>Event Command Center</span>
-        </div>
-        <ThemeControl />
-      </header>
+    <>
       {session.state === "checking" ? (
         <main className="page-shell">
           <p role="status">Checking your session…</p>
@@ -82,6 +75,52 @@ export function App() {
           onSessionExpired={() => setSession({ state: "anonymous" })}
           onSignedOut={() => setSession({ state: "anonymous" })}
         />
+      )}
+    </>
+  );
+}
+
+export function App() {
+  const path = window.location.pathname;
+  const catalog = /^\/events\/?$/.test(path);
+  const detail = path.match(/^\/events\/([^/]+)\/?$/);
+  let eventId = detail?.[1];
+  if (eventId) {
+    try {
+      eventId = decodeURIComponent(eventId);
+    } catch {
+      /* Malformed IDs receive the same public unavailable response. */
+    }
+  }
+  useEffect(() => {
+    document.title = `${catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+  }, [catalog, eventId]);
+  return (
+    <div className="app-frame">
+      <header className="topbar">
+        <div className="brand">
+          <span className="brand-mark" aria-hidden="true">
+            E
+          </span>
+          <span>Event Command Center</span>
+        </div>
+        <nav className="entry-nav" aria-label="Primary navigation">
+          <a
+            href="/events"
+            aria-current={catalog || detail ? "page" : undefined}
+          >
+            Public events
+          </a>
+          <a href="/">Event workspace</a>
+        </nav>
+        <ThemeControl />
+      </header>
+      {catalog ? (
+        <PublicCatalog />
+      ) : eventId ? (
+        <PublicEventDetail key={eventId} eventId={eventId} />
+      ) : (
+        <ManagementEntry />
       )}
     </div>
   );

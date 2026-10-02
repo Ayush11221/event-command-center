@@ -11,14 +11,44 @@ vi.mock("../services/proof", async (importOriginal) => {
 vi.mock("./Workspace", () => ({
   Workspace: () => <p>Authorized workspace</p>,
 }));
+vi.mock("./PublicCatalog", () => ({
+  PublicCatalog: () => <h1>Anonymous public catalog</h1>,
+}));
+vi.mock("./PublicEventDetail", () => ({
+  PublicEventDetail: ({ eventId }: { eventId: string }) => (
+    <h1>Anonymous public detail {eventId}</h1>
+  ),
+}));
 
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
   localStorage.clear();
+  window.history.replaceState(null, "", "/");
 });
 
 describe("application entry", () => {
+  it("opens public catalog without checking an account or Event+Role context", () => {
+    window.history.replaceState(null, "", "/events");
+    render(<App />);
+    expect(
+      screen.getByRole("heading", { name: "Anonymous public catalog" }),
+    ).toBeVisible();
+    expect(currentActor).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("link", { name: "Event workspace" }),
+    ).toHaveAttribute("href", "/");
+  });
+  it("opens directly linked public detail without account or role requirements", () => {
+    window.history.replaceState(null, "", "/events/public-one");
+    render(<App />);
+    expect(
+      screen.getByRole("heading", {
+        name: "Anonymous public detail public-one",
+      }),
+    ).toBeVisible();
+    expect(currentActor).not.toHaveBeenCalled();
+  });
   it("waits for a verified session before showing the workspace", () => {
     vi.mocked(currentActor).mockReturnValue(new Promise(() => {}));
     render(<App />);
