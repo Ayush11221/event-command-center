@@ -1,6 +1,7 @@
 export interface AppConfig {
   port: number;
   frontendOrigin: string;
+  bindHost?: string;
 }
 
 export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
@@ -27,8 +28,10 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
   }
 
   if (
-    origin.protocol !== "http:" ||
-    !["127.0.0.1", "localhost"].includes(origin.hostname) ||
+    (env.NODE_ENV === "production"
+      ? origin.protocol !== "https:"
+      : origin.protocol !== "http:" ||
+        !["127.0.0.1", "localhost"].includes(origin.hostname)) ||
     origin.pathname !== "/" ||
     origin.search !== "" ||
     origin.hash !== "" ||
@@ -39,5 +42,11 @@ export function parseConfig(env: NodeJS.ProcessEnv): AppConfig {
     throw new Error("FRONTEND_ORIGIN must be a local HTTP origin");
   }
 
+  if (env.NODE_ENV === "production") {
+    const bindHost = env.BIND_HOST ?? "127.0.0.1";
+    if (!["127.0.0.1", "0.0.0.0"].includes(bindHost))
+      throw new Error("Invalid BIND_HOST");
+    return { port, frontendOrigin: origin.origin, bindHost };
+  }
   return { port, frontendOrigin: origin.origin };
 }

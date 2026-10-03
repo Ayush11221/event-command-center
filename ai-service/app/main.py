@@ -4,11 +4,35 @@ import hmac
 import json
 import os
 import re
+import logging
+import time
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from .forecast import forecast
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+@app.middleware("http")
+async def telemetry(request: Request, call_next):
+    started = time.monotonic()
+    response = await call_next(request)
+    correlation = request.headers.get("x-correlation-id", "")
+    parent = request.headers.get("traceparent", "")
+    logging.getLogger("uvicorn.error").info(json.dumps({
+        "operation": "forecast" if request.method == "POST" else "health",
+        "status": response.status_code,
+        "duration_ms": (time.monotonic() - started) * 1000,
+        "correlation_id": correlation if re.fullmatch(r"[A-Za-z0-9._-]{1,64}", correlation) else None,
+        "trace_id": parent.split("-")[1] if re.fullmatch(r"00-[a-f0-9]{32}-[a-f0-9]{16}-0[01]", parent) else None,
+    }))
+    return response
+
+@app.get("/internal/health")
+async def health(request: Request):
+    key = os.environ.get("FORECAST_SERVICE_KEY", "")
+    if not re.fullmatch(r"[a-fA-F0-9]{64}", key) or not hmac.compare_digest(request.headers.get("authorization", ""), "Bearer " + key):
+        return JSONResponse({"code": "UNAUTHENTICATED"}, status_code=401)
+    return {"status": "alive"}
 
 
 @app.post("/internal/v1/forecasts")

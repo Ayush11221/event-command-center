@@ -75,7 +75,7 @@ export async function currentForecast(
   correlationId: string,
 ) {
   const request = await extractForecast(deps, actor, eventId, correlationId);
-  const result = await callForecast(deps.config, request); // No attendance lock during network I/O.
+  const result = await callForecast(deps.config, request, correlationId); // No attendance lock during network I/O.
   return deps.db.$transaction(async (tx) => {
     await lockManagementEvent(tx, actor, eventId); // Session/assignment may have been revoked meanwhile.
     if (!validResult(result, eventId)) throw unavailable();

@@ -1,4 +1,168 @@
 name: event-command-center
-
-# Services will be added only when their implementation phase begins.
-services: {}
+x-bounded-logs: &bounded-logs
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+services:
+  postgres:
+    logging: *bounded-logs
+    image: eoc-postgres:${RELEASE_TAG:-slice12}
+    build:
+      context: .
+      dockerfile: docker/postgres.Dockerfile
+    environment:
+      POSTGRES_DB: eoc_demo
+      POSTGRES_USER: eoc_migrator
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U eoc_migrator -d eoc_demo"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  migrate:
+    logging: *bounded-logs
+    image: eoc-migrate:${RELEASE_TAG:-slice12}
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: migrate
+    command: [node, docker/migrate.mjs]
+    environment:
+      DATABASE_URL_FILE: /run/secrets/migration_url
+    secrets: [migration_url, app_password]
+    networks: [data]
+    depends_on:
+      postgres: { condition: service_healthy }
+  api:
+    logging: *bounded-logs
+    image: eoc-api:${RELEASE_TAG:-slice12}
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+      target: runtime
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      BIND_HOST: 0.0.0.0
+      FRONTEND_ORIGIN: ${PUBLIC_ORIGIN:-https://127.0.0.1:8443}
+      DATABASE_URL_FILE: /run/secrets/database_url
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      CONTACT_KEY_FILE: /run/secrets/contact_key
+      OTP_KEY_FILE: /run/secrets/otp_key
+      FORECAST_SERVICE_KEY_FILE: /run/secrets/forecast_key
+      FORECAST_SERVICE_URL: http://127.0.0.1:8000
+      SMTP_URL_FILE: /run/secrets/smtp_url
+      SMTP_FROM: ${SMTP_FROM:-certificates@example.invalid}
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      TELEMETRY_ENABLED: "true"
+      TRACE_SAMPLE_RATIO: "0.1"
+      DB_POOL_MAX: "25"
+    secrets:
+      [
+        database_url,
+        jwt_secret,
+        contact_key,
+        otp_key,
+        forecast_key,
+        smtp_url,
+        metrics_token,
+      ]
+    networks: [data, edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/health/ready',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+    stop_grace_period: 35s
+    restart: unless-stopped
+  forecast:
+    logging: *bounded-logs
+    build:
+      context: .
+      dockerfile: docker/forecast.Dockerfile
+    network_mode: service:api
+    environment:
+      FORECAST_SERVICE_KEY_FILE: /run/secrets/forecast_key
+    secrets: [forecast_key]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/internal/health',headers={'Authorization':'Bearer '+open('/run/secrets/forecast_key').read().strip()}); urllib.request.urlopen(r,timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+  frontend:
+    logging: *bounded-logs
+    image: eoc-frontend:${RELEASE_TAG:-slice12}
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        FRONTEND_ORIGIN: ${PUBLIC_ORIGIN:-https://127.0.0.1:8443}
+    environment:
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-https://127.0.0.1:8443}
+      PUBLIC_HOST: ${PUBLIC_HOST:-127.0.0.1}
+    ports: ["127.0.0.1:8443:8443"]
+    volumes: [caddy_data:/data, caddy_config:/config]
+    networks: [edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      api: { condition: service_healthy }
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          "wget -q --no-check-certificate -O /dev/null $${PUBLIC_ORIGIN}/health/live",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 6
+    restart: unless-stopped
+networks:
+  data: { internal: true }
+  edge: {}
+volumes:
+  postgres_data: {}
+  caddy_data: {}
+  caddy_config: {}
+secrets:
+  db_password: { file: ./.secrets/db_password }
+  app_password: { file: ./.secrets/app_password }
+  migration_url: { file: ./.secrets/migration_url }
+  database_url: { file: ./.secrets/database_url }
+  jwt_secret: { file: ./.secrets/jwt_secret }
+  contact_key: { file: ./.secrets/contact_key }
+  otp_key: { file: ./.secrets/otp_key }
+  forecast_key: { file: ./.secrets/forecast_key }
+  smtp_url: { file: ./.secrets/smtp_url }
+  metrics_token: { file: ./.secrets/metrics_token }

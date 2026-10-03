@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { operation } from "../../observability/telemetry.js";
 import { Prisma, type CertificateIssueWork } from "@prisma/client";
 import { ApiError, unavailable } from "../auth/errors.js";
 import type { AuthContext, AuthDependencies } from "../auth/http.js";
@@ -779,8 +780,7 @@ export function startCertificateRecovery(
     pending: Promise<void> | undefined;
   const tick = () => {
     if (stopped || pending) return;
-    pending = service
-      .recover()
+    pending = operation("certificate_recovery", () => service.recover())
       .catch(onUnavailable)
       .finally(() => {
         pending = undefined;

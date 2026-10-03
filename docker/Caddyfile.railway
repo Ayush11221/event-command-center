@@ -1,0 +1,28 @@
+{
+    admin off
+    auto_https off
+}
+:{$PORT} {
+    encode gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        X-Frame-Options DENY
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+        -Server
+    }
+    @api path /api/v1/* /health/live /health/ready
+    handle @api {
+        reverse_proxy api.railway.internal:3000
+    }
+    @private path /internal /internal/*
+    handle @private {
+        respond 404
+    }
+    handle {
+        root * /srv
+        try_files {path} /index.html
+        file_server
+    }
+}

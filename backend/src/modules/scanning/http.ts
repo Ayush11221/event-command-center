@@ -9,6 +9,7 @@ import { recordAudit } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
 import { scanInput, type ScanInput } from "./input.js";
 import { checkIn } from "./service.js";
+import { observe } from "../../observability/telemetry.js";
 
 export function scanningRouter(deps: AuthDependencies) {
   const router = Router();
@@ -32,6 +33,7 @@ export function scanningRouter(deps: AuthDependencies) {
         input,
         res.locals.correlationId as string,
       );
+      observe("scan_outcome", result.body.decision, 0);
       res.status(result.status).json({
         ...result.body,
         replayed: result.replayed,

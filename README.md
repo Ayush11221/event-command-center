@@ -1,23 +1,25 @@
 # Real-Time Event Operations Command Center
 
-A capstone project for operating live events with participant registration, QR-based identity, gate check-in/check-out, real-time occupancy, crowd forecasting, and auditable operational workflows.
+A capstone project for operating live events with participant registration, QR-based identity, gate check-in, real-time occupancy, advisory crowd forecasting, and auditable operational workflows.
 
 The project exists to give event teams one trustworthy operational view instead of disconnected registration lists, manual gate counts, and delayed post-event reports. Forecasts are advisory: staff remain responsible for operational decisions.
 
 ## Current status
 
-**Slice 2: persistence and identity/RBAC foundation, under implementation review.** Slice 1 is committed. Slice 2 adds a narrow PostgreSQL/Prisma schema, OTP proof, persisted account sessions, and fixture-backed staff authorization. Event creation and all participant/gate operational workflows remain future slices.
+**Slices 1–11 are committed; Slice 12 adds cross-cutting deployment and release evidence.** The finalized [API contract](docs/api/API_CONTRACT.md) governs implemented behavior. Checkout/re-entry, attendance corrections, product alerts, Kafka and speculative horizontal scaling are outside this release boundary. This is a synthetic, single-instance capstone demonstration, not a production-readiness claim.
 
-## Planned capabilities
+See the [deployment/demo runbook](docs/implementation/SLICE_12_RUNBOOK.md), [release evidence matrix](docs/testing/SLICE_12_RELEASE_EVIDENCE.md), and [release security review](docs/security/SLICE_12_SECURITY_REVIEW.md) for reproducible commands, measured results and remaining risks.
+
+## Product capabilities and release boundary
 
 - Event creation, configuration, publication, and lifecycle management
 - PUBLIC/PRIVATE event access, verified account or guest-OTP registration, cancellation, and unique opaque QR credentials
-- Gate configuration, QR validation, duplicate-scan handling, and check-in/check-out
+- Gate configuration, QR validation, duplicate-scan handling, and accepted check-in
 - Live attendance, occupancy, capacity, and gate-activity monitoring
-- Crowd forecasts with uncertainty and historical comparisons
+- Advisory crowd forecasts with uncertainty and chronological baseline evaluation
 - Role-based access for organizers, event admins, gate/security staff, volunteers, and participants
 - Accepted-check-in certificates with built-in-template preview, bulk unique-ID PDFs, and tracked/retryable platform-email delivery
-- Audit trails, operational alerts, and post-event reporting
+- Audit search, volunteer tasks, and factual post-event results; product alerts remain outside this release
 
 See the [PRD](docs/PRD.md) for scope boundaries and product requirements.
 
@@ -41,11 +43,11 @@ The authoritative technical boundaries are in [ARCHITECTURE.md](docs/architectur
 ```text
 .
 |-- .codex/                    # Project-scoped Codex/Graphify configuration
-|-- .github/workflows/         # Slice 2 verification with disposable PostgreSQL
-|-- frontend/                  # React + TypeScript diagnostic and proof entry
-|-- backend/                   # Express liveness, identity proof, and staff scope API
-|-- ai-service/                # Planned Python + FastAPI forecasting service
-|-- database/                  # Slice 2 Prisma schema and reviewed migration
+|-- .github/workflows/         # Regression and manual release verification
+|-- frontend/                  # Implemented participant and staff journeys
+|-- backend/                   # Express authorization and domain API
+|-- ai-service/                # Private FastAPI baseline forecasting service
+|-- database/                  # Prisma schema and nine reviewed migrations
 |-- tests/                     # Cross-system integration, E2E, load, and security tests
 |-- docs/
 |   |-- api/                   # Planned API contracts and conventions
@@ -58,15 +60,15 @@ The authoritative technical boundaries are in [ARCHITECTURE.md](docs/architectur
 |   `-- ROADMAP.md             # Delivery phases and exit criteria
 |-- docker/                    # Component Docker configuration when services exist
 |-- scripts/                   # Purpose-built developer/database/test automation
-|-- monitoring/                # Future metrics/dashboard configuration
+|-- monitoring/                # Private metrics/traces operating guidance
 |-- AGENTS.md                  # Concise repository working rules
-|-- docker-compose.yml         # Valid placeholder; currently defines no services
+|-- docker-compose.yml         # Single-instance HTTPS demo deployment
 |-- package.json               # Private npm workspace scripts and tooling
 |-- package-lock.json          # Reproducible npm dependency lockfile
 `-- README.md                  # Project entry point
 ```
 
-The remaining top-level boundaries stay empty until their owning slices. The intended layout is documented in [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md).
+The intended boundaries are documented in [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md). Deployment files and release harnesses now live under docker, scripts and tests/release.
 
 ## Documentation map
 
@@ -110,13 +112,15 @@ The canonical phase numbering and exit criteria are maintained in the [roadmap](
 
 ## Development setup
 
+Deployment instructions: [local Slice 12 runbook](docs/implementation/SLICE_12_RUNBOOK.md) and [Railway deployment adaptations](docs/implementation/RAILWAY_DEPLOYMENT.md). Railway has not been deployed or verified remotely; existing release/security limitations still apply.
+
 Slice 2 uses Node.js 22.12.0/npm 10.9.0, npm workspaces, and PostgreSQL 16 for the first persistence boundary. No external identity provider is used. `GET /health/live` remains process liveness only; `GET /health/ready` checks database access.
 
 1. From the repository root, run `npm ci` (or `npm install` when deliberately updating the lockfile).
 2. Start a disposable local PostgreSQL 16 database. Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env`; fill in the local database URL and three independent randomly generated 32-byte hex keys. Real `.env` files are ignored by Git. The defaults use backend `http://127.0.0.1:3000` and frontend `http://127.0.0.1:5173`.
 3. Set `DATABASE_URL` in the root shell, run `npm run db:generate` and `npm run db:migrate`, then start `npm run dev:backend` and `npm run dev:frontend` in separate terminals. Open `http://127.0.0.1:5173`. Root database scripts do not read `backend/.env` automatically.
 
-`GET http://127.0.0.1:3000/health/live` reports process liveness, while `/health/ready` reports database reachability without connection details. The frontend retains the Slice 1 process check and adds minimal account/guest OTP proof. Account sign-in requires a verified contact already provisioned by the controlled bootstrap command; no public signup or event workflow exists. Email delivery requires local SMTP configuration. Phone delivery requires `SMS_GATEWAY_MODULE` set to an absolute local path to an operator-provided ESM module whose default export has an async `sendSms(destination, message)` method. The Android gateway's wire protocol remains outside this application boundary; without an adapter, phone challenges fail with a generic dependency-unavailable response for every contact. Challenge acceptance means pending delivery, not confirmed receipt. Do not use real contact data until retention, key management, and deployment controls are reviewed. Only `VITE_API_ORIGIN` is browser-exposed; never put secrets in a `VITE_` variable.
+`GET http://127.0.0.1:3000/health/live` reports process liveness, while `/health/ready` reports database reachability without connection details. The frontend retains the Slice 1 process check and adds minimal account/guest OTP proof. Account sign-in requires a verified contact already provisioned by the controlled bootstrap command; no public account signup exists. Email delivery requires local SMTP configuration. Phone delivery requires `SMS_GATEWAY_MODULE` set to an absolute local path to an operator-provided ESM module whose default export has an async `sendSms(destination, message)` method. The Android gateway's wire protocol remains outside this application boundary; without an adapter, phone challenges fail with a generic dependency-unavailable response for every contact. Challenge acceptance means pending delivery, not confirmed receipt. Do not use real contact data until retention, key management, and deployment controls are reviewed. Only `VITE_API_ORIGIN` is browser-exposed; never put secrets in a `VITE_` variable.
 
 From the root, `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build` run local checks. Set `TEST_DATABASE_URL` to a disposable migrated PostgreSQL database to include the integration suite; without it, only those integration tests skip. GitHub Actions provisions PostgreSQL, applies the migration, and runs the full suite. A built backend can be started with `npm run start --workspace=backend` after setting its environment variables; the development script loads the ignored `backend/.env` if present.
 
@@ -124,7 +128,7 @@ Slice 2 routes under `/api/v1/auth` are `POST /account/challenge`, `POST /accoun
 
 An existing user's Organizer capability can be changed only through the controlled `npm run capability --workspace=backend -- --confirm` command with `CAPABILITY_APPROVED=yes`, `CAPABILITY_USER_ID`, and `CAPABILITY_ENABLED=yes|no`. Both administrative commands require protected database/key configuration and write durable audit evidence atomically with the change; neither is a public API.
 
-The [Slice 2 plan](docs/implementation/SLICE_2_PLAN.md) defines the current boundary. The proof entry is not a complete Phase 1 product screen; registration, scanning, occupancy, alerts, forecasting, and certificates have not begun.
+The [Slice 2 plan](docs/implementation/SLICE_2_PLAN.md) describes the historical identity foundation. Subsequent implemented journeys are governed by the finalized [API contract](docs/api/API_CONTRACT.md); release verification and exclusions are recorded in the Slice 12 evidence matrix.
 
 ## Decision policy
 

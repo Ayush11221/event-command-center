@@ -1,5 +1,6 @@
 import type { CertificateBatches } from "./batches.js";
 import type { CertificateDeliveries } from "./delivery.js";
+import { operation } from "../../observability/telemetry.js";
 export function startDeliveryRecovery(
   batches: CertificateBatches,
   deliveries: CertificateDeliveries,
@@ -9,7 +10,10 @@ export function startDeliveryRecovery(
     pending: Promise<void> | undefined;
   const tick = () => {
     if (stopped || pending) return;
-    pending = Promise.allSettled([batches.recover(), deliveries.recover()])
+    pending = Promise.allSettled([
+      operation("batch_recovery", () => batches.recover()),
+      operation("delivery_recovery", () => deliveries.recover()),
+    ])
       .then((results) => {
         if (results.some((row) => row.status === "rejected")) onUnavailable();
       })

@@ -2,6 +2,41 @@ import { describe, expect, it } from "vitest";
 import { parseConfig } from "./env.js";
 
 describe("parseConfig", () => {
+  it("requires exact HTTPS origin in production and preserves development isolation", () => {
+    expect(
+      parseConfig({
+        NODE_ENV: "production",
+        PORT: "3000",
+        FRONTEND_ORIGIN: "https://demo.example.invalid",
+        BIND_HOST: "0.0.0.0",
+      }),
+    ).toEqual({
+      port: 3000,
+      frontendOrigin: "https://demo.example.invalid",
+      bindHost: "0.0.0.0",
+    });
+    for (const origin of [
+      "http://localhost:5173",
+      "http://demo.example.invalid",
+      "https://user:secret@demo.example.invalid",
+      "https://demo.example.invalid/path",
+      "https://demo.example.invalid/",
+    ]) {
+      expect(() =>
+        parseConfig({
+          NODE_ENV: "production",
+          PORT: "3000",
+          FRONTEND_ORIGIN: origin,
+        }),
+      ).toThrow();
+    }
+    expect(() =>
+      parseConfig({
+        PORT: "3000",
+        FRONTEND_ORIGIN: "https://demo.example.invalid",
+      }),
+    ).toThrow();
+  });
   it("accepts the local origin and a valid port", () => {
     expect(
       parseConfig({ PORT: "3000", FRONTEND_ORIGIN: "http://127.0.0.1:5173" }),

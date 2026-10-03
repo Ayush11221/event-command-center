@@ -1,5 +1,10 @@
 import type { FoundationConfig } from "../../config/foundation.js";
 import {
+  operation,
+  observe,
+  traceHeaders,
+} from "../../observability/telemetry.js";
+import {
   fallback,
   inputFor,
   validResult,
@@ -10,6 +15,18 @@ import {
 export async function callForecast(
   config: FoundationConfig,
   request: ForecastRequest,
+  correlationId?: string,
+): Promise<ForecastResult> {
+  const result = await operation("forecast", () =>
+    generate(config, request, correlationId),
+  );
+  observe("forecast_state", result.status, 0);
+  return result;
+}
+async function generate(
+  config: FoundationConfig,
+  request: ForecastRequest,
+  correlationId?: string,
 ): Promise<ForecastResult> {
   if (!config.forecastServiceUrl || !config.forecastServiceKey)
     return fallback(request, "MODEL_UNAVAILABLE");
@@ -23,6 +40,7 @@ export async function callForecast(
         redirect: "error",
         signal: controller.signal,
         headers: {
+          ...traceHeaders(correlationId),
           "Content-Type": "application/json",
           Authorization: `Bearer ${config.forecastServiceKey}`,
         },

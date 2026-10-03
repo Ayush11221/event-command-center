@@ -1,0 +1,67 @@
+# Synthetic local verification only, with docker/verification.yml. Not a Railway deployment.
+services:
+  migrate:
+    image: eoc-railway-migrate:slice12
+    build:
+      context: .
+      dockerfile: docker/migration.Dockerfile
+      target: !reset null
+    environment:
+      DATABASE_URL_FILE: ""
+      DATABASE_URL: ${DATABASE_URL:?Synthetic migration URL required}
+      PGPASSWORD: ${PGPASSWORD:?Synthetic runtime role password required}
+  api:
+    environment:
+      FORECAST_SERVICE_URL: https://forecast.railway.internal:8000
+      NODE_EXTRA_CA_CERTS: /tls/ca.crt
+    volumes:
+      - ./.artifacts/railway/pki/ca.crt:/tls/ca.crt:ro
+    networks:
+      edge:
+        aliases: [api.railway.internal]
+      data: {}
+  forecast:
+    network_mode: !reset null
+    networks:
+      edge:
+        aliases: [forecast.railway.internal, wrong.railway.internal]
+    environment:
+      UVICORN_HOST: 0.0.0.0
+      UVICORN_PORT: "8000"
+      UVICORN_SSL_CERTFILE: /tls/server.crt
+      UVICORN_SSL_KEYFILE: /tls/server.key
+    volumes:
+      - ./.artifacts/railway/pki/ca.crt:/tls/ca.crt:ro
+      - ./.artifacts/railway/pki/server.crt:/tls/server.crt:ro
+      - ./.artifacts/railway/pki/server.key:/tls/server.key:ro
+    healthcheck:
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import ssl, urllib.request; r=urllib.request.Request('https://forecast.railway.internal:8000/internal/health',headers={'Authorization':'Bearer '+open('/run/secrets/forecast_key').read().strip()}); urllib.request.urlopen(r,context=ssl.create_default_context(cafile='/tls/ca.crt'),timeout=2)",
+        ]
+  frontend:
+    environment:
+      RAILWAY_ENVIRONMENT_ID: synthetic-local-verification
+      PORT: "8443"
+    ports: !reset []
+    healthcheck:
+      test:
+        [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8443/health/live"]
+  edge:
+    image: eoc-frontend:slice12
+    command:
+      [caddy, run, --config, /etc/caddy/Caddyfile.edge, --adapter, caddyfile]
+    volumes:
+      - ./tests/deployment/Caddyfile.edge:/etc/caddy/Caddyfile.edge:ro
+      - railway_edge_data:/data
+      - railway_edge_config:/config
+    ports: ["127.0.0.1:8443:8443"]
+    networks: [edge]
+    depends_on:
+      frontend: { condition: service_healthy }
+volumes:
+  railway_edge_data: {}
+  railway_edge_config: {}

@@ -28,6 +28,8 @@
     "build": "npm run build --workspace=backend && npm run build --workspace=frontend"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0",
     "@types/node": "22.20.4",
     "@types/nodemailer": "7.0.7",
     "eslint": "9.39.5",

@@ -14,8 +14,11 @@ import {
 import { CertificateBatches } from "./modules/certificate-delivery/batches.js";
 import { CertificateDeliveries } from "./modules/certificate-delivery/delivery.js";
 import { startDeliveryRecovery } from "./modules/certificate-delivery/recovery.js";
+import { loadSecrets } from "./config/secrets.js";
+import { operation } from "./observability/telemetry.js";
 
 async function main() {
+  loadSecrets(process.env);
   const config = parseConfig(process.env);
   const foundation = parseFoundationConfig(process.env);
   const logger = createLogger();
@@ -50,7 +53,7 @@ async function main() {
     logger.warn("Certificate recovery dependency unavailable"),
   );
   const app = createApp(config, logger, dependencies, certificates, deliveries);
-  const server = app.listen(config.port, "127.0.0.1", () => {
+  const server = app.listen(config.port, config.bindHost ?? "127.0.0.1", () => {
     logger.info("backend listening");
   });
   const realtime = attachOperationsRealtime(server, {
@@ -67,10 +70,15 @@ async function main() {
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, () => {
+      const deadline = setTimeout(() => process.exit(1), 30000);
+      deadline.unref();
       realtime.close(async () => {
-        await stopCertificates();
-        await stopDeliveries();
-        await db.$disconnect();
+        await operation("shutdown", async () => {
+          await stopCertificates();
+          await stopDeliveries();
+          await db.$disconnect();
+        });
+        clearTimeout(deadline);
         logger.info("backend stopped");
       });
     });
@@ -78,8 +86,9 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  const message =
-    error instanceof Error ? error.message : "Invalid backend configuration";
-  process.stderr.write(`${message}\n`);
+  void error;
+  createLogger().error(
+    "Backend startup failed; verify configuration and dependency availability",
+  );
   process.exitCode = 1;
 });

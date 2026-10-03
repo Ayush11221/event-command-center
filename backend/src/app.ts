@@ -20,6 +20,8 @@ import { CertificateBatches } from "./modules/certificate-delivery/batches.js";
 import { CertificateDeliveries } from "./modules/certificate-delivery/delivery.js";
 import { certificateDeliveryRouter } from "./modules/certificate-delivery/http.js";
 import { volunteerRouter } from "./modules/volunteers/http.js";
+import { category, requestTelemetry } from "./observability/telemetry.js";
+import { operationalRouter } from "./observability/http.js";
 
 export function createApp(
   config: AppConfig,
@@ -32,6 +34,7 @@ export function createApp(
   app.disable("x-powered-by");
 
   app.use(correlation);
+  app.use(requestTelemetry);
   app.use(
     cors({
       origin: (origin, callback) =>
@@ -56,7 +59,8 @@ export function createApp(
         {
           correlation_id: response.locals.correlationId as string,
           method: request.method,
-          path: request.path,
+          operation: category(request.path),
+          trace_id: response.locals.traceId,
           status_code: response.statusCode,
         },
         "request completed",
@@ -67,6 +71,7 @@ export function createApp(
 
   app.use("/health", healthRouter());
   if (foundation) {
+    app.use("/internal", operationalRouter(foundation));
     app.use("/api/v1", volunteerRouter(foundation));
     // Forecast reads reject every body after authentication, including malformed
     // or oversized JSON. Do not let the shared mutation parser handle these GETs.

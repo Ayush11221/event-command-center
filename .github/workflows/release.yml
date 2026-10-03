@@ -1,0 +1,40 @@
+name: Slice 12 release evidence
+on:
+  workflow_dispatch:
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.12.0"
+          cache: npm
+      - run: npm ci
+      - run: npm run db:generate && npm run build
+      - run: node scripts/demo-secrets.mjs
+      - name: Restrict demo mounted secret ownership
+        run: sudo chgrp 1000 .secrets/* && chmod 640 .secrets/*
+      - run: docker compose -p slice12-demo -f docker-compose.yml -f docker/verification.yml up --build -d --wait
+      - run: mkdir -p .artifacts/release && docker compose -p slice12-demo cp frontend:/data/caddy/pki/authorities/local/root.crt .artifacts/release/demo-ca.crt
+      - run: npx playwright install --with-deps chromium
+      - name: Deployment/load/security/browser verification
+        env:
+          NODE_EXTRA_CA_CERTS: .artifacts/release/demo-ca.crt
+        run: node tests/release/load.mjs && node tests/release/security.mjs && node tests/release/browser.mjs && node tests/release/failure.mjs && node tests/release/observability.mjs
+      - name: Isolated backup/restore verification
+        shell: pwsh
+        run: |
+          $backup = & ./scripts/backup.ps1 -Project slice12-demo
+          & ./scripts/restore.ps1 -Project slice12-demo -Backup ($backup | Select-Object -Last 1) -Database eoc_restore_verified | Out-File -Encoding utf8 .artifacts/release/restore.json
+          node tests/release/restore-integrity.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slice12-evidence
+          path: .artifacts/release/
+          retention-days: 7
+      - name: Stop temporary services; retain no CI databases
+        if: always()
+        run: docker compose -p slice12-demo down --volumes
