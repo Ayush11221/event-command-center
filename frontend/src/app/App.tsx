@@ -10,6 +10,7 @@ import type { PrivateEntry } from "./private-entry";
 import { RegistrationPanel } from "./RegistrationPanel";
 import { GateScanner } from "./GateScanner";
 import { OccupancyPage } from "./OccupancyPage";
+import { CertificatesPage } from "./CertificatesPage";
 
 function ManagementEntry() {
   const [session, setSession] = useState<
@@ -89,6 +90,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   const path = window.location.pathname;
   const scanner = /^\/scanner\/?$/.test(path);
   const operations = path.match(/^\/operations\/([^/]+)\/?$/)?.[1];
+  const certificates = path.match(/^\/certificates\/([0-9a-f-]+)\/?$/i)?.[1];
   const catalog = /^\/events\/?$/.test(path);
   const privatePage = /^\/private\/?$/.test(path);
   const detail = path.match(/^\/events\/([^/]+)\/?$/);
@@ -102,8 +104,16 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     }
   }
   useEffect(() => {
-    document.title = `${operations ? "Attendance and occupancy" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
-  }, [catalog, eventId, privatePage, registration, scanner, operations]);
+    document.title = `${certificates ? "Certificates" : operations ? "Attendance and occupancy" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+  }, [
+    catalog,
+    eventId,
+    privatePage,
+    registration,
+    scanner,
+    operations,
+    certificates,
+  ]);
   return (
     <div className="app-frame">
       <button
@@ -140,7 +150,9 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
         </nav>
         <ThemeControl />
       </header>
-      {operations ? (
+      {certificates ? (
+        <CertificatesPage key={certificates} eventId={certificates} />
+      ) : operations ? (
         <OccupancyPage key={operations} eventId={operations} />
       ) : scanner ? (
         <GateScanner />

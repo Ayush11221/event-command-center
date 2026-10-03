@@ -154,6 +154,87 @@ model Event {
   @@index([ownerUserId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
+// Legacy-table foreign keys for certificates are SQL-owned to preserve Registration.
+enum CertificateStatus {
+  ISSUED
+  REVOKED
+}
+
+enum CertificateIssueWorkStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+model CertificateRecipientName {
+  registrationId String   @id @db.Uuid
+  eventId        String   @db.Uuid
+  name           String   @db.VarChar(100)
+  revision       Int      @default(1)
+  updatedAt      DateTime @default(now()) @db.Timestamptz(3)
+}
+
+model Certificate {
+  id                     String            @id @db.Uuid
+  registrationId         String            @unique @db.Uuid
+  eventId                String            @db.Uuid
+  status                 CertificateStatus @default(ISSUED)
+  certificateNumber      String            @unique @db.Char(36)
+  recipientName          String            @db.VarChar(100)
+  templateId             String            @db.VarChar(16)
+  templateVersion        Int               @db.SmallInt
+  fontId                 String            @db.VarChar(8)
+  eligibilityRuleVersion String            @db.VarChar(40)
+  attendanceTransitionId String            @db.Uuid
+  firstAcceptedCheckInAt DateTime          @db.Timestamptz(3)
+  pdfBytes               Bytes
+  pdfSha256              String            @db.Char(64)
+  issuedByUserId         String            @db.Uuid
+  issuedAt               DateTime          @db.Timestamptz(3)
+  revokedByUserId        String?           @db.Uuid
+  revokedAt              DateTime?         @db.Timestamptz(3)
+  revokeReason           String?           @db.VarChar(200)
+
+  @@index([eventId, issuedAt(sort: Desc), id(sort: Desc)])
+}
+
+model CertificateIssueWork {
+  id                     String                     @id @default(uuid()) @db.Uuid
+  registrationId         String                     @unique @db.Uuid
+  eventId                String                     @db.Uuid
+  status                 CertificateIssueWorkStatus @default(PENDING)
+  commandReplayId        String                     @unique @db.Uuid
+  requestedByUserId      String                     @db.Uuid
+  executionByUserId      String                     @db.Uuid
+  executionSessionId     String                     @db.Uuid
+  correlationId          String                     @db.VarChar(64)
+  templateId             String                     @db.VarChar(16)
+  templateVersion        Int                        @db.SmallInt
+  fontId                 String                     @db.VarChar(8)
+  eligibilityRuleVersion String                     @db.VarChar(40)
+  attendanceTransitionId String                     @db.Uuid
+  firstAcceptedCheckInAt DateTime                   @db.Timestamptz(3)
+  recipientName          String                     @db.VarChar(100)
+  recipientNameRevision  Int
+  eventName              String                     @db.VarChar(200)
+  eventStartAt           DateTime                   @db.Timestamptz(3)
+  eventTimeZone          String                     @db.VarChar(100)
+  generationCycle        Int                        @default(1)
+  attemptCount           Int                        @default(0)
+  fencingToken           BigInt                     @default(0)
+  claimToken             String?                    @db.Uuid
+  leaseExpiresAt         DateTime?                  @db.Timestamptz(3)
+  retryAt                DateTime?                  @default(now()) @db.Timestamptz(3)
+  generationStartedAt    DateTime?                  @db.Timestamptz(3)
+  lastErrorCode          String?                    @db.VarChar(80)
+  lastErrorAt            DateTime?                  @db.Timestamptz(3)
+  completedCertificateId String?                    @unique @db.Uuid
+  createdAt              DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                   @default(now()) @db.Timestamptz(3)
+  completedAt            DateTime?                  @db.Timestamptz(3)
+  failedAt               DateTime?                  @db.Timestamptz(3)
+}
+
 model ForecastRun {
   id          String   @id @default(uuid()) @db.Uuid
   eventId     String   @db.Uuid

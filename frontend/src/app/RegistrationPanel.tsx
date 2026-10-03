@@ -7,6 +7,7 @@ import {
   type Credential,
 } from "../services/registrations";
 import { ParticipantProof } from "./ParticipantProof";
+import { OwnerCertificatePanel } from "./OwnerCertificatePanel";
 
 const messages: Record<string, string> = {
   CAPACITY_FULL:
@@ -240,6 +241,14 @@ export function RegistrationPanel({
                 Registration: <strong>{row.state}</strong>
               </p>
               <p>Event lifecycle: {row.event_state}</p>
+              {row.relationship === "own" && session && (
+                <OwnerCertificatePanel
+                  registrationId={row.registration_id}
+                  registrationState={row.state}
+                  csrf={session.csrf}
+                  onOwnershipLost={failure}
+                />
+              )}
               <a href={`/registrations/${row.registration_id}`}>
                 Recover this registration
               </a>

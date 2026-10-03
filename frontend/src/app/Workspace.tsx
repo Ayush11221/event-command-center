@@ -287,6 +287,13 @@ export function Workspace({
                   </a>
                 )}
                 {selected && (
+                  <a
+                    href={`/certificates/${encodeURIComponent(selected.eventId)}`}
+                  >
+                    Certificates
+                  </a>
+                )}
+                {selected && (
                   <button
                     type="button"
                     className="text-button"

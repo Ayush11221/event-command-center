@@ -224,10 +224,11 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
   }
   it("returns an explicit aggregate allowlist for owner and assigned Admin without audit mutation", async () => {
     const f = await fixture(),
-      before = await db.auditEvent.count();
+      correlationIds: string[] = [];
     for (const who of [f.owner, f.admin]) {
       const response = await read(f, who);
       expect(response.status).toBe(200);
+      correlationIds.push(response.body.correlation_id);
       expect(response.body).toEqual({
         event_id: f.event.id,
         event_name: f.event.name,
@@ -252,7 +253,12 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
       );
       expect(JSON.stringify(response.body)).not.toContain(f.participant.userId);
     }
-    expect(await db.auditEvent.count()).toBe(before);
+    // Other feature suites legitimately write audit rows in this shared database.
+    expect(
+      await db.auditEvent.count({
+        where: { correlationId: { in: correlationIds } },
+      }),
+    ).toBe(0);
   });
   it.each(["operator", "volunteer", "participant", "foreign"] as const)(
     "hides event existence from %s",

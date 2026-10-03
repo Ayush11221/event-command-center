@@ -55,8 +55,8 @@ The paths below express boundaries, not final endpoint signatures.
 | `/events/{eventId}/alerts` | Three role-scoped categories (INSIDE occupancy threshold, gate/scanner failure, data/forecast staleness), deduplicated lifecycle and authorized acknowledge/resolve | FR-ALERT-001–002 |
 | `/events/{eventId}/forecasts/current`, `/events/{eventId}/forecasts` | Final Slice 8 current-generation read and bounded persisted-history read, including 30/60-minute points, uncertainty, evaluation and freshness, are defined in [API_CONTRACT.md](API_CONTRACT.md) and [SLICE_8_OPENAPI.json](SLICE_8_OPENAPI.json). | FR-FCST-* |
 | `/events/{eventId}/analytics` | Completed-event summaries and valid comparisons | FR-ANL-* |
-| Certificate eligibility/artifacts (paths TBD) | First accepted check-in grants ELIGIBLE only; explicit Organizer/Admin single issue and revoke; participant own ISSUED PDF/status | FR-CERT-001–002, FR-CERT-004, FR-CERT-008 |
-| Certificate templates/preview/batches (paths TBD) | Built-in template/font preview; explicit bulk issue from eligible database records; batch generation/delivery progress | FR-CERT-003–005 |
+| Certificate eligibility/name/single issue/artifacts (Slice 9 finalized) | Final Slice 9 owner name/status/artifact and staff catalogue/preview/single issue/recovery/revoke paths and closed schemas are defined in [API_CONTRACT.md](API_CONTRACT.md) and [SLICE_9_OPENAPI.json](SLICE_9_OPENAPI.json). | FR-CERT-001–002, FR-CERT-004, FR-CERT-008 |
+| Certificate batches (Slice 10 paths TBD) | Slice 9 owns built-in preview; Slice 10 adds explicit eligible-database bulk issue and batch generation/delivery progress. | FR-CERT-003–005 |
 | Certificate deliveries (paths TBD) | Platform-sender queue, independent per-certificate PENDING/SENT/FAILED status, Organizer/Admin-only failed-send retry and idempotent operation | FR-CERT-006–007 |
 | `/events/{eventId}/audit-events` | Restricted event-scoped Organizer/Admin audit search; no unrestricted export permission | FR-AUD-* |
 

@@ -1,0 +1,1818 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Slice 9 certificate API",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/events/{eventId}/certificate-templates": {
+      "get": {
+        "operationId": "certificateTemplates",
+        "description": "Staff. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Catalogue"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/registrations/{registrationId}/certificate": {
+      "get": {
+        "operationId": "ownerCertificateStatus",
+        "description": "Owner. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          },
+          {
+            "GuestOwnership": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OwnerStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/registrations/{registrationId}/certificate/recipient-name": {
+      "post": {
+        "operationId": "setCertificateRecipientName",
+        "description": "Owner. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          },
+          {
+            "GuestOwnership": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 200,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NameAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NameCommand"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/registrations/{registrationId}/certificate/artifact": {
+      "get": {
+        "operationId": "downloadOwnCertificate",
+        "description": "Owner. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          },
+          {
+            "GuestOwnership": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/registrations/{registrationId}/certificate": {
+      "get": {
+        "operationId": "staffCertificateStatus",
+        "description": "Staff. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffStatus"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "issueCertificate",
+        "description": "Staff. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 200,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Selection"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/registrations/{registrationId}/certificate/preview": {
+      "post": {
+        "operationId": "previewCertificate",
+        "description": "Staff. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Selection"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events/{eventId}/registrations/{registrationId}/certificate/revoke": {
+      "post": {
+        "operationId": "revokeCertificate",
+        "description": "Staff. No query fields. JSON commands are closed and bounded to 16 KiB.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "registrationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 16,
+              "maxLength": 200,
+              "pattern": "^[!-~]+$"
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Protected response",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string",
+                  "const": "private, no-store"
+                }
+              },
+              "Referrer-Policy": {
+                "schema": {
+                  "type": "string",
+                  "const": "no-referrer"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CertificateResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Stable privacy-safe error; see API_CONTRACT Slice 9 error mapping",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeCommand"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AccountSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_session"
+      },
+      "GuestOwnership": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_guest_proof"
+      }
+    },
+    "schemas": {
+      "Selection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["template_id", "template_version", "font_id"],
+        "properties": {
+          "template_id": {
+            "type": "string",
+            "enum": ["classic", "modern", "minimal"]
+          },
+          "template_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "font_id": {
+            "type": "string",
+            "enum": ["sans", "serif"]
+          }
+        }
+      },
+      "NameCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recipient_name"],
+        "properties": {
+          "recipient_name": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 100,
+            "description": "NFC plus trim, 2-100 code points; Latin letters and approved punctuation supported by standard fonts."
+          }
+        }
+      },
+      "RevokeCommand": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "type": "string",
+            "maxLength": 200
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "correlation_id"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "details": {
+            "type": "object"
+          }
+        }
+      },
+      "OwnerCertificate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "certificate_id",
+          "certificate_number",
+          "status",
+          "template_id",
+          "template_version",
+          "font_id",
+          "eligibility_rule_version",
+          "issued_at",
+          "revoked_at"
+        ],
+        "properties": {
+          "certificate_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "certificate_number": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ISSUED", "REVOKED"]
+          },
+          "template_id": {
+            "type": "string",
+            "enum": ["classic", "modern", "minimal"]
+          },
+          "template_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "font_id": {
+            "type": "string",
+            "enum": ["sans", "serif"]
+          },
+          "eligibility_rule_version": {
+            "type": "string",
+            "const": "CERT_ELIGIBILITY_V1"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          }
+        }
+      },
+      "StaffCertificate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "certificate_id",
+          "certificate_number",
+          "status",
+          "template_id",
+          "template_version",
+          "font_id",
+          "eligibility_rule_version",
+          "issued_at",
+          "revoked_at",
+          "issued_by_user_id",
+          "revoked_by_user_id",
+          "revoke_reason",
+          "attendance_transition_id",
+          "first_accepted_check_in_at",
+          "pdf_sha256"
+        ],
+        "properties": {
+          "certificate_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "certificate_number": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["ISSUED", "REVOKED"]
+          },
+          "template_id": {
+            "type": "string",
+            "enum": ["classic", "modern", "minimal"]
+          },
+          "template_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "font_id": {
+            "type": "string",
+            "enum": ["sans", "serif"]
+          },
+          "eligibility_rule_version": {
+            "type": "string",
+            "const": "CERT_ELIGIBILITY_V1"
+          },
+          "issued_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revoked_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "issued_by_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revoked_by_user_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          },
+          "revoke_reason": {
+            "type": ["string", "null"]
+          },
+          "attendance_transition_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "first_accepted_check_in_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "pdf_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "IssueWork": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "issue_work_id",
+          "status",
+          "generation_cycle",
+          "attempt_count",
+          "requested_by_user_id",
+          "execution_by_user_id",
+          "template_id",
+          "template_version",
+          "font_id",
+          "created_at",
+          "updated_at",
+          "retry_at",
+          "completed_at",
+          "failed_at",
+          "last_error_code",
+          "certificate_id"
+        ],
+        "properties": {
+          "issue_work_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "COMPLETED", "FAILED"]
+          },
+          "generation_cycle": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "attempt_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          },
+          "requested_by_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "execution_by_user_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "template_id": {
+            "type": "string",
+            "enum": ["classic", "modern", "minimal"]
+          },
+          "template_version": {
+            "type": "integer",
+            "const": 1
+          },
+          "font_id": {
+            "type": "string",
+            "enum": ["sans", "serif"]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "retry_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "failed_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "last_error_code": {
+            "type": ["string", "null"]
+          },
+          "certificate_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          }
+        }
+      },
+      "OwnerStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "registration_id",
+          "state",
+          "eligibility_rule_version",
+          "recipient_name_set",
+          "certificate",
+          "recipient_name",
+          "recipient_name_updated_at",
+          "recipient_name_locked",
+          "correlation_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registration_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["NOT_ELIGIBLE", "ELIGIBLE", "ISSUED", "REVOKED"]
+          },
+          "eligibility_rule_version": {
+            "type": "string",
+            "const": "CERT_ELIGIBILITY_V1"
+          },
+          "recipient_name_set": {
+            "type": "boolean"
+          },
+          "certificate": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OwnerCertificate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recipient_name": {
+            "type": ["string", "null"]
+          },
+          "recipient_name_updated_at": {
+            "type": ["string", "null"],
+            "format": "date-time"
+          },
+          "recipient_name_locked": {
+            "type": "boolean"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "StaffStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "registration_id",
+          "state",
+          "eligibility_rule_version",
+          "recipient_name_set",
+          "certificate",
+          "issue_work",
+          "correlation_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registration_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string",
+            "enum": ["NOT_ELIGIBLE", "ELIGIBLE", "ISSUED", "REVOKED"]
+          },
+          "eligibility_rule_version": {
+            "type": "string",
+            "const": "CERT_ELIGIBILITY_V1"
+          },
+          "recipient_name_set": {
+            "type": "boolean"
+          },
+          "certificate": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/StaffCertificate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "issue_work": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/IssueWork"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Catalogue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["event_id", "templates", "fonts", "correlation_id"],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "templates": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["template_id", "template_version"],
+              "properties": {
+                "template_id": {
+                  "type": "string",
+                  "enum": ["classic", "modern", "minimal"]
+                },
+                "template_version": {
+                  "type": "integer",
+                  "const": 1
+                }
+              }
+            }
+          },
+          "fonts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["font_id"],
+              "properties": {
+                "font_id": {
+                  "type": "string",
+                  "enum": ["sans", "serif"]
+                }
+              }
+            }
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "NameAck": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "registration_id",
+          "recipient_name_set",
+          "updated_at",
+          "correlation_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "registration_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recipient_name_set": {
+            "type": "boolean",
+            "const": true
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "CertificateResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["certificate", "correlation_id"],
+        "properties": {
+          "certificate": {
+            "$ref": "#/components/schemas/StaffCertificate"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "PendingResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["issue_work", "correlation_id"],
+        "properties": {
+          "issue_work": {
+            "$ref": "#/components/schemas/IssueWork"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
