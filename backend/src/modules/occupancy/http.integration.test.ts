@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { Writable } from "node:stream";
+import { createServer } from "node:http";
+import { io as connect, type Socket } from "socket.io-client";
 import request from "supertest";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../app.js";
 import { createDatabase } from "../../config/database.js";
 import { createLogger } from "../../config/logger.js";
@@ -12,6 +14,7 @@ import {
   recoverCredential,
 } from "../registrations/credential.js";
 import { operationsSnapshot } from "./service.js";
+import { attachOperationsRealtime } from "./realtime.js";
 const url = process.env.TEST_DATABASE_URL,
   origin = "http://127.0.0.1:5173";
 const config = {
@@ -40,7 +43,46 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
     ),
     deps,
   );
-  afterAll(() => db.$disconnect());
+  const server = createServer(app);
+  const realtime = attachOperationsRealtime(server, deps, 25);
+  let address = "";
+  const clients: Socket[] = [];
+  beforeAll(async () => {
+    await new Promise<void>((done) => server.listen(0, "127.0.0.1", done));
+    const bound = server.address();
+    if (!bound || typeof bound === "string")
+      throw new Error("Missing socket address");
+    address = `http://127.0.0.1:${bound.port}`;
+  });
+  afterAll(async () => {
+    for (const client of clients) client.disconnect();
+    await new Promise<void>((done) => realtime.close(() => done()));
+    await db.$disconnect();
+  });
+  async function client(cookie?: string, requestOrigin = origin) {
+    const socket = connect(address, {
+      path: "/api/v1/realtime/socket.io",
+      transports: ["websocket"],
+      extraHeaders: {
+        Origin: requestOrigin,
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+      reconnection: false,
+      autoConnect: false,
+    });
+    clients.push(socket);
+    const result = new Promise<Socket>((resolve, reject) => {
+      socket.once("connect", () => resolve(socket));
+      socket.once("connect_error", reject);
+    });
+    socket.connect();
+    return result;
+  }
+  async function subscribe(socket: Socket, eventId: string) {
+    return socket
+      .timeout(3000)
+      .emitWithAck("operations.subscribe", { event_id: eventId });
+  }
   async function actor(organizerCapable = false) {
     const user = await db.user.create({ data: { organizerCapable } });
     await db.verifiedContact.create({
@@ -199,8 +241,11 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
         last_attendance_at: null,
         calculated_at: expect.any(String),
         correlation_id: expect.any(String),
+        revision: 0,
+        as_of: expect.any(String),
       });
       expect(response.headers["cache-control"]).toContain("no-store");
+      expect(response.body.as_of).toBe(response.body.calculated_at);
       expect(response.headers["referrer-policy"]).toBe("no-referrer");
       expect(JSON.stringify(response.body)).not.toContain(
         f.registrations[0].token,
@@ -279,6 +324,7 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
     const result = await read(f);
     expect(result.body).toMatchObject({
       occupied: 1,
+      revision: 1,
       registered: 2,
       remaining: 0,
       utilization_percentage: 100,
@@ -286,6 +332,10 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
     });
     expect(
       await db.attendanceTransition.count({ where: { eventId: f.event.id } }),
+    ).toBe(1);
+    expect(
+      (await db.event.findUniqueOrThrow({ where: { id: f.event.id } }))
+        .revision,
     ).toBe(1);
   });
   it("accepts concurrent valid check-ins at different gates above registration capacity without lost attendance", async () => {
@@ -311,6 +361,7 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
     ]);
     expect((await read(f)).body).toMatchObject({
       occupied: 2,
+      revision: 2,
       registered: 2,
       capacity: 1,
       remaining: -1,
@@ -463,6 +514,13 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
     "reads only committed attendance when an in-flight transaction rolls back=%s",
     async (rollback) => {
       const f = await fixture();
+      const socket = await client(f.owner.cookie);
+      expect(await subscribe(socket, f.event.id)).toMatchObject({
+        ok: true,
+        revision: 0,
+      });
+      const notifications: { revision: number }[] = [];
+      socket.on("occupancy.updated", (message) => notifications.push(message));
       let release!: () => void, acquired!: () => void;
       const barrier = new Promise<void>((done) => {
           release = done;
@@ -524,11 +582,22 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
       );
       try {
         await waitForLock();
+        expect(notifications).toHaveLength(0);
       } finally {
         release();
         await writing;
       }
-      expect((await reading).occupied).toBe(rollback ? 0 : 1);
+      const snapshot = await reading;
+      expect(snapshot.occupied).toBe(rollback ? 0 : 1);
+      expect(snapshot.revision).toBe(rollback ? 0 : 1);
+      expect(snapshot.as_of).toBe(snapshot.calculated_at);
+      if (rollback) {
+        await new Promise((done) => setTimeout(done, 100));
+        expect(notifications).toHaveLength(0);
+      } else {
+        await expect.poll(() => notifications.at(-1)?.revision).toBe(1);
+      }
+      socket.disconnect();
     },
   );
   it.each(["scan", "read"])(
@@ -547,7 +616,10 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
           variant === "scan" ? scan(f) : read(f, f.operator)
         ).set("X-Correlation-Id", corr);
         expect(result.status).toBe(503);
-        expect((await read(f)).body.occupied).toBe(0);
+        expect((await read(f)).body).toMatchObject({
+          occupied: 0,
+          revision: 0,
+        });
         expect(
           await db.attendanceTransition.count({
             where: { eventId: f.event.id },
@@ -603,5 +675,140 @@ describe.skipIf(!url)("Slice 6 transactional operations snapshots", () => {
         "registered",
       ])
         expect(JSON.stringify(response.body)).not.toContain('"' + key + '"');
+  });
+  it("does not advance revision for an invalid rejected check-in", async () => {
+    const f = await fixture();
+    const response = await scan(f).send({ credential: "invalid" });
+    expect(response.body.reason).toBe("INVALID_CREDENTIAL");
+    expect((await read(f)).body).toMatchObject({ occupied: 0, revision: 0 });
+  });
+  it("authenticates socket Origin and account session before any event subscription", async () => {
+    const f = await fixture();
+    await expect(client()).rejects.toThrow();
+    await expect(
+      client(f.owner.cookie, "https://untrusted.example"),
+    ).rejects.toThrow();
+    await db.session.update({
+      where: { id: f.owner.sessionId },
+      data: { revokedAt: new Date() },
+    });
+    await expect(client(f.owner.cookie)).rejects.toThrow();
+  });
+  it("allows only current owner/Admin subscriptions and hides unauthorized event facts", async () => {
+    const f = await fixture();
+    for (const who of [f.owner, f.admin]) {
+      const socket = await client(who.cookie);
+      expect(await subscribe(socket, f.event.id)).toMatchObject({
+        ok: true,
+        event_id: f.event.id,
+        revision: 0,
+        as_of: expect.any(String),
+      });
+      socket.disconnect();
+    }
+    for (const who of [
+      f.operator,
+      f.volunteer,
+      f.participant,
+      await actor(true),
+    ]) {
+      const socket = await client(who.cookie);
+      expect(await subscribe(socket, f.event.id)).toEqual({
+        ok: false,
+        code: "EVENT_NOT_FOUND",
+      });
+      expect(await subscribe(socket, randomUUID())).toEqual({
+        ok: false,
+        code: "EVENT_NOT_FOUND",
+      });
+      expect(
+        await socket.timeout(3000).emitWithAck("operations.subscribe", {
+          event_id: f.event.id,
+          role: "EVENT_ADMIN",
+        }),
+      ).toEqual({ ok: false, code: "VALIDATION" });
+      socket.disconnect();
+    }
+  });
+  it("delivers committed versioned metadata with event isolation and reconnect resync", async () => {
+    const f = await fixture(),
+      other = await fixture();
+    const a = await client(f.owner.cookie),
+      b = await client(other.owner.cookie);
+    await subscribe(a, f.event.id);
+    await subscribe(b, other.event.id);
+    const messages: { revision: number; event_id: string }[] = [],
+      foreign: unknown[] = [];
+    a.on("occupancy.updated", (message) => messages.push(message));
+    b.on("occupancy.updated", (message) => foreign.push(message));
+    await scan(f);
+    await expect.poll(() => messages.length).toBe(1);
+    expect(messages[0]).toEqual({
+      message_id: "operations:" + f.event.id + ":1",
+      schema_version: 1,
+      event_id: f.event.id,
+      revision: 1,
+      as_of: expect.any(String),
+      occurred_at: expect.any(String),
+      correlation_id: expect.any(String),
+    });
+    await scan(f); // duplicate cannot publish another occupancy revision
+    await new Promise((done) => setTimeout(done, 100));
+    expect(messages).toHaveLength(1);
+    expect(foreign).toHaveLength(0);
+    a.disconnect();
+    await scan(f, 1);
+    const reconnect = await client(f.owner.cookie);
+    expect(await subscribe(reconnect, f.event.id)).toMatchObject({
+      ok: true,
+      revision: 2,
+    });
+    expect((await read(f)).body).toMatchObject({ occupied: 2, revision: 2 });
+    reconnect.disconnect();
+    b.disconnect();
+  });
+  it.each(["assignment", "session", "capability"])(
+    "terminates subscriptions when current %s authority is revoked",
+    async (variant) => {
+      const f = await fixture(),
+        who = variant === "assignment" ? f.admin : f.owner;
+      const socket = await client(who.cookie);
+      await subscribe(socket, f.event.id);
+      const closed = new Promise<void>((done) =>
+        socket.once("disconnect", () => done()),
+      );
+      if (variant === "assignment")
+        await db.eventRoleAssignment.update({
+          where: { id: f.adminAssignment.id },
+          data: { revokedAt: new Date(), revokedByUserId: f.owner.userId },
+        });
+      if (variant === "session")
+        await db.session.update({
+          where: { id: who.sessionId },
+          data: { expiresAt: new Date() },
+        });
+      if (variant === "capability")
+        await db.user.update({
+          where: { id: who.userId },
+          data: { organizerCapable: false },
+        });
+      await closed;
+      expect(socket.connected).toBe(false);
+    },
+  );
+  it("clears an old subscription before a denied context switch", async () => {
+    const f = await fixture(),
+      socket = await client(f.owner.cookie);
+    await subscribe(socket, f.event.id);
+    const messages: unknown[] = [];
+    socket.on("occupancy.updated", (message) => messages.push(message));
+    expect(await subscribe(socket, randomUUID())).toEqual({
+      ok: false,
+      code: "EVENT_NOT_FOUND",
+    });
+    await scan(f);
+    await new Promise((done) => setTimeout(done, 100));
+    expect(messages).toHaveLength(0);
+    socket.disconnect();
   });
 });

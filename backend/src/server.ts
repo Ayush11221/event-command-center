@@ -6,6 +6,7 @@ import { parseFoundationConfig } from "./config/foundation.js";
 import { OtpService } from "./modules/auth/otp.js";
 import { createOtpSender, loadSmsGateway } from "./modules/auth/sender.js";
 import { ContactType } from "@prisma/client";
+import { attachOperationsRealtime } from "./modules/occupancy/realtime.js";
 
 async function main() {
   const config = parseConfig(process.env);
@@ -33,6 +34,12 @@ async function main() {
   const server = app.listen(config.port, "127.0.0.1", () => {
     logger.info("backend listening");
   });
+  const realtime = attachOperationsRealtime(server, {
+    db,
+    config: foundation,
+    otp,
+    frontendOrigin: config.frontendOrigin,
+  });
 
   server.on("error", () => {
     logger.error("backend listener failed");
@@ -41,7 +48,7 @@ async function main() {
 
   for (const signal of ["SIGINT", "SIGTERM"] as const) {
     process.once(signal, () => {
-      server.close(async () => {
+      realtime.close(async () => {
         await db.$disconnect();
         logger.info("backend stopped");
       });

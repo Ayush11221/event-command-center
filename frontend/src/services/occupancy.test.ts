@@ -13,6 +13,8 @@ const snapshot = {
   last_attendance_at: "2026-10-03T00:00:00Z",
   calculated_at: "2026-10-03T00:01:00Z",
   correlation_id: "correlation",
+  revision: 2,
+  as_of: "2026-10-03T00:01:00Z",
 };
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -61,6 +63,10 @@ describe("operations transport", () => {
     );
   });
   it.each([
+    { revision: undefined },
+    { revision: -1 },
+    { revision: 1.2 },
+    { as_of: "invalid" },
     { event_id: undefined },
     { event_id: "foreign" },
     { occupied: -1 },

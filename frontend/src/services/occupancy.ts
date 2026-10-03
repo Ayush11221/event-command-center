@@ -13,6 +13,8 @@ export interface OperationsSnapshot {
   last_attendance_at: string | null;
   calculated_at: string;
   correlation_id: string;
+  revision: number;
+  as_of: string;
 }
 export async function getOperations(
   eventId: string,
@@ -76,6 +78,10 @@ export async function getOperations(
       typeof body.calculated_at !== "string" ||
       !Number.isFinite(Date.parse(body.calculated_at)) ||
       typeof body.correlation_id !== "string" ||
+      !Number.isSafeInteger(body.revision) ||
+      body.revision < 0 ||
+      typeof body.as_of !== "string" ||
+      body.as_of !== body.calculated_at ||
       (body.last_attendance_at !== null &&
         (typeof body.last_attendance_at !== "string" ||
           !Number.isFinite(Date.parse(body.last_attendance_at))))
@@ -94,6 +100,8 @@ export async function getOperations(
       last_attendance_at: body.last_attendance_at,
       calculated_at: body.calculated_at,
       correlation_id: body.correlation_id,
+      revision: body.revision,
+      as_of: body.as_of,
     };
   } catch (error) {
     if (error instanceof EventApiError) throw error;

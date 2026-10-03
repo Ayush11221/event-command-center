@@ -10,6 +10,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { EventApiError } from "../services/events";
 import { getOperations, type OperationsSnapshot } from "../services/occupancy";
 import { OccupancyPage } from "./OccupancyPage";
+vi.mock("../services/operations-realtime", () => ({
+  connectOperations: () => ({
+    on: () => {},
+    connect: () => {},
+    disconnect: () => {},
+    emit: () => {},
+    removeAllListeners: () => {},
+    connected: false,
+  }),
+}));
 vi.mock("../services/occupancy", () => ({ getOperations: vi.fn() }));
 const snapshot: OperationsSnapshot = {
   event_id: "event",
@@ -24,6 +34,8 @@ const snapshot: OperationsSnapshot = {
   last_attendance_at: "2026-10-03T00:00:00Z",
   calculated_at: "2026-10-03T00:01:00Z",
   correlation_id: "correlation",
+  revision: 2,
+  as_of: "2026-10-03T00:01:00Z",
 };
 beforeEach(() => vi.mocked(getOperations).mockResolvedValue(snapshot));
 afterEach(() => {

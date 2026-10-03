@@ -47,6 +47,8 @@ describe("Slice 6 additive contract", () => {
       "last_attendance_at",
       "calculated_at",
       "correlation_id",
+      "revision",
+      "as_of",
     ]);
   });
   it("resolves all local schema references", () => {

@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Event Command Center - Slice 6 implemented occupancy snapshot",
-    "version": "1.0.0",
-    "description": "Additive internal read only. Capacity is a registration cap, not gate admission authority. No corrections, checkout, polling or WebSockets."
+    "version": "1.1.0",
+    "description": "Slice 6 internal read extended by the FINALIZED Slice 7 VERSIONED UPDATES contract. Capacity remains a registration cap, not gate admission authority. The dedicated committed attendance ledger revision and authoritative as_of read timestamp are required. Socket.IO delivery is specified in API_CONTRACT.md; REST remains authoritative. No corrections or checkout."
   },
   "servers": [
     {
@@ -111,7 +111,9 @@
           "attendance_state",
           "last_attendance_at",
           "calculated_at",
-          "correlation_id"
+          "correlation_id",
+          "revision",
+          "as_of"
         ],
         "properties": {
           "event_id": {
@@ -165,6 +167,17 @@
           },
           "correlation_id": {
             "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Dedicated per-event committed append-only AttendanceTransition count, never Event.revision. Accepted transitions advance once; duplicate, rejected and rolled-back scans do not."
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "description": "UTC database statement time of the coherent authoritative read, equal to calculated_at; not attendance occurrence or commit time."
           }
         }
       },

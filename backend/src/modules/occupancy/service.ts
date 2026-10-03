@@ -47,6 +47,7 @@ export async function operationsSnapshot(
           capacity: number | null;
           registered: bigint;
           occupied: bigint;
+          revision: bigint;
           last_attendance_at: Date | null;
           calculated_at: Date;
         }[]
@@ -54,6 +55,7 @@ export async function operationsSnapshot(
         SELECT e.id AS event_id, e.name AS event_name, e.state AS event_state,
           e."registrationCapacity" AS capacity, registrations.registered,
           attendance.occupied, attendance.last_attendance_at,
+          (SELECT count(*) FROM "AttendanceTransition" a WHERE a."eventId" = e.id) AS revision,
           statement_timestamp() AS calculated_at
         FROM "Event" e
         CROSS JOIN LATERAL (
@@ -68,6 +70,8 @@ export async function operationsSnapshot(
         WHERE e.id = ${eventId}::uuid
       `;
       if (!row) throw unavailable();
+      const revision = Number(row.revision);
+      if (!Number.isSafeInteger(revision) || revision < 0) throw unavailable();
       return {
         event_id: row.event_id,
         event_name: row.event_name,
@@ -80,6 +84,8 @@ export async function operationsSnapshot(
         attendance_state: "INSIDE" as const,
         last_attendance_at: row.last_attendance_at?.toISOString() ?? null,
         calculated_at: row.calculated_at.toISOString(),
+        revision,
+        as_of: row.calculated_at.toISOString(),
         correlation_id: correlationId,
       };
     });

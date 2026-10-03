@@ -1,54 +1,8 @@
-import { useEffect, useState } from "react";
-import { EventApiError } from "../services/events";
-import { getOperations, type OperationsSnapshot } from "../services/occupancy";
-
-type State =
-  | { phase: "loading" }
-  | { phase: "error"; status: number; message: string }
-  | { phase: "ready"; snapshot: OperationsSnapshot };
+import { useState } from "react";
+import { useOperations } from "./useOperations";
 export function OccupancyPage({ eventId }: { eventId: string }) {
-  const [state, setState] = useState<State>({ phase: "loading" });
   const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setState({ phase: "loading" });
-    void getOperations(eventId, controller.signal)
-      .then((snapshot) => {
-        if (!controller.signal.aborted) setState({ phase: "ready", snapshot });
-      })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        const status = error instanceof EventApiError ? error.status : 0;
-        const reference =
-          error instanceof EventApiError && error.correlationId
-            ? ` Reference: ${error.correlationId}.`
-            : "";
-        setState({
-          phase: "error",
-          status,
-          message:
-            status === 401
-              ? "Sign in with an Organizer or assigned Event Admin account."
-              : status === 403 || status === 404
-                ? "Operations unavailable. Your event access may have changed."
-                : `Occupancy could not be confirmed. Retry to read the current state.${reference}`,
-        });
-      });
-    const hide = () => {
-      controller.abort();
-      setState({
-        phase: "error",
-        status: 0,
-        message:
-          "Read operations again to confirm current access and occupancy.",
-      });
-    };
-    window.addEventListener("pagehide", hide);
-    return () => {
-      controller.abort();
-      window.removeEventListener("pagehide", hide);
-    };
-  }, [eventId, attempt]);
+  const { state, connection } = useOperations(eventId, attempt);
   const snapshot = state.phase === "ready" ? state.snapshot : null;
   const over =
     snapshot !== null &&
@@ -58,6 +12,9 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
     <main className="page-shell operations-page">
       <a href="/">Back to event workspace</a>
       <h1>Attendance &amp; occupancy</h1>
+      <p className="notice" aria-live="polite">
+        {connection}
+      </p>
       {state.phase === "loading" ? (
         <p role="status" className="notice">
           Loading occupancy snapshot...
@@ -122,6 +79,9 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
             ceiling.
           </p>
           <p className="freshness">
+            Revision: {state.snapshot.revision}.<br />
+            Confirmed as of: {new Date(state.snapshot.as_of).toLocaleString()}.
+            <br />
             Calculated:{" "}
             {new Date(state.snapshot.calculated_at).toLocaleString()}.<br />
             Attendance last changed:{" "}
@@ -137,7 +97,8 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
             Refresh occupancy
           </button>
           <p className="freshness">
-            Snapshot only. Refresh to confirm changes.
+            Live updates reconcile through the authoritative operations
+            snapshot.
           </p>
         </section>
       )}
