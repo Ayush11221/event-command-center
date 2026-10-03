@@ -148,9 +148,20 @@ model Event {
   privateAccessLinks               PrivateAccessLink[]
   registrations                    Registration[]
   scanDecisions                    ScanDecision[]
+  forecastRuns                     ForecastRun[]
   attendanceTransitions            AttendanceTransition[]
 
   @@index([ownerUserId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
+model ForecastRun {
+  id          String   @id @default(uuid()) @db.Uuid
+  eventId     String   @db.Uuid
+  persistedAt DateTime @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(3)
+  result      Json
+  event       Event    @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@index([eventId, persistedAt(sort: Desc), id(sort: Desc)])
 }
 
 model Gate {

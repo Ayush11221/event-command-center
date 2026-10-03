@@ -53,7 +53,7 @@ The paths below express boundaries, not final endpoint signatures.
 | `/events/{eventId}/attendance` | Authorized snapshot, check-in/check-out/re-entry history, append-only reasoned correction and reconciliation | FR-ATT-*, FR-LIVE-* |
 | `/events/{eventId}/operations` | Command-center snapshot: live INSIDE occupancy, separate REGISTERED count, single event capacity, freshness and gate activity | FR-LIVE-* |
 | `/events/{eventId}/alerts` | Three role-scoped categories (INSIDE occupancy threshold, gate/scanner failure, data/forecast staleness), deduplicated lifecycle and authorized acknowledge/resolve | FR-ALERT-001–002 |
-| `/events/{eventId}/forecasts` | Current/history of versioned forecast results and availability | FR-FCST-* |
+| `/events/{eventId}/forecasts/current`, `/events/{eventId}/forecasts` | Final Slice 8 current-generation read and bounded persisted-history read, including 30/60-minute points, uncertainty, evaluation and freshness, are defined in [API_CONTRACT.md](API_CONTRACT.md) and [SLICE_8_OPENAPI.json](SLICE_8_OPENAPI.json). | FR-FCST-* |
 | `/events/{eventId}/analytics` | Completed-event summaries and valid comparisons | FR-ANL-* |
 | Certificate eligibility/artifacts (paths TBD) | First accepted check-in grants ELIGIBLE only; explicit Organizer/Admin single issue and revoke; participant own ISSUED PDF/status | FR-CERT-001–002, FR-CERT-004, FR-CERT-008 |
 | Certificate templates/preview/batches (paths TBD) | Built-in template/font preview; explicit bulk issue from eligible database records; batch generation/delivery progress | FR-CERT-003–005 |
@@ -165,7 +165,7 @@ Rate limits must be based on threat and workload modelling, not copied defaults.
 - Pagination and idempotency retention windows for later slices; Slice 3 uses an opaque cursor (20 default/100 maximum) and protected 24-hour PRIVATE issuance replay, which is not link expiry.
 - Scan reason-code catalog (gate identity allowlist is locked; contact data excluded)
 - Live revision/reconnect implementation details under the Phase 2 Socket.IO/WebSocket direction
-- Forecast request cadence/minimum data rule and synchronous versus asynchronous invocation; horizons fixed at 30/60 minutes
+- Slice 8 request cadence/minimum data rule and bounded synchronous invocation are finalized in [API_CONTRACT.md](API_CONTRACT.md); horizons remain exactly 30/60 minutes. Production acceptance thresholds remain deferred.
 - OTP provider implementation, detailed gate/scanner staleness detection, and certificate queue/provider/delivery idempotency retention. Slice 3 PRIVATE-link proof, Organizer-only issue/revoke/reissue, no automatic time-based expiry and exact event/discovery routes are finalized in [API_CONTRACT.md](API_CONTRACT.md); they are not implemented yet.
 - Export formats, limits, and data-redaction rules
 - API compatibility/deprecation policy

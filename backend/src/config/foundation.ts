@@ -9,6 +9,8 @@ export interface FoundationConfig {
   smtpUrl?: string;
   smtpFrom?: string;
   smsGatewayModule?: string;
+  forecastServiceUrl?: string;
+  forecastServiceKey?: string;
 }
 
 function requiredKey(value: string | undefined, name: string): Buffer {
@@ -35,6 +37,45 @@ export function parseFoundationConfig(
   if (env.SMTP_URL && !env.SMTP_FROM) {
     throw new Error("SMTP_FROM is required with SMTP_URL");
   }
+  if (env.FORECAST_SERVICE_URL || env.FORECAST_SERVICE_KEY) {
+    if (
+      !env.FORECAST_SERVICE_URL ||
+      !env.FORECAST_SERVICE_KEY ||
+      !/^[a-fA-F0-9]{64}$/.test(env.FORECAST_SERVICE_KEY)
+    )
+      throw new Error(
+        "Forecast service requires a URL and independent 32-byte hex key",
+      );
+    if (
+      [env.JWT_SECRET, env.CONTACT_KEY, env.OTP_KEY].some(
+        (key) => key?.toLowerCase() === env.FORECAST_SERVICE_KEY!.toLowerCase(),
+      )
+    )
+      throw new Error(
+        "Forecast service key must be independent of account/contact/OTP keys",
+      );
+    let endpoint: URL;
+    try {
+      endpoint = new URL(env.FORECAST_SERVICE_URL);
+    } catch {
+      throw new Error("Invalid forecast service URL");
+    }
+    if (
+      endpoint.username ||
+      endpoint.password ||
+      endpoint.search ||
+      endpoint.hash ||
+      endpoint.pathname !== "/" ||
+      (endpoint.protocol !== "https:" &&
+        !(
+          endpoint.protocol === "http:" &&
+          ["127.0.0.1", "localhost", "[::1]"].includes(endpoint.hostname)
+        ))
+    )
+      throw new Error(
+        "Forecast service requires HTTPS or loopback HTTP, with no URL credentials/query/path",
+      );
+  }
   return {
     databaseUrl,
     jwtSecret: requiredKey(env.JWT_SECRET, "JWT_SECRET"),
@@ -44,5 +85,7 @@ export function parseFoundationConfig(
     smtpUrl: env.SMTP_URL,
     smtpFrom: env.SMTP_FROM,
     smsGatewayModule: env.SMS_GATEWAY_MODULE,
+    forecastServiceUrl: env.FORECAST_SERVICE_URL,
+    forecastServiceKey: env.FORECAST_SERVICE_KEY,
   };
 }

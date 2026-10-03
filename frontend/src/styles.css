@@ -811,6 +811,10 @@ p {
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+.occupancy-values .forecast-context {
+  font-size: 16px;
+  font-weight: 400;
+}
 @media (max-width: 520px) {
   .occupancy-values {
     grid-template-columns: 1fr;

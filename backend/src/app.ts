@@ -11,6 +11,7 @@ import { staffRouter } from "./modules/staff/http.js";
 import { registrationRouter } from "./modules/registrations/http.js";
 import { scanningRouter } from "./modules/scanning/http.js";
 import { occupancyRouter } from "./modules/occupancy/http.js";
+import { forecastingRouter } from "./modules/forecasting/http.js";
 import { correlation } from "./middleware/correlation.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -56,6 +57,9 @@ export function createApp(
 
   app.use("/health", healthRouter());
   if (foundation) {
+    // Forecast reads reject every body after authentication, including malformed
+    // or oversized JSON. Do not let the shared mutation parser handle these GETs.
+    app.use("/api/v1", forecastingRouter(foundation));
     app.use(express.json({ limit: "16kb", strict: true }));
     app.get("/health/ready", async (_request, response) => {
       try {

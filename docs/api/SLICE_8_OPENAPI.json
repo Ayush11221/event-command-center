@@ -1,0 +1,783 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Event Command Center - Slice 8 finalized forecasting contract",
+    "version": "1.0.0",
+    "description": "API_CONTRACT.md is authoritative. Contract finalized before implementation. Forecasts are advisory; current operations remain authoritative. Current reads synchronously generate and persist one bounded attempt; history never generates. No browser access to FastAPI, attendance writes, cache, jobs, socket forecasting or production accuracy claim."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/events/{eventId}/forecasts/current": {
+      "get": {
+        "operationId": "readCurrentEventForecast",
+        "description": "Current owning Organizer with capability or active assigned EVENT_ADMIN; authorize before extraction and reauthorize before persistence/disclosure. No query/body. 2-second internal timeout; each successful read persists one new attempt. Private no-store/no-referrer.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Persisted generation attempt; typed forecast unavailability remains 200.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastCurrent"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: unsupported query/body or invalid cursor/limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: current account session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "EVENT_NOT_FOUND: unknown, malformed or out-of-scope event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE: extraction, persistence or required denial audit failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/events/{eventId}/forecasts": {
+      "get": {
+        "operationId": "readEventForecastHistory",
+        "description": "Same current event authority as operations; no body/time filters. Event-bound exclusive keyset (persisted_at,run_id) descending. Freshness assessed at this read against current observed revision/capacity and generated_at+60 seconds. Private no-store/no-referrer.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string",
+              "maxLength": 512
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Newest-first persisted event history; no generation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastHistory"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: unsupported query/body or invalid cursor/limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: current account session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "EVENT_NOT_FOUND: unknown, malformed or out-of-scope event.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE: extraction, persistence or required denial audit failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AccountSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_session"
+      }
+    },
+    "schemas": {
+      "ForecastObserved": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "occupied",
+          "capacity",
+          "attendance_state",
+          "revision",
+          "as_of"
+        ],
+        "properties": {
+          "occupied": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "capacity": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          },
+          "attendance_state": {
+            "const": "INSIDE"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          }
+        }
+      },
+      "ForecastInput": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "start_at",
+          "end_at",
+          "last_observation_at",
+          "observation_count",
+          "revision",
+          "occupied",
+          "capacity"
+        ],
+        "properties": {
+          "start_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "last_observation_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "observation_count": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "occupied": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "capacity": {
+            "type": ["integer", "null"],
+            "minimum": 1
+          }
+        }
+      },
+      "ForecastMethod": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "version", "baseline_name", "baseline_version"],
+        "properties": {
+          "name": {
+            "const": "persistence"
+          },
+          "version": {
+            "const": "1"
+          },
+          "baseline_name": {
+            "const": "persistence"
+          },
+          "baseline_version": {
+            "const": "1"
+          }
+        }
+      },
+      "ForecastUncertainty": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["method", "nominal_coverage", "lower", "upper"],
+        "properties": {
+          "method": {
+            "const": "validation_residual_quantile"
+          },
+          "nominal_coverage": {
+            "const": 0.9
+          },
+          "lower": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "upper": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        }
+      },
+      "ForecastPoint": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "horizon_minutes",
+          "target_at",
+          "predicted_occupancy",
+          "uncertainty"
+        ],
+        "properties": {
+          "horizon_minutes": {
+            "enum": [30, 60]
+          },
+          "target_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "predicted_occupancy": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "uncertainty": {
+            "$ref": "#/components/schemas/ForecastUncertainty"
+          }
+        }
+      },
+      "EvaluationRange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["start_at", "end_at"],
+        "properties": {
+          "start_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "end_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          }
+        }
+      },
+      "ForecastEvaluationHorizon": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "horizon_minutes",
+          "samples",
+          "mae",
+          "rmse",
+          "baseline_mae",
+          "baseline_rmse",
+          "interval_coverage",
+          "availability_coverage"
+        ],
+        "properties": {
+          "horizon_minutes": {
+            "enum": [30, 60]
+          },
+          "samples": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "mae": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "rmse": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "baseline_mae": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "baseline_rmse": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "interval_coverage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "availability_coverage": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      },
+      "ForecastEvaluation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "split", "horizons"],
+        "properties": {
+          "kind": {
+            "const": "BASELINE_ONLY"
+          },
+          "split": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["training", "validation", "test"],
+            "properties": {
+              "training": {
+                "$ref": "#/components/schemas/EvaluationRange"
+              },
+              "validation": {
+                "$ref": "#/components/schemas/EvaluationRange"
+              },
+              "test": {
+                "$ref": "#/components/schemas/EvaluationRange"
+              }
+            }
+          },
+          "horizons": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "prefixItems": [
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ForecastEvaluationHorizon"
+                  },
+                  {
+                    "properties": {
+                      "horizon_minutes": {
+                        "const": 30
+                      }
+                    }
+                  }
+                ]
+              },
+              {
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/ForecastEvaluationHorizon"
+                  },
+                  {
+                    "properties": {
+                      "horizon_minutes": {
+                        "const": 60
+                      }
+                    }
+                  }
+                ]
+              }
+            ],
+            "items": false
+          }
+        }
+      },
+      "ForecastFreshness": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["state", "reason", "expires_at"],
+        "properties": {
+          "state": {
+            "enum": ["CURRENT", "STALE", "UNAVAILABLE"]
+          },
+          "reason": {
+            "enum": [
+              null,
+              "OBSERVATIONS_CHANGED",
+              "AGE_EXCEEDED",
+              "INSUFFICIENT_DATA",
+              "STALE_INPUT",
+              "MODEL_UNAVAILABLE",
+              "INVALID_INPUT"
+            ]
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "state": {
+                "const": "CURRENT"
+              },
+              "reason": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "properties": {
+              "state": {
+                "const": "STALE"
+              },
+              "reason": {
+                "enum": ["OBSERVATIONS_CHANGED", "AGE_EXCEEDED"]
+              }
+            }
+          },
+          {
+            "properties": {
+              "state": {
+                "const": "UNAVAILABLE"
+              },
+              "reason": {
+                "enum": [
+                  "INSUFFICIENT_DATA",
+                  "STALE_INPUT",
+                  "MODEL_UNAVAILABLE",
+                  "INVALID_INPUT"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "ForecastRun": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "run_id",
+          "event_id",
+          "contract_version",
+          "status",
+          "generated_at",
+          "persisted_at",
+          "input",
+          "method",
+          "points",
+          "evaluation",
+          "limitations",
+          "freshness"
+        ],
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "contract_version": {
+            "const": 1
+          },
+          "status": {
+            "enum": [
+              "AVAILABLE",
+              "INSUFFICIENT_DATA",
+              "STALE_INPUT",
+              "MODEL_UNAVAILABLE",
+              "INVALID_INPUT"
+            ]
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "persisted_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "input": {
+            "$ref": "#/components/schemas/ForecastInput"
+          },
+          "method": {
+            "$ref": "#/components/schemas/ForecastMethod"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ForecastPoint"
+            },
+            "maxItems": 2
+          },
+          "evaluation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForecastEvaluation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limitations": {
+            "type": "array",
+            "minItems": 4,
+            "maxItems": 4,
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "BASELINE_ONLY",
+                "CHECK_IN_ONLY",
+                "EMPIRICAL_UNCERTAINTY",
+                "NO_PRODUCTION_ACCURACY_CLAIM"
+              ]
+            }
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/ForecastFreshness"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "status": {
+                  "const": "AVAILABLE"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "points": {
+                  "type": "array",
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "prefixItems": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/ForecastPoint"
+                        },
+                        {
+                          "properties": {
+                            "horizon_minutes": {
+                              "const": 30
+                            }
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/ForecastPoint"
+                        },
+                        {
+                          "properties": {
+                            "horizon_minutes": {
+                              "const": 60
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "items": false
+                },
+                "evaluation": {
+                  "$ref": "#/components/schemas/ForecastEvaluation"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "points": {
+                  "maxItems": 0
+                },
+                "evaluation": {
+                  "type": "null"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "ForecastCurrent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "observed",
+          "forecast",
+          "as_of",
+          "correlation_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "observed": {
+            "$ref": "#/components/schemas/ForecastObserved"
+          },
+          "forecast": {
+            "$ref": "#/components/schemas/ForecastRun"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ForecastHistory": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "observed",
+          "items",
+          "next_cursor",
+          "as_of",
+          "correlation_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "observed": {
+            "$ref": "#/components/schemas/ForecastObserved"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ForecastRun"
+            }
+          },
+          "next_cursor": {
+            "type": ["string", "null"],
+            "maxLength": 512
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "correlation_id"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

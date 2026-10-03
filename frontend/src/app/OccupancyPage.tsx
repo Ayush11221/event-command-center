@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useOperations } from "./useOperations";
+import { ForecastPanel } from "./ForecastPanel";
 export function OccupancyPage({ eventId }: { eventId: string }) {
   const [attempt, setAttempt] = useState(0);
   const { state, connection } = useOperations(eventId, attempt);
@@ -102,6 +103,11 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
           </p>
         </section>
       )}
+      <ForecastPanel
+        eventId={eventId}
+        operations={state}
+        connection={connection}
+      />
     </main>
   );
 }

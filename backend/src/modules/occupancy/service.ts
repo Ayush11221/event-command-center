@@ -1,4 +1,4 @@
-import type { EventState } from "@prisma/client";
+import type { EventState, Prisma } from "@prisma/client";
 import type { AuthContext, AuthDependencies } from "../auth/http.js";
 import { ApiError, unavailable } from "../auth/errors.js";
 import { lockManagementEvent } from "../events/management-command.js";
@@ -39,19 +39,33 @@ export async function operationsSnapshot(
       // Reuse current owner/Admin authority and the existing event -> identity lock
       // order. No capacity admission check or occupancy counter is introduced.
       await lockManagementEvent(tx, actor, eventId);
-      const [row] = await tx.$queryRaw<
-        {
-          event_id: string;
-          event_name: string;
-          event_state: EventState;
-          capacity: number | null;
-          registered: bigint;
-          occupied: bigint;
-          revision: bigint;
-          last_attendance_at: Date | null;
-          calculated_at: Date;
-        }[]
-      >`
+      return readOperations(tx, eventId, correlationId);
+    });
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw unavailable();
+  }
+}
+
+// The caller must hold lockManagementEvent; forecasting reuses this same reader.
+export async function readOperations(
+  tx: Prisma.TransactionClient,
+  eventId: string,
+  correlationId: string,
+) {
+  const [row] = await tx.$queryRaw<
+    {
+      event_id: string;
+      event_name: string;
+      event_state: EventState;
+      capacity: number | null;
+      registered: bigint;
+      occupied: bigint;
+      revision: bigint;
+      last_attendance_at: Date | null;
+      calculated_at: Date;
+    }[]
+  >`
         SELECT e.id AS event_id, e.name AS event_name, e.state AS event_state,
           e."registrationCapacity" AS capacity, registrations.registered,
           attendance.occupied, attendance.last_attendance_at,
@@ -69,28 +83,23 @@ export async function operationsSnapshot(
         ) attendance
         WHERE e.id = ${eventId}::uuid
       `;
-      if (!row) throw unavailable();
-      const revision = Number(row.revision);
-      if (!Number.isSafeInteger(revision) || revision < 0) throw unavailable();
-      return {
-        event_id: row.event_id,
-        event_name: row.event_name,
-        event_state: row.event_state,
-        ...occupancyValues(
-          Number(row.occupied),
-          Number(row.registered),
-          row.capacity,
-        ),
-        attendance_state: "INSIDE" as const,
-        last_attendance_at: row.last_attendance_at?.toISOString() ?? null,
-        calculated_at: row.calculated_at.toISOString(),
-        revision,
-        as_of: row.calculated_at.toISOString(),
-        correlation_id: correlationId,
-      };
-    });
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    throw unavailable();
-  }
+  if (!row) throw unavailable();
+  const revision = Number(row.revision);
+  if (!Number.isSafeInteger(revision) || revision < 0) throw unavailable();
+  return {
+    event_id: row.event_id,
+    event_name: row.event_name,
+    event_state: row.event_state,
+    ...occupancyValues(
+      Number(row.occupied),
+      Number(row.registered),
+      row.capacity,
+    ),
+    attendance_state: "INSIDE" as const,
+    last_attendance_at: row.last_attendance_at?.toISOString() ?? null,
+    calculated_at: row.calculated_at.toISOString(),
+    revision,
+    as_of: row.calculated_at.toISOString(),
+    correlation_id: correlationId,
+  };
 }

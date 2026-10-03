@@ -1,0 +1,109 @@
+{
+  "event_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "observed": {
+    "occupied": 270,
+    "capacity": 1,
+    "attendance_state": "INSIDE",
+    "revision": 270,
+    "as_of": "2026-10-03T12:00:00.000Z"
+  },
+  "forecast": {
+    "run_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "contract_version": 1,
+    "event_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+    "status": "AVAILABLE",
+    "generated_at": "2026-10-03T12:00:00.000Z",
+    "input": {
+      "start_at": "2026-10-03T07:31:00.000Z",
+      "end_at": "2026-10-03T12:00:00.000Z",
+      "last_observation_at": "2026-10-03T12:00:00.000Z",
+      "observation_count": 270,
+      "revision": 270,
+      "occupied": 270,
+      "capacity": 1
+    },
+    "method": {
+      "name": "persistence",
+      "version": "1",
+      "baseline_name": "persistence",
+      "baseline_version": "1"
+    },
+    "points": [
+      {
+        "horizon_minutes": 30,
+        "target_at": "2026-10-03T12:30:00.000Z",
+        "predicted_occupancy": 270,
+        "uncertainty": {
+          "method": "validation_residual_quantile",
+          "nominal_coverage": 0.9,
+          "lower": 240,
+          "upper": 300
+        }
+      },
+      {
+        "horizon_minutes": 60,
+        "target_at": "2026-10-03T13:00:00.000Z",
+        "predicted_occupancy": 270,
+        "uncertainty": {
+          "method": "validation_residual_quantile",
+          "nominal_coverage": 0.9,
+          "lower": 210,
+          "upper": 330
+        }
+      }
+    ],
+    "evaluation": {
+      "kind": "BASELINE_ONLY",
+      "split": {
+        "training": {
+          "start_at": "2026-10-03T07:31:00.000Z",
+          "end_at": "2026-10-03T09:00:00.000Z"
+        },
+        "validation": {
+          "start_at": "2026-10-03T09:01:00.000Z",
+          "end_at": "2026-10-03T10:30:00.000Z"
+        },
+        "test": {
+          "start_at": "2026-10-03T10:31:00.000Z",
+          "end_at": "2026-10-03T12:00:00.000Z"
+        }
+      },
+      "horizons": [
+        {
+          "horizon_minutes": 30,
+          "samples": 60,
+          "mae": 30.0,
+          "rmse": 30.0,
+          "baseline_mae": 30.0,
+          "baseline_rmse": 30.0,
+          "interval_coverage": 1.0,
+          "availability_coverage": 1.0
+        },
+        {
+          "horizon_minutes": 60,
+          "samples": 30,
+          "mae": 60.0,
+          "rmse": 60.0,
+          "baseline_mae": 60.0,
+          "baseline_rmse": 60.0,
+          "interval_coverage": 1.0,
+          "availability_coverage": 1.0
+        }
+      ]
+    },
+    "limitations": [
+      "BASELINE_ONLY",
+      "CHECK_IN_ONLY",
+      "EMPIRICAL_UNCERTAINTY",
+      "NO_PRODUCTION_ACCURACY_CLAIM"
+    ],
+    "persisted_at": "2026-10-03T12:00:00.000Z",
+    "freshness": {
+      "state": "CURRENT",
+      "reason": null,
+      "expires_at": "2026-10-03T12:01:00.000Z"
+    }
+  },
+  "as_of": "2026-10-03T12:00:00.000Z",
+  "correlation_id": "fixture"
+}
