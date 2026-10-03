@@ -11,6 +11,9 @@ import { RegistrationPanel } from "./RegistrationPanel";
 import { GateScanner } from "./GateScanner";
 import { OccupancyPage } from "./OccupancyPage";
 import { CertificatesPage } from "./CertificatesPage";
+import { TasksPage, VolunteerEntry } from "./TasksPage";
+import { ResultsPage } from "./ResultsPage";
+import { AuditPage } from "./AuditPage";
 
 function ManagementEntry() {
   const [session, setSession] = useState<
@@ -91,6 +94,12 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   const scanner = /^\/scanner\/?$/.test(path);
   const operations = path.match(/^\/operations\/([^/]+)\/?$/)?.[1];
   const certificates = path.match(/^\/certificates\/([0-9a-f-]+)\/?$/i)?.[1];
+  const taskEvent = path.match(/^\/tasks\/([0-9a-f-]+)\/?$/i)?.[1];
+  const resultEvent = path.match(/^\/results\/([0-9a-f-]+)\/?$/i)?.[1];
+  const auditEvent = path.match(/^\/audit\/([0-9a-f-]+)\/?$/i)?.[1];
+  const volunteerRoute = path.match(
+    /^\/volunteer(?:\/([0-9a-f-]+)\/tasks(?:\/([0-9a-f-]+))?)?\/?$/i,
+  );
   const catalog = /^\/events\/?$/.test(path);
   const privatePage = /^\/private\/?$/.test(path);
   const detail = path.match(/^\/events\/([^/]+)\/?$/);
@@ -104,7 +113,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     }
   }
   useEffect(() => {
-    document.title = `${certificates ? "Certificates" : operations ? "Attendance and occupancy" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+    document.title = `${taskEvent ? "Volunteer tasks" : resultEvent ? "Completed event results" : auditEvent ? "Event audit evidence" : volunteerRoute ? "My tasks" : certificates ? "Certificates" : operations ? "Attendance and occupancy" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
   }, [
     catalog,
     eventId,
@@ -113,6 +122,10 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     scanner,
     operations,
     certificates,
+    taskEvent,
+    resultEvent,
+    auditEvent,
+    volunteerRoute?.[0],
   ]);
   return (
     <div className="app-frame">
@@ -143,14 +156,36 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
           >
             Public events
           </a>
-          <a href="/">Event workspace</a>
-          <a href="/scanner" aria-current={scanner ? "page" : undefined}>
-            Gate scanner
-          </a>
+          {volunteerRoute ? (
+            <a href="/volunteer">My tasks</a>
+          ) : (
+            <>
+              <a href="/">Event workspace</a>
+              <a href="/scanner" aria-current={scanner ? "page" : undefined}>
+                Gate scanner
+              </a>
+            </>
+          )}
         </nav>
         <ThemeControl />
       </header>
-      {certificates ? (
+      {taskEvent ? (
+        <TasksPage key={taskEvent} eventId={taskEvent} staff />
+      ) : resultEvent ? (
+        <ResultsPage key={resultEvent} eventId={resultEvent} />
+      ) : auditEvent ? (
+        <AuditPage key={auditEvent} eventId={auditEvent} />
+      ) : volunteerRoute ? (
+        volunteerRoute[1] ? (
+          <TasksPage
+            key={volunteerRoute[0]}
+            eventId={volunteerRoute[1]}
+            taskId={volunteerRoute[2]}
+          />
+        ) : (
+          <VolunteerEntry />
+        )
+      ) : certificates ? (
         <CertificatesPage key={certificates} eventId={certificates} />
       ) : operations ? (
         <OccupancyPage key={operations} eventId={operations} />

@@ -901,6 +901,45 @@ p {
 .scanner-result h2 {
   margin-top: 0;
 }
+.review-page {
+  overflow-wrap: anywhere;
+}
+.review-page section {
+  margin-top: 24px;
+}
+.review-page textarea {
+  min-height: 90px;
+  max-width: 100%;
+  font: inherit;
+}
+.task-instructions {
+  white-space: pre-wrap;
+}
+.review-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+.review-metrics dd {
+  margin: 6px 0;
+  font-variant-numeric: tabular-nums;
+}
+.review-table {
+  overflow-x: auto;
+  margin-block: 24px;
+}
+.review-table table {
+  width: 100%;
+  min-width: 960px;
+  border-collapse: collapse;
+}
+.review-table th,
+.review-table td {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
 .scanner-accepted {
   border-color: var(--success);
 }

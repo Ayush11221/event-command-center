@@ -60,6 +60,8 @@ Validates credentials at an assigned gate and needs a fast scanner, an unmistaka
 
 Supports a bounded titled assignment with instructions, applicable time/location, and own ASSIGNED → IN_PROGRESS → COMPLETED status. Volunteers have no gate, participant-management, correction, configuration, admin, or general-alert access.
 
+Slice 11 task lifecycle also includes staff-only CANCELLED: Organizer/Event Admin may cancel ASSIGNED/IN_PROGRESS with a nonblank reason of at most 500 characters, retaining task and progress evidence in authorized staff history. Staff edit details only in ASSIGNED/IN_PROGRESS and reassign only ASSIGNED; staff cannot perform volunteer progress. Each task has exactly one volunteer. COMPLETED/CANCELLED are terminal and immutable, with no reset or revival; cancelled tasks are excluded from volunteer access.
+
 ### Participant/Attendee
 
 Discovers an event, registers, receives and presents a QR credential, attends, and obtains a certificate if the event's eligibility policy is satisfied. Participants need simple, mobile-friendly flows and control over their own data.

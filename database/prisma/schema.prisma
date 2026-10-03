@@ -60,6 +60,39 @@ enum AttendanceKind {
   CHECK_IN
 }
 
+enum VolunteerTaskStatus {
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+// Binding foreign keys and lifecycle guards are SQL-owned, as for certificate work.
+model VolunteerTask {
+  id                  String              @id @default(uuid()) @db.Uuid
+  eventId             String              @db.Uuid
+  createdByUserId     String              @db.Uuid
+  creationKeyHash     String              @db.Char(64)
+  assignedVolunteerId String              @db.Uuid
+  assignedRoleGrantId  String              @db.Uuid
+  title               String              @db.VarChar(160)
+  instructions        String              @db.Text
+  location            String?             @db.VarChar(240)
+  startsAt            DateTime?           @db.Timestamptz(3)
+  endsAt              DateTime?           @db.Timestamptz(3)
+  status              VolunteerTaskStatus @default(ASSIGNED)
+  revision            Int                 @default(1)
+  createdAt           DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime            @default(now()) @db.Timestamptz(3)
+  cancelledAt         DateTime?           @db.Timestamptz(3)
+  cancelledByUserId    String?             @db.Uuid
+  cancellationReason  String?             @db.VarChar(500)
+
+  @@index([eventId, createdAt(sort: Desc), id(sort: Desc)])
+  @@unique([eventId, createdByUserId, creationKeyHash])
+  @@index([eventId, assignedVolunteerId, createdAt(sort: Desc), id(sort: Desc)])
+}
+
 model User {
   id                     String                 @id @default(uuid()) @db.Uuid
   organizerCapable       Boolean                @default(false)
@@ -363,6 +396,7 @@ model AuditEvent {
   metadata      Json?
 
   @@index([eventId, createdAt])
+  @@index([eventId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([actorUserId, createdAt])
 }
 

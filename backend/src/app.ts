@@ -19,6 +19,7 @@ import { CertificateService } from "./modules/certificates/service.js";
 import { CertificateBatches } from "./modules/certificate-delivery/batches.js";
 import { CertificateDeliveries } from "./modules/certificate-delivery/delivery.js";
 import { certificateDeliveryRouter } from "./modules/certificate-delivery/http.js";
+import { volunteerRouter } from "./modules/volunteers/http.js";
 
 export function createApp(
   config: AppConfig,
@@ -45,6 +46,8 @@ export function createApp(
         "Authorization",
       ],
       credentials: true,
+      // Slice 11 task revisions are delivered through ETag to the authorized UI.
+      exposedHeaders: ["ETag"],
     }),
   );
   app.use((request, response, next) => {
@@ -64,6 +67,7 @@ export function createApp(
 
   app.use("/health", healthRouter());
   if (foundation) {
+    app.use("/api/v1", volunteerRouter(foundation));
     // Forecast reads reject every body after authentication, including malformed
     // or oversized JSON. Do not let the shared mutation parser handle these GETs.
     app.use("/api/v1", forecastingRouter(foundation));

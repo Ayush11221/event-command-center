@@ -269,6 +269,9 @@ export function Workspace({
           </div>
         ) : (
           <>
+            {actor.assignments.some((a) => a.role === "VOLUNTEER") && (
+              <a href="/volunteer">My volunteer tasks</a>
+            )}
             {(selected || actor.organizer_capable) && (
               <nav className="workspace-nav" aria-label="Workspace navigation">
                 <button
@@ -292,6 +295,21 @@ export function Workspace({
                   >
                     Certificates
                   </a>
+                )}
+                {selected && (
+                  <>
+                    <a href={`/tasks/${encodeURIComponent(selected.eventId)}`}>
+                      Volunteer tasks
+                    </a>
+                    <a
+                      href={`/results/${encodeURIComponent(selected.eventId)}`}
+                    >
+                      Completed results
+                    </a>
+                    <a href={`/audit/${encodeURIComponent(selected.eventId)}`}>
+                      Audit evidence
+                    </a>
+                  </>
                 )}
                 {selected && (
                   <button
