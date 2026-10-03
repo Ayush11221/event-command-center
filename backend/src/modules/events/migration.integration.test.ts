@@ -3,6 +3,9 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../../config/database.js";
+import { OtpService } from "../auth/otp.js";
+import { checkIn } from "../scanning/service.js";
+import { operationsSnapshot } from "../occupancy/service.js";
 import {
   issueCredential,
   recoverCredential,
@@ -57,6 +60,155 @@ describe.skipIf(!databaseUrl)("Migration preservation", () => {
       await admin.$executeRawUnsafe(`DROP DATABASE "${databaseName}"`);
     }
   }
+
+  it("preserves populated Slice 5 attendance, audit, QR bytes and replay when deploying read-only Slice 6", async () => {
+    await withTemporaryDatabase("occupancy", async (targetUrl) => {
+      prisma(
+        targetUrl,
+        "migrate",
+        "deploy",
+        "--config",
+        "database/prisma7.config.ts",
+      );
+      const target = createDatabase(targetUrl);
+      const config = {
+        databaseUrl: targetUrl,
+        jwtSecret: Buffer.alloc(32, 9),
+        contactKey: Buffer.alloc(32, 10),
+        otpKey: Buffer.alloc(32, 11),
+        cookieSecure: false,
+      };
+      const deps = {
+        db: target,
+        config,
+        frontendOrigin: "http://127.0.0.1:5173",
+        otp: new OtpService(target, config, {
+          available: () => true,
+          async send() {},
+        }),
+      };
+      try {
+        const owner = await target.user.create({
+            data: { organizerCapable: true },
+          }),
+          operator = await target.user.create({ data: {} }),
+          participant = await target.user.create({ data: {} });
+        const ownerSession = await target.session.create({
+            data: {
+              userId: owner.id,
+              expiresAt: new Date(Date.now() + 600000),
+            },
+          }),
+          operatorSession = await target.session.create({
+            data: {
+              userId: operator.id,
+              expiresAt: new Date(Date.now() + 600000),
+            },
+          });
+        const event = await target.event.create({
+          data: {
+            ownerUserId: owner.id,
+            name: "Preserved Slice 5 attendance",
+            state: "LIVE",
+            registrationCapacity: 1,
+          },
+        });
+        const gate = await target.gate.create({ data: { eventId: event.id } });
+        await target.eventRoleAssignment.create({
+          data: {
+            eventId: event.id,
+            userId: operator.id,
+            role: "GATE_SECURITY",
+            gateId: gate.id,
+            scopeKey: gate.id,
+            grantedByUserId: owner.id,
+          },
+        });
+        const registration = await target.registration.create({
+          data: { eventId: event.id, userId: participant.id },
+        });
+        const credential = await target.qRCredential.create({
+          data: {
+            registrationId: registration.id,
+            ...issueCredential(registration.id, config.contactKey),
+          },
+        });
+        const proof = recoverCredential(
+            registration.id,
+            credential.protectedRepresentation!,
+            config.contactKey,
+          ),
+          scanId = randomUUID();
+        const command = {
+            scan_id: scanId,
+            event_id: event.id,
+            gate_id: gate.id,
+            credential: proof,
+          },
+          actor = { userId: operator.id, sessionId: operatorSession.id };
+        const first = await checkIn(deps, actor, command, randomUUID());
+        expect(first.body.decision).toBe("ACCEPTED");
+        const rows = async () => ({
+          event: await target.event.findUniqueOrThrow({
+            where: { id: event.id },
+          }),
+          registration: await target.registration.findUniqueOrThrow({
+            where: { id: registration.id },
+          }),
+          credential: await target.qRCredential.findUniqueOrThrow({
+            where: { id: credential.id },
+          }),
+          scan: await target.scanDecision.findMany({
+            where: { eventId: event.id },
+          }),
+          attendance: await target.attendanceTransition.findMany({
+            where: { eventId: event.id },
+          }),
+          audit: await target.auditEvent.findMany({
+            where: { eventId: event.id },
+          }),
+          replay: await target.commandReplay.findMany({
+            where: { actorUserId: operator.id },
+          }),
+        });
+        const before = await rows();
+        prisma(
+          targetUrl,
+          "migrate",
+          "deploy",
+          "--config",
+          "database/prisma7.config.ts",
+        );
+        expect(await rows()).toEqual(before);
+        expect(
+          recoverCredential(
+            registration.id,
+            (await rows()).credential.protectedRepresentation!,
+            config.contactKey,
+          ),
+        ).toBe(proof);
+        const replay = await checkIn(deps, actor, command, randomUUID());
+        expect(replay.body).toEqual(first.body);
+        expect(replay.replayed).toBe(true);
+        const snapshot = await operationsSnapshot(
+          deps,
+          { userId: owner.id, sessionId: ownerSession.id },
+          event.id,
+          randomUUID(),
+        );
+        expect(snapshot).toMatchObject({
+          occupied: 1,
+          registered: 1,
+          capacity: 1,
+          remaining: 0,
+          utilization_percentage: 100,
+        });
+        expect(await rows()).toEqual(before);
+      } finally {
+        await target.$disconnect();
+      }
+    });
+  }, 120_000);
 
   it("preserves populated Slice 4 account/guest registration history, QR bytes and command replay on Slice 5 upgrade", async () => {
     await withTemporaryDatabase("checkin", async (targetUrl) => {

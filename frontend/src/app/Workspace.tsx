@@ -280,6 +280,13 @@ export function Workspace({
                   {showOwned ? "Owned events" : "Assigned events"}
                 </button>
                 {selected && (
+                  <a
+                    href={`/operations/${encodeURIComponent(selected.eventId)}`}
+                  >
+                    Attendance &amp; occupancy
+                  </a>
+                )}
+                {selected && (
                   <button
                     type="button"
                     className="text-button"

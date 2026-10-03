@@ -1,0 +1,193 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Event Command Center - Slice 6 implemented occupancy snapshot",
+    "version": "1.0.0",
+    "description": "Additive internal read only. Capacity is a registration cap, not gate admission authority. No corrections, checkout, polling or WebSockets."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/events/{eventId}/operations": {
+      "get": {
+        "operationId": "readEventOperations",
+        "summary": "Read coherent attendance and occupancy for an owned or assigned-admin event.",
+        "description": "Current Organizer owner or active assigned EVENT_ADMIN only. Current authority is rechecked under the existing event/session/assignment lock order. Existing CHECK_IN ledger is authoritative. No capacity admission lock, cache, mutable counter or projection table. No query/body fields; no mutation/idempotency/revision headers.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Private no-store/no-referrer snapshot. No occupancy disclosure through discovery.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationsSnapshot"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: query/body fields are not accepted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: current account session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "EVENT_NOT_FOUND: unknown, malformed or out-of-scope event. Gate/Volunteer/Participant authority alone is insufficient.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE: required database or denial audit unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AccountSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_session"
+      }
+    },
+    "schemas": {
+      "OperationsSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "event_name",
+          "event_state",
+          "occupied",
+          "registered",
+          "capacity",
+          "remaining",
+          "utilization_percentage",
+          "attendance_state",
+          "last_attendance_at",
+          "calculated_at",
+          "correlation_id"
+        ],
+        "properties": {
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_name": {
+            "type": "string"
+          },
+          "event_state": {
+            "type": "string",
+            "enum": ["DRAFT", "PUBLISHED", "LIVE", "COMPLETED", "CANCELLED"]
+          },
+          "occupied": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Registrations currently INSIDE, derived from committed CHECK_IN ledger entries."
+          },
+          "registered": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Active REGISTERED registrations, distinct from occupied."
+          },
+          "capacity": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Configured registration cap. Null for legacy unconfigured drafts."
+          },
+          "remaining": {
+            "type": ["integer", "null"],
+            "description": "capacity - occupied; negative is valid. Null without capacity."
+          },
+          "utilization_percentage": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "description": "occupied / capacity * 100 rounded to two decimal places; values above 100 are valid. Null without capacity."
+          },
+          "attendance_state": {
+            "type": "string",
+            "const": "INSIDE"
+          },
+          "last_attendance_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "Latest accepted attendance time, not the snapshot calculation time."
+          },
+          "calculated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Database statement time of the coherent read."
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "correlation_id"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "details": {},
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

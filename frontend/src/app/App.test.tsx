@@ -11,6 +11,13 @@ vi.mock("../services/proof", async (importOriginal) => {
 vi.mock("./Workspace", () => ({
   Workspace: () => <p>Authorized workspace</p>,
 }));
+vi.mock("./OccupancyPage", () => ({
+  OccupancyPage: ({ eventId }: { eventId: string }) => (
+    <main>
+      <h1>Scoped operations {eventId}</h1>
+    </main>
+  ),
+}));
 vi.mock("./PublicCatalog", () => ({
   PublicCatalog: () => <h1>Anonymous public catalog</h1>,
 }));
@@ -31,6 +38,18 @@ afterEach(() => {
 });
 
 describe("application entry", () => {
+  it("routes an operations deep link through the internal reader while preserving appearance controls", () => {
+    window.history.replaceState(null, "", "/operations/internal-event");
+    render(<App />);
+    expect(
+      screen.getByRole("heading", { name: "Scoped operations internal-event" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Appearance")).toBeVisible();
+    expect(document.title).toContain("occupancy");
+    expect(
+      screen.queryByText("Anonymous public catalog"),
+    ).not.toBeInTheDocument();
+  });
   it("offers keyboard bypass to main content without modifying the URL fragment", () => {
     vi.mocked(currentActor).mockReturnValue(new Promise(() => {}));
     window.history.replaceState(null, "", "/#unchanged");

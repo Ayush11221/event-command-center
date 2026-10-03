@@ -53,6 +53,68 @@ afterEach(() => {
 });
 
 describe("authenticated Event workspace", () => {
+  it.each(["GATE_SECURITY", "VOLUNTEER", "PARTICIPANT"])(
+    "offers no event-wide operations link for %s alone",
+    async (role) => {
+      const staff = {
+        ...actor,
+        organizer_capable: false,
+        assignments: [
+          {
+            id: "assignment",
+            event_id: "one",
+            role,
+            gate_id: role === "GATE_SECURITY" ? "gate" : null,
+          },
+        ],
+      };
+      vi.mocked(currentActor).mockResolvedValue(staff);
+      vi.mocked(listAllEvents).mockResolvedValue([]);
+      render(
+        <Workspace
+          initialActor={staff}
+          onSessionExpired={vi.fn()}
+          onSignedOut={vi.fn()}
+        />,
+      );
+      await screen.findByRole("heading", { name: "No event context" });
+      expect(
+        screen.queryByRole("link", { name: "Attendance & occupancy" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+  it.each(["owned", "assigned"] as const)(
+    "links occupancy only from a verified %s manager context",
+    async (relationship) => {
+      const adminActor = {
+        ...actor,
+        organizer_capable: relationship === "owned",
+        assignments:
+          relationship === "assigned"
+            ? [
+                {
+                  id: "assignment",
+                  event_id: "one",
+                  role: "EVENT_ADMIN",
+                  gate_id: null,
+                },
+              ]
+            : [],
+      };
+      vi.mocked(currentActor).mockResolvedValue(adminActor);
+      vi.mocked(listAllEvents).mockResolvedValue([{ ...owned, relationship }]);
+      render(
+        <Workspace
+          initialActor={adminActor}
+          onSessionExpired={vi.fn()}
+          onSignedOut={vi.fn()}
+        />,
+      );
+      expect(
+        await screen.findByRole("link", { name: "Attendance & occupancy" }),
+      ).toHaveAttribute("href", "/operations/one");
+    },
+  );
   it("automatically selects the sole owned context and shows no invented counts", async () => {
     vi.mocked(currentActor).mockResolvedValue(actor);
     vi.mocked(listAllEvents).mockResolvedValue([owned]);
