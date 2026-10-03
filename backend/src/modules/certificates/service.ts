@@ -24,7 +24,9 @@ import {
   staffScope,
   statusView,
   workView,
+  workScope,
 } from "./access.js";
+import { ensureDelivery } from "../certificate-delivery/intent.js";
 import { RULE, issueDate, type Selection } from "./contract.js";
 import { renderPdf, rendererAvailable, type Renderer } from "./renderer.js";
 import type { RenderInput } from "./pdf.js";
@@ -51,10 +53,6 @@ async function lockWork(tx: Tx, id: string) {
   await tx.$queryRaw`SELECT id FROM "CertificateIssueWork" WHERE id = ${id}::uuid FOR UPDATE`;
   return tx.certificateIssueWork.findUniqueOrThrow({ where: { id } });
 }
-const executionActor = (work: CertificateIssueWork): AuthContext => ({
-  userId: work.executionByUserId,
-  sessionId: work.executionSessionId,
-});
 const inputFor = (work: CertificateIssueWork): RenderInput => ({
   template_id: work.templateId as Selection["template_id"],
   template_version: 1,
@@ -415,6 +413,7 @@ export class CertificateService {
         commandReplayId: replay.id,
         executionByUserId: actor.userId,
         executionSessionId: actor.sessionId,
+        executionBatchId: null,
         correlationId,
         templateId: selected.template_id,
         templateVersion: selected.template_version,
@@ -604,12 +603,7 @@ export class CertificateService {
         )
           return null;
         try {
-          const { event, row } = await staffScope(
-            tx,
-            executionActor(work),
-            work.eventId,
-            work.registrationId,
-          );
+          const { event, row } = await workScope(tx, work);
           activeEvent(event.state);
           if (!(await evidence(tx, row!))) throw conflict("NOT_ELIGIBLE");
           if (work.attemptCount >= 3) throw unavailable();
@@ -653,12 +647,7 @@ export class CertificateService {
           await lockEventForCommand(tx, claimed.eventId);
           const current = await lockWork(tx, id);
           if (!this.validClaim(current, claimed, await clock(tx))) return;
-          const { event, row } = await staffScope(
-            tx,
-            executionActor(claimed),
-            claimed.eventId,
-            claimed.registrationId,
-          );
+          const { event, row } = await workScope(tx, claimed);
           activeEvent(event.state);
           const source = await evidence(tx, row!);
           if (!source || source.id !== claimed.attendanceTransitionId)
@@ -713,6 +702,7 @@ export class CertificateService {
             },
           });
           await this.audit(tx, claimed, "CERTIFICATE_ISSUED", "SUCCESS");
+          await ensureDelivery(tx, cert.id, claimed.correlationId);
           await tx.commandReplay.update({
             where: { id: claimed.commandReplayId },
             data: {

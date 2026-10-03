@@ -11,6 +11,9 @@ import {
   CertificateService,
   startCertificateRecovery,
 } from "./modules/certificates/service.js";
+import { CertificateBatches } from "./modules/certificate-delivery/batches.js";
+import { CertificateDeliveries } from "./modules/certificate-delivery/delivery.js";
+import { startDeliveryRecovery } from "./modules/certificate-delivery/recovery.js";
 
 async function main() {
   const config = parseConfig(process.env);
@@ -36,10 +39,17 @@ async function main() {
     frontendOrigin: config.frontendOrigin,
   };
   const certificates = new CertificateService(dependencies);
+  const deliveries = new CertificateDeliveries(dependencies);
+  const stopDeliveries = startDeliveryRecovery(
+    new CertificateBatches(dependencies),
+    deliveries,
+    () =>
+      logger.warn("Certificate batch/delivery recovery dependency unavailable"),
+  );
   const stopCertificates = startCertificateRecovery(certificates, () =>
     logger.warn("Certificate recovery dependency unavailable"),
   );
-  const app = createApp(config, logger, dependencies, certificates);
+  const app = createApp(config, logger, dependencies, certificates, deliveries);
   const server = app.listen(config.port, "127.0.0.1", () => {
     logger.info("backend listening");
   });
@@ -59,6 +69,7 @@ async function main() {
     process.once(signal, () => {
       realtime.close(async () => {
         await stopCertificates();
+        await stopDeliveries();
         await db.$disconnect();
         logger.info("backend stopped");
       });

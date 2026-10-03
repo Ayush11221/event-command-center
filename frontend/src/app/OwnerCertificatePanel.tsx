@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { ProofError } from "../services/proof";
+import { CertificateDeliveryPanel } from "./CertificateDeliveryPanel";
 import {
   certificateRequest,
   ownerCertificatePath,
@@ -211,6 +212,13 @@ export function OwnerCertificatePanel({
           )}
           {status.state === "REVOKED" && (
             <p>This certificate has been revoked. Download is unavailable.</p>
+          )}
+          {status.certificate && (
+            <CertificateDeliveryPanel
+              path={ownerCertificatePath(registrationId) + "/delivery"}
+              csrf={csrf}
+              onFailure={fail}
+            />
           )}
           {artifact && status.state === "ISSUED" && (
             <a

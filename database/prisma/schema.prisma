@@ -207,6 +207,7 @@ model CertificateIssueWork {
   requestedByUserId      String                     @db.Uuid
   executionByUserId      String                     @db.Uuid
   executionSessionId     String                     @db.Uuid
+  executionBatchId       String?                    @db.Uuid
   correlationId          String                     @db.VarChar(64)
   templateId             String                     @db.VarChar(16)
   templateVersion        Int                        @db.SmallInt
@@ -233,6 +234,76 @@ model CertificateIssueWork {
   updatedAt              DateTime                   @default(now()) @db.Timestamptz(3)
   completedAt            DateTime?                  @db.Timestamptz(3)
   failedAt               DateTime?                  @db.Timestamptz(3)
+}
+
+model CertificateBatch {
+  id                  String    @id @default(uuid()) @db.Uuid
+  eventId             String    @db.Uuid
+  requestedByUserId   String    @db.Uuid
+  acceptanceSessionId String    @db.Uuid
+  commandReplayId     String    @unique @db.Uuid
+  correlationId       String    @db.VarChar(64)
+  templateId          String    @db.VarChar(16)
+  templateVersion     Int       @db.SmallInt
+  fontId              String    @db.VarChar(8)
+  status              String    @default("PENDING") @db.VarChar(16)
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  startedAt           DateTime? @db.Timestamptz(3)
+  completedAt         DateTime? @db.Timestamptz(3)
+
+  @@index([status, createdAt, id])
+}
+
+model CertificateBatchItem {
+  id                 String  @id @default(uuid()) @db.Uuid
+  batchId            String  @db.Uuid
+  eventId            String  @db.Uuid
+  registrationId     String  @db.Uuid
+  eligibleAtCreation Boolean
+  status             String  @default("PENDING") @db.VarChar(16)
+  issueWorkId        String? @db.Uuid
+  generationCycle    Int?
+  certificateId      String? @db.Uuid
+  resultCode         String? @db.VarChar(80)
+
+  @@unique([batchId, registrationId])
+  @@index([issueWorkId, generationCycle])
+  @@index([status, batchId, registrationId])
+}
+
+model CertificateDelivery {
+  id            String    @id @default(uuid()) @db.Uuid
+  certificateId String    @unique @db.Uuid
+  eventId       String    @db.Uuid
+  status        String    @default("PENDING") @db.VarChar(16)
+  reasonCode    String?   @db.VarChar(80)
+  attemptCount  Int       @default(0)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @default(now()) @db.Timestamptz(3)
+  lastAttemptAt DateTime? @db.Timestamptz(3)
+  sentAt        DateTime? @db.Timestamptz(3)
+
+  @@index([status, createdAt, id])
+}
+
+model CertificateDeliveryAttempt {
+  id                 String    @id @default(uuid()) @db.Uuid
+  deliveryId         String    @db.Uuid
+  attemptNumber      Int       @db.SmallInt
+  status             String    @default("PENDING") @db.VarChar(16)
+  recipientUserId    String?   @db.Uuid
+  recipientContactId String?   @db.Uuid
+  encryptedRecipient String?
+  claimToken         String?   @db.Uuid
+  fencingToken       BigInt    @default(0)
+  leaseExpiresAt     DateTime? @db.Timestamptz(3)
+  reasonCode         String?   @db.VarChar(80)
+  createdAt          DateTime  @default(now()) @db.Timestamptz(3)
+  startedAt          DateTime? @db.Timestamptz(3)
+  completedAt        DateTime? @db.Timestamptz(3)
+
+  @@unique([deliveryId, attemptNumber])
+  @@index([status, leaseExpiresAt, id])
 }
 
 model ForecastRun {

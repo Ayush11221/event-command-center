@@ -9,6 +9,8 @@ import {
   type StaffCertificateStatus,
 } from "../services/certificates";
 import { ProofEntry } from "./ProofEntry";
+import { CertificateBatchPanel } from "./CertificateBatchPanel";
+import { CertificateDeliveryPanel } from "./CertificateDeliveryPanel";
 
 export function CertificatesPage({ eventId }: { eventId: string }) {
   const [csrf, setCsrf] = useState<string | null>(null),
@@ -270,6 +272,19 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
                   <dd>{status.certificate.pdf_sha256}</dd>
                 </dl>
               )}
+              {status.certificate && (
+                <CertificateDeliveryPanel
+                  key={status.registration_id}
+                  path={
+                    staffCertificatePath(eventId, status.registration_id) +
+                    "/delivery"
+                  }
+                  csrf={csrf!}
+                  staff
+                  revoked={status.state === "REVOKED"}
+                  onFailure={fail}
+                />
+              )}
               <fieldset
                 className="certificate-form"
                 disabled={busy || uncertain || generationPending}
@@ -386,6 +401,15 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
             </>
           )}
         </section>
+      )}
+      {csrf && catalogue && (
+        <CertificateBatchPanel
+          key={eventId}
+          eventId={eventId}
+          csrf={csrf}
+          catalogue={catalogue}
+          onFailure={fail}
+        />
       )}
     </main>
   );

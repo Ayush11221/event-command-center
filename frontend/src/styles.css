@@ -844,6 +844,15 @@ p {
   width: 100%;
   min-width: 0;
 }
+.certificate-form textarea {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
 .certificate-form button {
   justify-self: start;
 }

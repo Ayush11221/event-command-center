@@ -70,6 +70,82 @@ export function activeEvent(state: string) {
       "Certificate generation requires a Live or Completed event",
     );
 }
+// Durable batch authorization deliberately does not depend on an HTTP session.
+// Current capability/assignment locks are still held through each worker commit.
+export async function durableStaffScope(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  eventId: string,
+) {
+  if (!(await lockEventForCommand(tx, eventId)))
+    throw new ApiError(404, "EVENT_NOT_FOUND", "Event not found");
+  const users = await tx.$queryRaw<
+    { organizerCapable: boolean }[]
+  >`SELECT "organizerCapable" FROM "User" WHERE id=${userId}::uuid FOR SHARE`;
+  const event = await tx.event.findUniqueOrThrow({ where: { id: eventId } });
+  if (!(event.ownerUserId === userId && users[0]?.organizerCapable)) {
+    const roles = await tx.$queryRaw<
+      { id: string }[]
+    >`SELECT id FROM "EventRoleAssignment" WHERE "eventId"=${eventId}::uuid AND "userId"=${userId}::uuid AND role='EVENT_ADMIN' AND "revokedAt" IS NULL FOR SHARE`;
+    if (!roles.length)
+      throw new ApiError(
+        409,
+        "AUTHORITY_REVOKED",
+        "Accepted work no longer has event authority",
+      );
+  }
+  return event;
+}
+export async function workScope(
+  tx: Prisma.TransactionClient,
+  work: CertificateIssueWork,
+) {
+  if (!work.executionBatchId)
+    return staffScope(
+      tx,
+      { userId: work.executionByUserId, sessionId: work.executionSessionId },
+      work.eventId,
+      work.registrationId,
+    );
+  const batch = await tx.certificateBatch.findUniqueOrThrow({
+    where: { id: work.executionBatchId },
+  });
+  if (
+    batch.eventId !== work.eventId ||
+    batch.requestedByUserId !== work.executionByUserId
+  )
+    throw new ApiError(
+      409,
+      "AUTHORITY_REVOKED",
+      "Invalid accepted work binding",
+    );
+  if (
+    batch.status !== "RUNNING" ||
+    !(await tx.certificateBatchItem.findFirst({
+      where: {
+        batchId: batch.id,
+        issueWorkId: work.id,
+        generationCycle: work.generationCycle,
+        status: "RUNNING",
+      },
+    }))
+  )
+    throw new ApiError(
+      409,
+      "AUTHORITY_REVOKED",
+      "Accepted work is no longer active",
+    );
+  const event = await durableStaffScope(
+    tx,
+    work.executionByUserId,
+    work.eventId,
+  );
+  const row = await tx.registration.findFirst({
+    where: { id: work.registrationId, eventId: work.eventId },
+  });
+  if (!row) throw missingRegistration();
+  return { event, row };
+}
 export async function evidence(
   tx: Prisma.TransactionClient,
   row: Registration,

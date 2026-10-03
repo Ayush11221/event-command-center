@@ -16,12 +16,16 @@ import { correlation } from "./middleware/correlation.js";
 import { healthRouter } from "./routes/health.js";
 import { certificateRouter } from "./modules/certificates/http.js";
 import { CertificateService } from "./modules/certificates/service.js";
+import { CertificateBatches } from "./modules/certificate-delivery/batches.js";
+import { CertificateDeliveries } from "./modules/certificate-delivery/delivery.js";
+import { certificateDeliveryRouter } from "./modules/certificate-delivery/http.js";
 
 export function createApp(
   config: AppConfig,
   logger: Logger,
   foundation?: AuthDependencies,
   certificates?: CertificateService,
+  deliveries?: CertificateDeliveries,
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -63,6 +67,14 @@ export function createApp(
     // Forecast reads reject every body after authentication, including malformed
     // or oversized JSON. Do not let the shared mutation parser handle these GETs.
     app.use("/api/v1", forecastingRouter(foundation));
+    app.use(
+      "/api/v1",
+      certificateDeliveryRouter(
+        foundation,
+        new CertificateBatches(foundation),
+        deliveries ?? new CertificateDeliveries(foundation),
+      ),
+    );
     // Certificate routes authenticate before their feature-local body parser.
     app.use(
       "/api/v1",

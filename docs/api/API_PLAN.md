@@ -56,8 +56,8 @@ The paths below express boundaries, not final endpoint signatures.
 | `/events/{eventId}/forecasts/current`, `/events/{eventId}/forecasts` | Final Slice 8 current-generation read and bounded persisted-history read, including 30/60-minute points, uncertainty, evaluation and freshness, are defined in [API_CONTRACT.md](API_CONTRACT.md) and [SLICE_8_OPENAPI.json](SLICE_8_OPENAPI.json). | FR-FCST-* |
 | `/events/{eventId}/analytics` | Completed-event summaries and valid comparisons | FR-ANL-* |
 | Certificate eligibility/name/single issue/artifacts (Slice 9 finalized) | Final Slice 9 owner name/status/artifact and staff catalogue/preview/single issue/recovery/revoke paths and closed schemas are defined in [API_CONTRACT.md](API_CONTRACT.md) and [SLICE_9_OPENAPI.json](SLICE_9_OPENAPI.json). | FR-CERT-001–002, FR-CERT-004, FR-CERT-008 |
-| Certificate batches (Slice 10 paths TBD) | Slice 9 owns built-in preview; Slice 10 adds explicit eligible-database bulk issue and batch generation/delivery progress. | FR-CERT-003–005 |
-| Certificate deliveries (paths TBD) | Platform-sender queue, independent per-certificate PENDING/SENT/FAILED status, Organizer/Admin-only failed-send retry and idempotent operation | FR-CERT-006–007 |
+| `/events/{eventId}/certificate-batches`, `/{batchId}`, `/{batchId}/items` | Slice 10 explicit selected-ID batch acceptance, durable independent issuance and paginated progress; finalized closed schemas in API_CONTRACT.md / SLICE_10_OPENAPI.json | FR-CERT-003–005 |
+| Staff certificate `/delivery`, `/delivery/retry`; owner certificate `/delivery` | Slice 10 platform SMTP, independent durable attempts, FAILED-only authorized retry, UNKNOWN safe hold; finalized contract has no Reply-To | FR-CERT-006–008 |
 | `/events/{eventId}/audit-events` | Restricted event-scoped Organizer/Admin audit search; no unrestricted export permission | FR-AUD-* |
 
 No generic endpoint should expose all events or participants merely for implementation convenience.
@@ -100,7 +100,7 @@ The response may expose only display name, registration status, relevant attenda
 - One event capacity is a registration cap, not a gate-entry rejection rule. Live occupancy is the count of people INSIDE, separately exposed from REGISTERED count. A full registration list is not an alert.
 - Optional check-out governs NOT_ARRIVED → INSIDE → LEFT → INSIDE; without check-out, no outside/re-entry state is inferred. Authorized actor/reason-backed CORRECTION is an append-only attendance event, not an editable count.
 - Alert reads are full event stream for Organizer/Admin, assigned-gate operational errors only for Gate/Security, and none for Volunteer. Exactly three categories: live INSIDE occupancy near-90% WARNING/100% CRITICAL relative to event capacity; gate/scanner failure; data/forecast staleness. Lifecycle is ACTIVE → ACKNOWLEDGED → RESOLVED with no duplicate active alert for a persistent condition. Organizer/Admin may acknowledge/resolve; Gate/Security may not. No generic rules engine is presumed.
-- Certificate lifecycle NOT_ELIGIBLE → ELIGIBLE → ISSUED → REVOKED is separate from email PENDING → SENT/FAILED → RETRY. Accepted check-in grants ELIGIBLE but does not generate/send. Explicit Organizer/Admin single or bulk issue generates unique-ID PDF and moves to ISSUED; a batch tracks event/template/eligible/generated/delivery counts/progress. Post-check-in registration cancellation is forbidden; explicit Organizer/Admin certificate revocation remains. Organizer/Admin alone retry FAILED delivery; idempotency prevents duplicate sending. Exact routes, queue, provider, and payloads remain deferred.
+- Certificate lifecycle remains separate from Slice 10 delivery NOT_REQUIRED or PENDING → SENDING → SENT/FAILED/UNKNOWN. Accepted check-in grants eligibility only; explicit single/batch issuance creates delivery intent. Organizer/Admin alone retry FAILED (three attempts maximum); UNKNOWN is held, never blindly resent. The finalized API_CONTRACT.md Slice 10 section and SLICE_10_OPENAPI.json supersede older illustrative delivery/selection rules and define exact routes, PostgreSQL/in-process recovery and platform SMTP boundaries.
 
 ## Real-time contract
 
@@ -166,6 +166,6 @@ Rate limits must be based on threat and workload modelling, not copied defaults.
 - Scan reason-code catalog (gate identity allowlist is locked; contact data excluded)
 - Live revision/reconnect implementation details under the Phase 2 Socket.IO/WebSocket direction
 - Slice 8 request cadence/minimum data rule and bounded synchronous invocation are finalized in [API_CONTRACT.md](API_CONTRACT.md); horizons remain exactly 30/60 minutes. Production acceptance thresholds remain deferred.
-- OTP provider implementation, detailed gate/scanner staleness detection, and certificate queue/provider/delivery idempotency retention. Slice 3 PRIVATE-link proof, Organizer-only issue/revoke/reissue, no automatic time-based expiry and exact event/discovery routes are finalized in [API_CONTRACT.md](API_CONTRACT.md); they are not implemented yet.
+- OTP provider implementation, detailed gate/scanner staleness detection; Slice 10 certificate delivery/recovery/idempotency is finalized in API_CONTRACT.md. Slice 3 PRIVATE-link proof, Organizer-only issue/revoke/reissue, no automatic time-based expiry and exact event/discovery routes are finalized in [API_CONTRACT.md](API_CONTRACT.md); they are not implemented yet.
 - Export formats, limits, and data-redaction rules
 - API compatibility/deprecation policy
