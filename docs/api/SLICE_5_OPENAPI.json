@@ -1,0 +1,294 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Event Command Center - Slice 5 implemented check-in",
+    "version": "1.0.0",
+    "description": "Additive check-in only. Seven-day current-authority command replay. No checkout, occupancy, corrections or camera/offline workflow."
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "paths": {
+    "/scan-decisions": {
+      "post": {
+        "operationId": "checkInCredential",
+        "summary": "Validate QR and check in at a currently assigned gate.",
+        "description": "Requires current GATE_SECURITY event/gate assignment and LIVE for acceptance. Fixed CHECK_IN. Wrong-event is privacy-masked as INVALID_CREDENTIAL. Same scan ID is scoped to account/action/gate; seven-day replay, then 410, never a second replay system. Responses no-store/no-referrer.",
+        "security": [
+          {
+            "AccountSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Must equal canonical lowercase UUID scan_id. Retry exact same request."
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Current account-session CSRF token."
+          },
+          {
+            "name": "Origin",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Configured frontend origin."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Accepted or rejected durable decision. Wrong-event and unknown proofs share INVALID_CREDENTIAL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScanResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "VALIDATION: malformed request/header/query.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "UNAUTHENTICATED: account session required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "UNAUTHORIZED_GATE, CSRF_INVALID or FORBIDDEN; no protected existence disclosure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "IDEMPOTENCY_CONFLICT: same scan ID with changed request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "SCAN_REPLAY_EXPIRED: retained logical attempt, no replay reconstruction.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "DEPENDENCY_UNAVAILABLE: hold entry; retry same command.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "AccountSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "eoc_session"
+      }
+    },
+    "schemas": {
+      "ScanRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["scan_id", "event_id", "gate_id", "credential"],
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gate_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "credential": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "Opaque QR proof, sent only in body. Never persisted as plaintext."
+          }
+        }
+      },
+      "ScanResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "scan_id",
+          "event_id",
+          "gate_id",
+          "decision",
+          "reason",
+          "registration_status",
+          "attendance_status",
+          "decided_at",
+          "replayed",
+          "correlation_id"
+        ],
+        "properties": {
+          "scan_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "event_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "gate_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "decision": {
+            "type": "string",
+            "enum": ["ACCEPTED", "REJECTED"]
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "ACCEPTED",
+              "INVALID_CREDENTIAL",
+              "EXPIRED_CREDENTIAL",
+              "CANCELLED_CREDENTIAL",
+              "ALREADY_CHECKED_IN",
+              "REGISTRATION_UNAVAILABLE"
+            ]
+          },
+          "registration_status": {
+            "type": ["string", "null"],
+            "enum": ["REGISTERED", "CANCELLED", null]
+          },
+          "attendance_status": {
+            "type": ["string", "null"],
+            "enum": ["NOT_ARRIVED", "INSIDE", null]
+          },
+          "decided_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "correlation_id": {
+            "type": "string"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "decision": {
+                  "const": "ACCEPTED"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "reason": {
+                  "const": "ACCEPTED"
+                },
+                "registration_status": {
+                  "const": "REGISTERED"
+                },
+                "attendance_status": {
+                  "const": "INSIDE"
+                }
+              }
+            },
+            "else": {
+              "properties": {
+                "reason": {
+                  "enum": [
+                    "INVALID_CREDENTIAL",
+                    "EXPIRED_CREDENTIAL",
+                    "CANCELLED_CREDENTIAL",
+                    "ALREADY_CHECKED_IN",
+                    "REGISTRATION_UNAVAILABLE"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message", "correlation_id"],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "correlation_id": {
+            "type": "string"
+          },
+          "details": {},
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

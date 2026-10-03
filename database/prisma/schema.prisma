@@ -51,19 +51,30 @@ enum RegistrationState {
   CANCELLED
 }
 
+enum ScanOutcome {
+  ACCEPTED
+  REJECTED
+}
+
+enum AttendanceKind {
+  CHECK_IN
+}
+
 model User {
-  id                     String                @id @default(uuid()) @db.Uuid
-  organizerCapable       Boolean               @default(false)
-  createdAt              DateTime              @default(now()) @db.Timestamptz(3)
+  id                     String                 @id @default(uuid()) @db.Uuid
+  organizerCapable       Boolean                @default(false)
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
   contacts               VerifiedContact[]
   sessions               Session[]
-  ownedEvents            Event[]               @relation("EventOwner")
-  assignments            EventRoleAssignment[] @relation("AssignmentTarget")
-  grantedAssignments     EventRoleAssignment[] @relation("AssignmentGrantActor")
-  revokedAssignments     EventRoleAssignment[] @relation("AssignmentRevokeActor")
+  ownedEvents            Event[]                @relation("EventOwner")
+  assignments            EventRoleAssignment[]  @relation("AssignmentTarget")
+  grantedAssignments     EventRoleAssignment[]  @relation("AssignmentGrantActor")
+  revokedAssignments     EventRoleAssignment[]  @relation("AssignmentRevokeActor")
   commandReplays         CommandReplay[]
-  registrations          Registration[]        @relation("RegistrationOwner")
-  cancelledRegistrations Registration[]        @relation("RegistrationCancelActor")
+  registrations          Registration[]         @relation("RegistrationOwner")
+  cancelledRegistrations Registration[]         @relation("RegistrationCancelActor")
+  scanDecisions          ScanDecision[]
+  attendanceTransitions  AttendanceTransition[]
 }
 
 model VerifiedContact {
@@ -109,42 +120,46 @@ model OtpChallenge {
 }
 
 model Event {
-  id                               String                @id @default(uuid()) @db.Uuid
-  ownerUserId                      String                @db.Uuid
-  state                            EventState            @default(DRAFT)
-  name                             String                @db.VarChar(200)
-  description                      String?               @db.Text
-  publicLocation                   String?               @db.VarChar(500)
-  imageUrl                         String?               @db.Text
-  category                         String?               @db.VarChar(100)
-  tags                             String[]              @default([])
-  startAt                          DateTime?             @db.Timestamptz(3)
-  endAt                            DateTime?             @db.Timestamptz(3)
-  timeZone                         String?               @db.VarChar(100)
+  id                               String                 @id @default(uuid()) @db.Uuid
+  ownerUserId                      String                 @db.Uuid
+  state                            EventState             @default(DRAFT)
+  name                             String                 @db.VarChar(200)
+  description                      String?                @db.Text
+  publicLocation                   String?                @db.VarChar(500)
+  imageUrl                         String?                @db.Text
+  category                         String?                @db.VarChar(100)
+  tags                             String[]               @default([])
+  startAt                          DateTime?              @db.Timestamptz(3)
+  endAt                            DateTime?              @db.Timestamptz(3)
+  timeZone                         String?                @db.VarChar(100)
   visibility                       EventVisibility?
   registrationCapacity             Int?
-  registrationOpensAt              DateTime?             @db.Timestamptz(3)
-  registrationClosesAt             DateTime?             @db.Timestamptz(3)
-  registrationCancellationCutoffAt DateTime?             @db.Timestamptz(3)
-  registrationManuallyClosed       Boolean               @default(false)
-  checkoutEnabled                  Boolean               @default(false)
-  revision                         Int                   @default(1)
-  publishedAt                      DateTime?             @db.Timestamptz(3)
-  createdAt                        DateTime              @default(now()) @db.Timestamptz(3)
-  owner                            User                  @relation("EventOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
+  registrationOpensAt              DateTime?              @db.Timestamptz(3)
+  registrationClosesAt             DateTime?              @db.Timestamptz(3)
+  registrationCancellationCutoffAt DateTime?              @db.Timestamptz(3)
+  registrationManuallyClosed       Boolean                @default(false)
+  checkoutEnabled                  Boolean                @default(false)
+  revision                         Int                    @default(1)
+  publishedAt                      DateTime?              @db.Timestamptz(3)
+  createdAt                        DateTime               @default(now()) @db.Timestamptz(3)
+  owner                            User                   @relation("EventOwner", fields: [ownerUserId], references: [id], onDelete: Restrict)
   gates                            Gate[]
   assignments                      EventRoleAssignment[]
   privateAccessLinks               PrivateAccessLink[]
   registrations                    Registration[]
+  scanDecisions                    ScanDecision[]
+  attendanceTransitions            AttendanceTransition[]
 
   @@index([ownerUserId, createdAt(sort: Desc), id(sort: Desc)])
 }
 
 model Gate {
-  id          String                @id @default(uuid()) @db.Uuid
-  eventId     String                @db.Uuid
-  event       Event                 @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  assignments EventRoleAssignment[] @relation("AssignmentGate")
+  id                    String                 @id @default(uuid()) @db.Uuid
+  eventId               String                 @db.Uuid
+  event                 Event                  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  assignments           EventRoleAssignment[]  @relation("AssignmentGate")
+  scanDecisions         ScanDecision[]
+  attendanceTransitions AttendanceTransition[]
 
   @@unique([eventId, id])
   @@index([eventId])
@@ -237,37 +252,83 @@ model GuestIdentity {
 }
 
 model Registration {
-  id                     String            @id @default(uuid()) @db.Uuid
-  eventId                String            @db.Uuid
-  userId                 String?           @db.Uuid
-  guestIdentityId        String?           @db.Uuid
-  state                  RegistrationState @default(REGISTERED)
-  createdAt              DateTime          @default(now()) @db.Timestamptz(3)
-  cancelledAt            DateTime?         @db.Timestamptz(3)
-  cancelledByUserId      String?           @db.Uuid
+  id                     String                 @id @default(uuid()) @db.Uuid
+  eventId                String                 @db.Uuid
+  userId                 String?                @db.Uuid
+  guestIdentityId        String?                @db.Uuid
+  state                  RegistrationState      @default(REGISTERED)
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
+  cancelledAt            DateTime?              @db.Timestamptz(3)
+  cancelledByUserId      String?                @db.Uuid
   cancelledActorKind     AuditActorKind?
-  firstAcceptedCheckInAt DateTime?         @db.Timestamptz(3)
-  event                  Event             @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  user                   User?             @relation("RegistrationOwner", fields: [userId], references: [id], onDelete: Restrict)
-  guest                  GuestIdentity?    @relation(fields: [guestIdentityId], references: [id], onDelete: Restrict)
-  cancelledBy            User?             @relation("RegistrationCancelActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
+  firstAcceptedCheckInAt DateTime?              @db.Timestamptz(3)
+  event                  Event                  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user                   User?                  @relation("RegistrationOwner", fields: [userId], references: [id], onDelete: Restrict)
+  guest                  GuestIdentity?         @relation(fields: [guestIdentityId], references: [id], onDelete: Restrict)
+  cancelledBy            User?                  @relation("RegistrationCancelActor", fields: [cancelledByUserId], references: [id], onDelete: Restrict)
   credentials            QRCredential[]
+  scanDecisions          ScanDecision[]
+  attendanceTransitions  AttendanceTransition[]
 
+  @@unique([eventId, id])
   @@index([eventId, state])
   @@index([userId, eventId, createdAt(sort: Desc)])
   @@index([guestIdentityId, eventId, createdAt(sort: Desc)])
 }
 
 model QRCredential {
-  id                      String       @id @default(uuid()) @db.Uuid
-  registrationId          String       @db.Uuid
-  verifierHash            String       @unique @db.Char(64)
-  keyVersion              Int          @default(1) @db.SmallInt
+  id                      String         @id @default(uuid()) @db.Uuid
+  registrationId          String         @db.Uuid
+  verifierHash            String         @unique @db.Char(64)
+  keyVersion              Int            @default(1) @db.SmallInt
   protectedRepresentation Bytes?
-  issuedAt                DateTime     @default(now()) @db.Timestamptz(3)
-  expiresAt               DateTime?    @db.Timestamptz(3)
-  revokedAt               DateTime?    @db.Timestamptz(3)
-  registration            Registration @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  issuedAt                DateTime       @default(now()) @db.Timestamptz(3)
+  expiresAt               DateTime?      @db.Timestamptz(3)
+  revokedAt               DateTime?      @db.Timestamptz(3)
+  registration            Registration   @relation(fields: [registrationId], references: [id], onDelete: Restrict)
+  scanDecisions           ScanDecision[]
 
+  @@unique([registrationId, id])
   @@index([registrationId])
+}
+
+model ScanDecision {
+  id             String                @id @default(uuid()) @db.Uuid
+  scanId         String                @db.Uuid
+  eventId        String                @db.Uuid
+  gateId         String                @db.Uuid
+  operatorUserId String                @db.Uuid
+  registrationId String?               @db.Uuid
+  credentialId   String?               @db.Uuid
+  decision       ScanOutcome
+  reason         String                @db.VarChar(40)
+  decidedAt      DateTime              @db.Timestamptz(3)
+  correlationId  String                @db.VarChar(64)
+  event          Event                 @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  gate           Gate                  @relation(fields: [eventId, gateId], references: [eventId, id], onDelete: Restrict)
+  operator       User                  @relation(fields: [operatorUserId], references: [id], onDelete: Restrict)
+  registration   Registration?         @relation(fields: [eventId, registrationId], references: [eventId, id], onDelete: Restrict)
+  credential     QRCredential?         @relation(fields: [registrationId, credentialId], references: [registrationId, id], onDelete: Restrict)
+  attendance     AttendanceTransition?
+
+  @@unique([operatorUserId, gateId, scanId])
+  @@index([eventId, gateId, decidedAt])
+}
+
+model AttendanceTransition {
+  id             String         @id @default(uuid()) @db.Uuid
+  eventId        String         @db.Uuid
+  gateId         String         @db.Uuid
+  operatorUserId String         @db.Uuid
+  registrationId String         @unique @db.Uuid
+  scanDecisionId String         @unique @db.Uuid
+  kind           AttendanceKind @default(CHECK_IN)
+  acceptedAt     DateTime       @db.Timestamptz(3)
+  event          Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  gate           Gate           @relation(fields: [eventId, gateId], references: [eventId, id], onDelete: Restrict)
+  operator       User           @relation(fields: [operatorUserId], references: [id], onDelete: Restrict)
+  registration   Registration   @relation(fields: [eventId, registrationId], references: [eventId, id], onDelete: Restrict)
+  scanDecision   ScanDecision   @relation(fields: [scanDecisionId], references: [id], onDelete: Restrict)
+
+  @@index([eventId, acceptedAt])
 }

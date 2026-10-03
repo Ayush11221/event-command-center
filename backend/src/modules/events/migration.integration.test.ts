@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../../config/database.js";
+import {
+  issueCredential,
+  recoverCredential,
+} from "../registrations/credential.js";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 const repositoryRoot = resolve(import.meta.dirname, "../../../..");
@@ -22,7 +26,7 @@ function prisma(targetUrl: string, ...arguments_: string[]): void {
   });
 }
 
-describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
+describe.skipIf(!databaseUrl)("Migration preservation", () => {
   const sourceUrl = new URL(databaseUrl ?? "postgresql://invalid/invalid");
   const adminUrl = new URL(sourceUrl);
   adminUrl.pathname = "/postgres";
@@ -54,6 +58,179 @@ describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
     }
   }
 
+  it("preserves populated Slice 4 account/guest registration history, QR bytes and command replay on Slice 5 upgrade", async () => {
+    await withTemporaryDatabase("checkin", async (targetUrl) => {
+      for (const migration of [
+        foundationMigration,
+        securityMigration,
+        "20261002000000_slice3_persistence_safety",
+        "20261003000000_slice4_registration",
+      ]) {
+        prisma(
+          targetUrl,
+          "db",
+          "execute",
+          "--file",
+          resolve(
+            repositoryRoot,
+            "database/prisma/migrations",
+            migration,
+            "migration.sql",
+          ),
+          "--config",
+          "database/prisma7.config.ts",
+        );
+        prisma(
+          targetUrl,
+          "migrate",
+          "resolve",
+          "--applied",
+          migration,
+          "--config",
+          "database/prisma7.config.ts",
+        );
+      }
+      const target = createDatabase(targetUrl),
+        rootKey = Buffer.alloc(32, 10);
+      try {
+        const owner = await target.user.create({
+          data: { organizerCapable: true },
+        });
+        const participant = await target.user.create({ data: {} });
+        const guest = await target.guestIdentity.create({
+          data: { lookupHash: "a".repeat(64) },
+        });
+        const event = await target.event.create({
+          data: {
+            ownerUserId: owner.id,
+            name: "Preserved Slice 4",
+            state: "PUBLISHED",
+            visibility: "PUBLIC",
+            publishedAt: new Date(),
+            registrationCapacity: 3,
+          },
+        });
+        const registrations = [
+          await target.registration.create({
+            data: { eventId: event.id, userId: participant.id },
+          }),
+          await target.registration.create({
+            data: { eventId: event.id, guestIdentityId: guest.id },
+          }),
+          await target.registration.create({
+            data: {
+              eventId: event.id,
+              userId: participant.id,
+              state: "CANCELLED",
+              cancelledAt: new Date(),
+              cancelledByUserId: participant.id,
+              cancelledActorKind: "ACCOUNT",
+            },
+          }),
+        ];
+        const credentials = [];
+        for (const registration of registrations) {
+          credentials.push(
+            await target.qRCredential.create({
+              data: {
+                registrationId: registration.id,
+                ...issueCredential(registration.id, rootKey),
+                ...(registration.state === "CANCELLED"
+                  ? { revokedAt: new Date(), protectedRepresentation: null }
+                  : {}),
+              },
+            }),
+          );
+        }
+        const replays = [
+          await target.commandReplay.create({
+            data: {
+              actorUserId: participant.id,
+              action: "REGISTRATION_CREATE",
+              resourceKey: "event:" + event.id,
+              idempotencyKeyHash: "b".repeat(64),
+              requestFingerprint: "c".repeat(64),
+              status: "COMPLETED",
+              responseStatus: 201,
+              responseBody: { registration_id: registrations[0].id },
+              createdAt: new Date(Date.now() - 1000),
+              completedAt: new Date(),
+              expiresAt: new Date(Date.now() + 86400000),
+            },
+          }),
+          await target.commandReplay.create({
+            data: {
+              actorGuestIdentityId: guest.id,
+              action: "REGISTRATION_CREATE",
+              resourceKey: "event:" + event.id,
+              idempotencyKeyHash: "d".repeat(64),
+              requestFingerprint: "e".repeat(64),
+              status: "COMPLETED",
+              responseStatus: 201,
+              responseBody: { registration_id: registrations[1].id },
+              createdAt: new Date(Date.now() - 1000),
+              completedAt: new Date(),
+              expiresAt: new Date(Date.now() + 86400000),
+            },
+          }),
+        ];
+        const tokens = credentials
+          .slice(0, 2)
+          .map((row) =>
+            recoverCredential(
+              row.registrationId,
+              row.protectedRepresentation!,
+              rootKey,
+            ),
+          );
+        prisma(
+          targetUrl,
+          "migrate",
+          "deploy",
+          "--config",
+          "database/prisma7.config.ts",
+        );
+        expect(
+          await target.event.findUnique({ where: { id: event.id } }),
+        ).toEqual(event);
+        for (const before of registrations)
+          expect(
+            await target.registration.findUnique({
+              where: { id: before.id },
+            }),
+          ).toEqual(before);
+        for (const before of credentials)
+          expect(
+            await target.qRCredential.findUnique({
+              where: { id: before.id },
+            }),
+          ).toEqual(before);
+        for (const before of replays)
+          expect(
+            await target.commandReplay.findUnique({
+              where: { id: before.id },
+            }),
+          ).toEqual(before);
+        for (let index = 0; index < 2; index++) {
+          const row = await target.qRCredential.findUniqueOrThrow({
+            where: { id: credentials[index].id },
+          });
+          expect(
+            recoverCredential(
+              row.registrationId,
+              row.protectedRepresentation!,
+              rootKey,
+            ),
+          ).toBe(tokens[index]);
+        }
+        expect(await target.scanDecision.count()).toBe(0);
+        expect(await target.attendanceTransition.count()).toBe(0);
+      } finally {
+        await target.$disconnect();
+      }
+    });
+  }, 120_000);
+
   it("applies the complete migration history to a clean database", async () => {
     await withTemporaryDatabase("clean", async (targetUrl) => {
       prisma(
@@ -69,16 +246,18 @@ describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
             SELECT table_name
             FROM information_schema.tables
             WHERE table_schema = current_schema()
-              AND table_name IN ('Event', 'PrivateAccessLink', 'CommandReplay', 'GuestIdentity', 'Registration', 'QRCredential')
+              AND table_name IN ('Event', 'PrivateAccessLink', 'CommandReplay', 'GuestIdentity', 'Registration', 'QRCredential', 'ScanDecision', 'AttendanceTransition')
             ORDER BY table_name
           `;
         expect(tables.map(({ table_name }) => table_name)).toEqual([
+          "AttendanceTransition",
           "CommandReplay",
           "Event",
           "GuestIdentity",
           "PrivateAccessLink",
           "QRCredential",
           "Registration",
+          "ScanDecision",
         ]);
       } finally {
         await target.$disconnect();
@@ -86,7 +265,7 @@ describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
     });
   }, 120_000);
 
-  it("preserves populated Slice 3 event, link lineage and protected account replay on Slice 4 upgrade", async () => {
+  it("preserves populated Slice 3 event, link lineage and protected account replay on subsequent upgrades", async () => {
     await withTemporaryDatabase("registration", async (targetUrl) => {
       for (const migration of [
         foundationMigration,
@@ -168,7 +347,9 @@ describe.skipIf(!databaseUrl)("Slice 3 migration", () => {
           await target.event.findUnique({ where: { id: event.id } }),
         ).toEqual(before.event);
         expect(
-          await target.privateAccessLink.findUnique({ where: { id: old.id } }),
+          await target.privateAccessLink.findUnique({
+            where: { id: old.id },
+          }),
         ).toEqual(old);
         expect(
           await target.privateAccessLink.findUnique({

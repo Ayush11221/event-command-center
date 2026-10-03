@@ -8,6 +8,7 @@ import { PublicEventDetail } from "./PublicEventDetail";
 import { PrivateEventDetail } from "./PrivateEventDetail";
 import type { PrivateEntry } from "./private-entry";
 import { RegistrationPanel } from "./RegistrationPanel";
+import { GateScanner } from "./GateScanner";
 
 function ManagementEntry() {
   const [session, setSession] = useState<
@@ -85,6 +86,7 @@ function ManagementEntry() {
 
 export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   const path = window.location.pathname;
+  const scanner = /^\/scanner\/?$/.test(path);
   const catalog = /^\/events\/?$/.test(path);
   const privatePage = /^\/private\/?$/.test(path);
   const detail = path.match(/^\/events\/([^/]+)\/?$/);
@@ -98,8 +100,8 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     }
   }
   useEffect(() => {
-    document.title = `${registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
-  }, [catalog, eventId, privatePage, registration]);
+    document.title = `${scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+  }, [catalog, eventId, privatePage, registration, scanner]);
   return (
     <div className="app-frame">
       <button
@@ -130,10 +132,15 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
             Public events
           </a>
           <a href="/">Event workspace</a>
+          <a href="/scanner" aria-current={scanner ? "page" : undefined}>
+            Gate scanner
+          </a>
         </nav>
         <ThemeControl />
       </header>
-      {registration ? (
+      {scanner ? (
+        <GateScanner />
+      ) : registration ? (
         <main className="page-shell public-page">
           <h1>Registration recovery</h1>
           <RegistrationPanel registrationId={registration} />

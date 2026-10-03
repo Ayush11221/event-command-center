@@ -9,6 +9,7 @@ import { eventRouter } from "./modules/events/http.js";
 import { discoveryRouter } from "./modules/discovery/http.js";
 import { staffRouter } from "./modules/staff/http.js";
 import { registrationRouter } from "./modules/registrations/http.js";
+import { scanningRouter } from "./modules/scanning/http.js";
 import { correlation } from "./middleware/correlation.js";
 import { healthRouter } from "./routes/health.js";
 
@@ -75,6 +76,7 @@ export function createApp(
     app.use("/api/v1/events", staffRouter(foundation));
     app.use("/api/v1/discovery", discoveryRouter(foundation));
     app.use("/api/v1", registrationRouter(foundation));
+    app.use("/api/v1", scanningRouter(foundation));
   }
   app.use((_request, response) => {
     response.status(404).json({

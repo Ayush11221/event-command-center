@@ -1,7 +1,22 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useState, type RefObject } from "react";
 import type { PublicDetail } from "../services/discovery";
 import { publicEventTime, PublicPolicy, PublicTags } from "./PublicEventInfo";
 import { RegistrationPanel } from "./RegistrationPanel";
+
+function EventBanner({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  return failed ? (
+    <p className="freshness">Event image unavailable.</p>
+  ) : (
+    <img
+      className="public-event-banner"
+      src={url}
+      alt=""
+      referrerPolicy="no-referrer"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 export function PublishedEventContent({
   detail,
   heading,
@@ -17,8 +32,6 @@ export function PublishedEventContent({
   refreshLabel?: string;
   privateProof?: () => string | null;
 }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  useEffect(() => setImageFailed(false), [detail.image_url]);
   return (
     <article>
       <div className="page-heading">
@@ -33,16 +46,9 @@ export function PublishedEventContent({
           {refreshLabel}
         </button>
       </div>
-      {detail.image_url && !imageFailed && (
-        <img
-          className="public-event-banner"
-          src={detail.image_url}
-          alt=""
-          referrerPolicy="no-referrer"
-          onError={() => setImageFailed(true)}
-        />
+      {detail.image_url && (
+        <EventBanner key={detail.image_url} url={detail.image_url} />
       )}
-      {imageFailed && <p className="freshness">Event image unavailable.</p>}
       <p className="public-description">
         {detail.description ?? "No description provided."}
       </p>
