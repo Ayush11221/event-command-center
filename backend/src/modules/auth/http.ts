@@ -47,7 +47,7 @@ function setAuthCookie(
   response.cookie(name, value, {
     httpOnly: true,
     secure,
-    sameSite: "lax",
+    sameSite: name === ACCOUNT_COOKIE ? "none" : "lax",
     path: "/api/v1",
     maxAge: 15 * 60_000,
   });
@@ -57,7 +57,7 @@ function clearAuthCookie(response: Response, name: string, secure: boolean) {
   response.clearCookie(name, {
     httpOnly: true,
     secure,
-    sameSite: "lax",
+    sameSite: name === ACCOUNT_COOKIE ? "none" : "lax",
     path: "/api/v1",
   });
 }
