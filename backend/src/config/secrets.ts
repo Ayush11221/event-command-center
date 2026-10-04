@@ -7,6 +7,7 @@ const names = [
   "OTP_KEY",
   "FORECAST_SERVICE_KEY",
   "SMTP_URL",
+  "BREVO_API_KEY",
   "METRICS_TOKEN",
 ] as const;
 export function loadSecrets(env: NodeJS.ProcessEnv) {

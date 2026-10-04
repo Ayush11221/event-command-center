@@ -1,6 +1,8 @@
 import nodemailer from "nodemailer";
 import type { FoundationConfig } from "../../config/foundation.js";
-export type SendOutcome = "SENT" | "FAILED" | "UNKNOWN";
+import { createBrevoSender } from "./brevo-sender.js";
+import type { EmailSendOutcome } from "../email/brevo.js";
+export type SendOutcome = EmailSendOutcome;
 export interface CertificateSender {
   send(input: {
     attemptId: string;
@@ -25,6 +27,7 @@ export function smtpFailure(error: unknown): SendOutcome {
 export function createCertificateSender(
   config: FoundationConfig,
 ): CertificateSender {
+  if (config.emailTransport === "brevo_api") return createBrevoSender(config);
   const smtp = config.smtpUrl
     ? nodemailer.createTransport({
         url: config.smtpUrl,

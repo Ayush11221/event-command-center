@@ -8,6 +8,9 @@ export interface FoundationConfig {
   cookieSecure: boolean;
   smtpUrl?: string;
   smtpFrom?: string;
+  emailTransport?: "smtp" | "brevo_api";
+  brevoApiUrl?: string;
+  brevoApiKey?: string;
   smsGatewayModule?: string;
   forecastServiceUrl?: string;
   forecastServiceKey?: string;
@@ -36,6 +39,38 @@ export function parseFoundationConfig(
   }
   if (env.SMTP_URL && !env.SMTP_FROM) {
     throw new Error("SMTP_FROM is required with SMTP_URL");
+  }
+  const emailTransport = env.EMAIL_TRANSPORT ?? "smtp";
+  if (emailTransport !== "smtp" && emailTransport !== "brevo_api")
+    throw new Error("EMAIL_TRANSPORT must be smtp or brevo_api");
+  if (emailTransport === "brevo_api") {
+    if (!env.BREVO_API_KEY || !/^[\x21-\x7e]{1,8192}$/.test(env.BREVO_API_KEY))
+      throw new Error(
+        "BREVO_API_KEY is required and must be a valid HTTP header value",
+      );
+    let emailEndpoint: URL;
+    try {
+      emailEndpoint = new URL(env.BREVO_API_URL ?? "");
+    } catch {
+      throw new Error("BREVO_API_URL must be an HTTPS endpoint");
+    }
+    if (
+      emailEndpoint.protocol !== "https:" ||
+      emailEndpoint.username ||
+      emailEndpoint.password ||
+      emailEndpoint.search ||
+      emailEndpoint.hash
+    )
+      throw new Error(
+        "BREVO_API_URL must use HTTPS without credentials, query or fragment",
+      );
+    if (
+      !env.SMTP_FROM ||
+      !/^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(env.SMTP_FROM)
+    )
+      throw new Error(
+        "SMTP_FROM must be the verified platform email address for Brevo",
+      );
   }
   if (env.FORECAST_SERVICE_URL || env.FORECAST_SERVICE_KEY) {
     if (
@@ -84,6 +119,9 @@ export function parseFoundationConfig(
     cookieSecure: env.NODE_ENV === "production",
     smtpUrl: env.SMTP_URL,
     smtpFrom: env.SMTP_FROM,
+    emailTransport,
+    brevoApiUrl: emailTransport === "brevo_api" ? env.BREVO_API_URL : undefined,
+    brevoApiKey: emailTransport === "brevo_api" ? env.BREVO_API_KEY : undefined,
     smsGatewayModule: env.SMS_GATEWAY_MODULE,
     forecastServiceUrl: env.FORECAST_SERVICE_URL,
     forecastServiceKey: env.FORECAST_SERVICE_KEY,
