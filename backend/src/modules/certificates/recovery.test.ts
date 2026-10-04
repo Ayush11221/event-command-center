@@ -32,17 +32,16 @@ it("starts recovery immediately, ticks without overlapping work and stops cleanl
 });
 it("reports recovery dependency failure and retries the recovery scan on a later tick", async () => {
   vi.useFakeTimers();
-  const fail = vi.fn(),
-    recover = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("Synthetic outage"))
-      .mockResolvedValue(undefined);
+  const error = new Error("Synthetic outage"),
+    fail = vi.fn(),
+    recover = vi.fn().mockRejectedValueOnce(error).mockResolvedValue(undefined);
   const close = startCertificateRecovery(
     { recover } as unknown as CertificateService,
     fail,
   );
   await vi.advanceTimersByTimeAsync(1000);
   expect(fail).toHaveBeenCalledTimes(1);
+  expect(fail).toHaveBeenCalledWith(error);
   expect(recover).toHaveBeenCalledTimes(2);
   await close();
 });

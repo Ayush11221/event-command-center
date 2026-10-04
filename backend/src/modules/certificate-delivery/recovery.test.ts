@@ -35,7 +35,8 @@ it("starts both recovery scans, avoids overlapping ticks and shuts down", async 
 });
 it("keeps the other recovery boundary running when one dependency fails", async () => {
   vi.useFakeTimers();
-  const batch = vi.fn().mockRejectedValue(new Error("outage")),
+  const error = new Error("outage"),
+    batch = vi.fn().mockRejectedValue(error),
     delivery = vi.fn().mockResolvedValue(undefined),
     warn = vi.fn();
   const stop = startDeliveryRecovery(
@@ -45,6 +46,26 @@ it("keeps the other recovery boundary running when one dependency fails", async 
   );
   await vi.advanceTimersByTimeAsync(1000);
   expect(warn).toHaveBeenCalled();
+  expect(warn).toHaveBeenCalledWith(error);
   expect(delivery.mock.calls.length).toBeGreaterThan(1);
   await stop();
+});
+it("reports both original errors when both recovery dependencies fail", async () => {
+  vi.useFakeTimers();
+  const batchError = new Error("Synthetic batch outage"),
+    deliveryError = new Error("Synthetic delivery outage"),
+    warn = vi.fn();
+  const stop = startDeliveryRecovery(
+    {
+      recover: vi.fn().mockRejectedValue(batchError),
+    } as unknown as CertificateBatches,
+    {
+      recover: vi.fn().mockRejectedValue(deliveryError),
+    } as unknown as CertificateDeliveries,
+    warn,
+  );
+  await stop();
+  expect(warn).toHaveBeenCalledTimes(2);
+  expect(warn).toHaveBeenNthCalledWith(1, batchError);
+  expect(warn).toHaveBeenNthCalledWith(2, deliveryError);
 });

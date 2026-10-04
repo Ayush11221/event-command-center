@@ -4,7 +4,7 @@ import { operation } from "../../observability/telemetry.js";
 export function startDeliveryRecovery(
   batches: CertificateBatches,
   deliveries: CertificateDeliveries,
-  onUnavailable: () => void,
+  onUnavailable: (err: unknown) => void,
 ) {
   let stopped = false,
     pending: Promise<void> | undefined;
@@ -15,7 +15,8 @@ export function startDeliveryRecovery(
       operation("delivery_recovery", () => deliveries.recover()),
     ])
       .then((results) => {
-        if (results.some((row) => row.status === "rejected")) onUnavailable();
+        for (const row of results)
+          if (row.status === "rejected") onUnavailable(row.reason);
       })
       .finally(() => {
         pending = undefined;

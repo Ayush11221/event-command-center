@@ -774,7 +774,7 @@ export class CertificateService {
 
 export function startCertificateRecovery(
   service: CertificateService,
-  onUnavailable: () => void,
+  onUnavailable: (err: unknown) => void,
 ) {
   let stopped = false,
     pending: Promise<void> | undefined;

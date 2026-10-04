@@ -46,11 +46,14 @@ async function main() {
   const stopDeliveries = startDeliveryRecovery(
     new CertificateBatches(dependencies),
     deliveries,
-    () =>
-      logger.warn("Certificate batch/delivery recovery dependency unavailable"),
+    (err) =>
+      logger.warn(
+        { err },
+        "Certificate batch/delivery recovery dependency unavailable",
+      ),
   );
-  const stopCertificates = startCertificateRecovery(certificates, () =>
-    logger.warn("Certificate recovery dependency unavailable"),
+  const stopCertificates = startCertificateRecovery(certificates, (err) =>
+    logger.warn({ err }, "Certificate recovery dependency unavailable"),
   );
   const app = createApp(config, logger, dependencies, certificates, deliveries);
   const server = app.listen(config.port, config.bindHost ?? "127.0.0.1", () => {
