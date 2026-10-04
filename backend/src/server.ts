@@ -86,8 +86,8 @@ async function main() {
 }
 
 main().catch((error: unknown) => {
-  void error;
   createLogger().error(
+    { err: error },
     "Backend startup failed; verify configuration and dependency availability",
   );
   process.exitCode = 1;
