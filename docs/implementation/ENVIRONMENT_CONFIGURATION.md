@@ -1,5 +1,20 @@
 # Local environment and Railway inputs
 
+## Vercel-to-Railway OTP source variables
+
+The approved production OTP path uses the [signed gateway](../security/OTP_ABUSE_PROTECTION.md#signed-gateway-contract-and-threat-boundary), not the repository Caddy proxy as a source trust boundary.
+
+| Consumer                                     | Variable                                                                    | Requirement                                                                                                                     |
+| -------------------------------------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Railway API                                  | `OTP_SOURCE_MODE`                                                           | Explicitly `signed_gateway`                                                                                                     |
+| Railway API + Vercel Production Node runtime | `OTP_SOURCE_SIGNING_KEY`                                                    | Same independent random 32-byte key encoded as exactly 64 lowercase hex characters; distinct from JWT/contact/OTP/forecast keys |
+| Railway API                                  | `OTP_TRUSTED_PROXY_CIDRS`                                                   | Remove entirely in signed mode, including empty values                                                                          |
+| Vercel Production Node runtime               | `RAILWAY_API_ORIGIN`                                                        | Existing configured production Railway API HTTPS root origin; no URL credentials, path, query or fragment                       |
+| Browser                                      | `VITE_API_ORIGIN`                                                           | Existing origin for all API operations except the two same-origin OTP challenge POSTs; contains no secret                       |
+| Railway API                                  | `OTP_CONTACT_*`, `OTP_SOURCE_*` limit/window, `OTP_PROVIDER_*` limit/window | Retain existing budgets unchanged                                                                                               |
+
+The signing key is a direct server variable (no new `_FILE` alias), never a `VITE_*` variable. Do not change existing ignored env files or paste actual credentials into documentation. Configure Production secrets only in Production; Preview/Development require a separate API and separate keys. The gateway does not derive its upstream from request URL, Host or client headers. `direct`, `forwarded` and legacy `railway` retain their existing source validation; production must explicitly choose its mode. Plain local Vite does not execute the gateway function; use a Vercel Node function runtime for gateway development with separate test configuration. Deployment order and live acceptance checks are in the [Railway runbook](RAILWAY_DEPLOYMENT.md#approved-vercel-otp-source-deployment).
+
 This configuration follows the existing parsers, secret loader, Dockerfiles and [Railway runbook](RAILWAY_DEPLOYMENT.md). Public API shapes, database, authorization and delivery lifecycle remain unchanged; account-verification/OTP and certificate email now select SMTP or Brevo HTTPS explicitly. Railway is not deployed by preparing these files.
 
 ## Prepared local files
@@ -57,7 +72,7 @@ Do not set a direct secret and its file alternative together. The API startup lo
 
 ## Railway checklist and missing inputs
 
-The four ignored `.env.railway.*` files are per-service worksheets, **not runnable configurations**. Do not deploy with unresolved placeholders. Keep API/forecast/migration private. API and forecast TLS volumes require separate provisioning. The existing fixed Caddy upstream requires the API private hostname documented in the Railway runbook; confirm networking before rollout.
+The four ignored `.env.railway.*` files are per-service worksheets, **not runnable configurations**. Do not deploy with unresolved placeholders. For the older all-Railway Docker topology, keep API/forecast/migration private and provision its API/forecast TLS volumes separately. Its fixed Caddy upstream requires the documented API private hostname. For the approved Vercel OTP topology, reuse the existing Railway HTTPS API origin and the signed-source requirements above; do not infer source trust from that Caddy topology.
 
 | Worksheet / service                | Prepared configuration                                                                                                               | Operator inputs still required                                                                                                                                                          |
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

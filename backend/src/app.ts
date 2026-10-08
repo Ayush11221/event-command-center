@@ -4,7 +4,7 @@ import type { Logger } from "pino";
 import type { AppConfig } from "./config/env.js";
 import type { AuthDependencies } from "./modules/auth/http.js";
 import { authRouter } from "./modules/auth/http.js";
-import { ApiError } from "./modules/auth/errors.js";
+import { ApiError, unavailable } from "./modules/auth/errors.js";
 import { eventRouter } from "./modules/events/http.js";
 import { discoveryRouter } from "./modules/discovery/http.js";
 import { staffRouter } from "./modules/staff/http.js";
@@ -22,6 +22,7 @@ import { certificateDeliveryRouter } from "./modules/certificate-delivery/http.j
 import { volunteerRouter } from "./modules/volunteers/http.js";
 import { category, requestTelemetry } from "./observability/telemetry.js";
 import { operationalRouter } from "./observability/http.js";
+import { captureOtpBody } from "./modules/auth/otp-source.js";
 
 export function createApp(
   config: AppConfig,
@@ -92,7 +93,29 @@ export function createApp(
         certificates ?? new CertificateService(foundation),
       ),
     );
-    app.use(express.json({ limit: "16kb", strict: true }));
+    app.use(
+      express.json({
+        limit: "16kb",
+        strict: true,
+        verify: (request, _response, body) => {
+          if (
+            foundation.config.otpAbuse?.sourceMode === "signed_gateway" &&
+            request.method === "POST" &&
+            [
+              "/api/v1/auth/account/challenge",
+              "/api/v1/auth/guest/challenge",
+            ].includes(request.url ?? "")
+          ) {
+            if (
+              request.headers["content-encoding"] &&
+              request.headers["content-encoding"] !== "identity"
+            )
+              throw unavailable();
+            captureOtpBody(request, body);
+          }
+        },
+      }),
+    );
     app.get("/health/ready", async (_request, response) => {
       try {
         await foundation.db.$queryRaw`SELECT 1`;

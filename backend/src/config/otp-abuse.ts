@@ -9,8 +9,9 @@ export interface OtpAbuseConfig {
   contact: OtpBudget;
   source: OtpBudget;
   provider: OtpBudget;
-  sourceMode: "direct" | "forwarded" | "railway";
+  sourceMode: "direct" | "forwarded" | "railway" | "signed_gateway";
   trustedProxyCidrs: string[];
+  sourceSigningKey?: Buffer;
 }
 
 export const defaultOtpAbuseConfig: OtpAbuseConfig = {
@@ -58,14 +59,36 @@ export function parseOtpAbuseConfig(env: NodeJS.ProcessEnv): OtpAbuseConfig {
   const sourceMode =
     env.OTP_SOURCE_MODE ??
     (env.NODE_ENV === "production" ? undefined : "direct");
-  if (!["direct", "forwarded", "railway"].includes(sourceMode ?? ""))
+  if (
+    !["direct", "forwarded", "railway", "signed_gateway"].includes(
+      sourceMode ?? "",
+    )
+  )
     throw new Error(
-      "OTP_SOURCE_MODE must explicitly select direct, forwarded or railway in production",
+      "OTP_SOURCE_MODE must explicitly select direct, forwarded, railway or signed_gateway in production",
     );
   const trustedProxyCidrs =
     env.OTP_TRUSTED_PROXY_CIDRS?.split(",").map((value) => value.trim()) ?? [];
   trustedOtpProxies(trustedProxyCidrs);
-  if (sourceMode !== "direct" && !trustedProxyCidrs.length)
+  let sourceSigningKey: Buffer | undefined;
+  if (sourceMode === "signed_gateway") {
+    if (env.OTP_TRUSTED_PROXY_CIDRS !== undefined)
+      throw new Error(
+        "OTP_TRUSTED_PROXY_CIDRS is forbidden for signed_gateway",
+      );
+    if (
+      env.OTP_SOURCE_SIGNING_KEY?.length !== 64 ||
+      !/^[a-f0-9]{64}$/.test(env.OTP_SOURCE_SIGNING_KEY)
+    )
+      throw new Error(
+        "OTP_SOURCE_SIGNING_KEY must be 32 bytes encoded as 64 lowercase hex characters",
+      );
+    sourceSigningKey = Buffer.from(env.OTP_SOURCE_SIGNING_KEY!, "hex");
+  }
+  if (
+    (sourceMode === "forwarded" || sourceMode === "railway") &&
+    !trustedProxyCidrs.length
+  )
     throw new Error(
       "OTP_TRUSTED_PROXY_CIDRS is required for proxy source modes",
     );
@@ -92,5 +115,6 @@ export function parseOtpAbuseConfig(env: NodeJS.ProcessEnv): OtpAbuseConfig {
     provider: budget("PROVIDER"),
     sourceMode: sourceMode as OtpAbuseConfig["sourceMode"],
     trustedProxyCidrs,
+    ...(sourceSigningKey ? { sourceSigningKey } : {}),
   };
 }

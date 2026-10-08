@@ -1,7 +1,71 @@
 import { describe, expect, it } from "vitest";
 import { defaultOtpAbuseConfig, parseOtpAbuseConfig } from "./otp-abuse.js";
+import { parseFoundationConfig } from "./foundation.js";
 
 describe("OTP abuse configuration", () => {
+  const signed = {
+    OTP_SOURCE_MODE: "signed_gateway",
+    OTP_SOURCE_SIGNING_KEY: "d".repeat(64),
+  };
+  it("requires an independent signing key and keeps every budget unchanged", () => {
+    expect(parseOtpAbuseConfig(signed)).toEqual({
+      ...defaultOtpAbuseConfig,
+      sourceMode: "signed_gateway",
+      sourceSigningKey: Buffer.from(signed.OTP_SOURCE_SIGNING_KEY, "hex"),
+    });
+    expect(() =>
+      parseOtpAbuseConfig({ OTP_SOURCE_MODE: "signed_gateway" }),
+    ).toThrow("OTP_SOURCE_SIGNING_KEY");
+  });
+  it.each([
+    "",
+    "d".repeat(63),
+    "d".repeat(65),
+    "D".repeat(64),
+    "g".repeat(64),
+    " d".repeat(32),
+    "d".repeat(64) + "\n",
+  ])("rejects malformed signing material", (OTP_SOURCE_SIGNING_KEY) => {
+    expect(() =>
+      parseOtpAbuseConfig({ ...signed, OTP_SOURCE_SIGNING_KEY }),
+    ).toThrow("OTP_SOURCE_SIGNING_KEY");
+  });
+  it.each(["", "127.0.0.1/32", "10.0.0.0/8", "100.0.0.0/8", "0.0.0.0/0"])(
+    "rejects all proxy configuration in signed mode",
+    (OTP_TRUSTED_PROXY_CIDRS) => {
+      expect(() =>
+        parseOtpAbuseConfig({ ...signed, OTP_TRUSTED_PROXY_CIDRS }),
+      ).toThrow("OTP_TRUSTED_PROXY_CIDRS");
+    },
+  );
+  it.each(["JWT_SECRET", "CONTACT_KEY", "OTP_KEY", "FORECAST_SERVICE_KEY"])(
+    "rejects reuse of %s case-insensitively",
+    (name) => {
+      expect(() =>
+        parseFoundationConfig({
+          ...signed,
+          DATABASE_URL: "postgresql://test@localhost/test",
+          JWT_SECRET: "a".repeat(64),
+          CONTACT_KEY: "b".repeat(64),
+          OTP_KEY: "c".repeat(64),
+          [name]: signed.OTP_SOURCE_SIGNING_KEY.toUpperCase(),
+        }),
+      ).toThrow("independent");
+    },
+  );
+  it("keeps both proxy modes and their trust requirements", () => {
+    for (const OTP_SOURCE_MODE of ["forwarded", "railway"]) {
+      expect(() => parseOtpAbuseConfig({ OTP_SOURCE_MODE })).toThrow(
+        "OTP_TRUSTED_PROXY_CIDRS",
+      );
+      expect(
+        parseOtpAbuseConfig({
+          OTP_SOURCE_MODE,
+          OTP_TRUSTED_PROXY_CIDRS: "127.0.0.1/32",
+        }).sourceMode,
+      ).toBe(OTP_SOURCE_MODE);
+    }
+  });
   it("uses conservative shared defaults and requires an explicit production source mode", () => {
     expect(parseOtpAbuseConfig({})).toEqual(defaultOtpAbuseConfig);
     expect(() => parseOtpAbuseConfig({ NODE_ENV: "production" })).toThrow(

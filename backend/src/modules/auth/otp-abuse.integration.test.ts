@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { Writable } from "node:stream";
 import { pathToFileURL } from "node:url";
@@ -79,6 +79,41 @@ describe.skipIf(!url)("PostgreSQL aggregate OTP admission", () => {
         .send({ type, contact });
     const lookup = (contact: string, type: ContactType = ContactType.EMAIL) =>
       normalizeContact(type, contact, config.contactKey).lookupHash;
+    const signedChallenge = (
+      contact: string,
+      purpose = "account",
+      source = "192.0.2.1",
+      body?: string,
+    ) => {
+      const path = `/api/v1/auth/${purpose}/challenge`;
+      const raw = body ?? JSON.stringify({ type: "EMAIL", contact });
+      const payload = Buffer.from(
+        JSON.stringify({
+          version: 1,
+          audience: "eoc-otp-source:production",
+          source_ip: source,
+          issued_at: Math.floor(Date.now() / 1000),
+          method: "POST",
+          path,
+          body_sha256: createHash("sha256").update(raw).digest("hex"),
+        }),
+      ).toString("base64url");
+      const assertion = `${payload}.${createHmac(
+        "sha256",
+        config.otpAbuse!.sourceSigningKey!,
+      )
+        .update(`eoc-otp-source:v1:${payload}`)
+        .digest("base64url")}`;
+      return {
+        assertion,
+        request: request(app)
+          .post(path)
+          .set("Origin", origin)
+          .set("Content-Type", "application/json")
+          .set("X-EOC-OTP-Source", assertion)
+          .send(raw),
+      };
+    };
     const age = async (contact: string) => {
       await db.otpChallenge.updateMany({
         where: { contactLookupHash: lookup(contact) },
@@ -96,6 +131,7 @@ describe.skipIf(!url)("PostgreSQL aggregate OTP admission", () => {
       app,
       admit,
       challenge,
+      signedChallenge,
       lookup,
       age,
       logs: () => logs,
@@ -494,5 +530,258 @@ describe.skipIf(!url)("PostgreSQL aggregate OTP admission", () => {
       ).status,
     ).toBe(429);
     expect((await f.challenge(email())).status).toBe(503);
+  });
+
+  const signedMode = () => ({
+    sourceMode: "signed_gateway" as const,
+    sourceSigningKey: randomBytes(32),
+  });
+  it("rejects unsigned/spoofed/tampered requests before every database reservation or delivery", async () => {
+    const f = fixture(signedMode());
+    const contact = email();
+    const transaction = vi.spyOn(db, "$transaction");
+    const providerKey = createHmac("sha256", f.config.otpKey)
+      .update("otp-budget:PROVIDER:3600:application")
+      .digest("hex");
+    const spoofedHeaders: Record<string, string>[] = [
+      {},
+      { "X-Real-IP": "192.0.2.1" },
+      { "X-Forwarded-For": "192.0.2.1" },
+      { "X-Source-IP": "192.0.2.1" },
+      { "X-EOC-OTP-Source": "invalid" },
+    ];
+    for (const purpose of ["account", "guest"]) {
+      for (const headers of spoofedHeaders) {
+        const response = await f.challenge(contact, purpose, headers);
+        expect(response.status).toBe(503);
+        expect(response.body).toMatchObject({
+          code: "DEPENDENCY_UNAVAILABLE",
+          message: "Service unavailable",
+        });
+      }
+      const signed = f.signedChallenge(contact, purpose);
+      expect(
+        (
+          await f.challenge(email(), purpose, {
+            "X-EOC-OTP-Source": signed.assertion,
+          })
+        ).status,
+      ).toBe(503);
+      const opposite = purpose === "account" ? "guest" : "account";
+      expect(
+        (
+          await f.challenge(contact, opposite, {
+            "X-EOC-OTP-Source": signed.assertion,
+          })
+        ).status,
+      ).toBe(503);
+    }
+    expect(transaction).not.toHaveBeenCalled();
+    transaction.mockRestore();
+    expect(
+      await db.otpChallenge.count({
+        where: { contactLookupHash: f.lookup(contact) },
+      }),
+    ).toBe(0);
+    expect(
+      await db.otpRateLimitBucket.count({ where: { key: providerKey } }),
+    ).toBe(0);
+    expect(f.send).not.toHaveBeenCalled();
+    for (const secret of [
+      contact,
+      "192.0.2.1",
+      f.config.otpAbuse!.sourceSigningKey!.toString("hex"),
+    ])
+      expect(f.logs()).not.toContain(secret);
+  });
+  it("shares verified-source budgets across purposes and isolates different verified sources", async () => {
+    const f = fixture({
+      ...signedMode(),
+      source: { limit: 1, windowSeconds: 3600 },
+    });
+    expect(
+      (await f.signedChallenge(email(), "guest", "192.0.2.1").request).status,
+    ).toBe(202);
+    expect(
+      (await f.signedChallenge(email(), "account", "192.0.2.1").request).status,
+    ).toBe(429);
+    expect(
+      (await f.signedChallenge(email(), "guest", "192.0.2.2").request).status,
+    ).toBe(202);
+  });
+  it("keeps contact and application limits global with signed sources", async () => {
+    const f = fixture({
+      ...signedMode(),
+      contact: { limit: 1, windowSeconds: 3600 },
+    });
+    const contact = email();
+    expect(
+      (await f.signedChallenge(contact, "guest", "192.0.2.1").request).status,
+    ).toBe(202);
+    await f.age(contact);
+    expect(
+      (await f.signedChallenge(contact, "account", "192.0.2.2").request).status,
+    ).toBe(429);
+    const application = fixture({
+      ...signedMode(),
+      provider: { limit: 1, windowSeconds: 3600 },
+    });
+    expect(
+      (await application.signedChallenge(email(), "guest", "192.0.2.1").request)
+        .status,
+    ).toBe(202);
+    expect(
+      (
+        await application.signedChallenge(email(), "account", "192.0.2.2")
+          .request
+      ).status,
+    ).toBe(429);
+  });
+  it("keeps concurrent signed HTTP reservations atomic", async () => {
+    const f = fixture({
+      ...signedMode(),
+      provider: { limit: 3, windowSeconds: 3600 },
+    });
+    const replies = await Promise.all(
+      Array.from(
+        { length: 8 },
+        (_, index) =>
+          f.signedChallenge(
+            email(),
+            index % 2 ? "account" : "guest",
+            `192.0.2.${index + 1}`,
+          ).request,
+      ),
+    );
+    expect(replies.filter((reply) => reply.status === 202)).toHaveLength(3);
+    expect(replies.filter((reply) => reply.status === 429)).toHaveLength(5);
+  });
+  it("keeps raw-body binding, cooldown, expiry, attempt limits, latest challenges and private logs", async () => {
+    const f = fixture(signedMode());
+    const contact = email();
+    const raw = `{ "contact": "${contact}", "type": "EMAIL" }`;
+    const initial = f.signedChallenge(contact, "guest", "2001:db8::1", raw);
+    expect((await initial.request).status).toBe(202);
+    await vi.waitFor(() => expect(f.codes.has(contact)).toBe(true));
+    const originalCode = f.codes.get(contact)!;
+    expect(
+      (await f.signedChallenge(contact, "guest", "2001:db8::1").request).status,
+    ).toBe(429);
+    expect(f.send).toHaveBeenCalledTimes(1);
+    const row = await db.otpChallenge.findFirstOrThrow({
+      where: { contactLookupHash: f.lookup(contact) },
+    });
+    expect(row.expiresAt.getTime() - row.createdAt.getTime()).toBe(300_000);
+    await f.age(contact);
+    expect(
+      (await f.signedChallenge(contact, "guest", "2001:db8::1").request).status,
+    ).toBe(202);
+    await vi.waitFor(() => expect(f.send).toHaveBeenCalledTimes(2));
+    await vi.waitFor(async () => {
+      const latest = await db.otpChallenge.findFirstOrThrow({
+        where: { contactLookupHash: f.lookup(contact) },
+        orderBy: { createdAt: "desc" },
+      });
+      expect(latest.deliveredAt).not.toBeNull();
+    });
+    expect(
+      (await db.otpChallenge.findUniqueOrThrow({ where: { id: row.id } }))
+        .consumedAt,
+    ).not.toBeNull();
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      const code = f.codes.get(contact) === "000000" ? "111111" : "000000";
+      const response = await request(f.app)
+        .post("/api/v1/auth/guest/verify")
+        .set("Origin", origin)
+        .send({ type: "EMAIL", contact, code });
+      expect(response.status).toBe(attempt === 5 ? 429 : 401);
+    }
+    for (const value of [
+      contact,
+      "2001:db8::1",
+      initial.assertion,
+      originalCode,
+      f.config.otpAbuse!.sourceSigningKey!.toString("hex"),
+    ])
+      expect(f.logs()).not.toContain(value);
+  });
+  it("retains account anti-enumeration, unsigned verification and expiry in signed mode", async () => {
+    const f = fixture(signedMode()),
+      known = email(),
+      unknown = email(),
+      guest = email();
+    await provisionAccount(
+      db,
+      f.config,
+      ContactType.EMAIL,
+      known,
+      false,
+      randomUUID(),
+    );
+    const replies = await Promise.all(
+      [known, unknown].map((contact) => f.signedChallenge(contact).request),
+    );
+    for (const reply of replies) {
+      expect(reply.status).toBe(202);
+      expect(Object.keys(reply.body).sort()).toEqual([
+        "correlation_id",
+        "status",
+      ]);
+    }
+    expect((await f.signedChallenge(guest, "guest").request).status).toBe(202);
+    await vi.waitFor(async () => {
+      const rows = await db.otpChallenge.findMany({
+        where: {
+          contactLookupHash: { in: [f.lookup(known), f.lookup(guest)] },
+        },
+      });
+      expect(rows).toHaveLength(2);
+      expect(rows.every((row) => row.deliveredAt)).toBe(true);
+    });
+    const signedIn = await request(f.app)
+      .post("/api/v1/auth/account/verify")
+      .set("Origin", origin)
+      .send({ type: "EMAIL", contact: known, code: f.codes.get(known)! });
+    expect(signedIn.status).toBe(200);
+    expect(signedIn.headers["set-cookie"]).toBeDefined();
+    await db.otpChallenge.updateMany({
+      where: { contactLookupHash: f.lookup(guest) },
+      data: {
+        createdAt: new Date(Date.now() - 120_000),
+        expiresAt: new Date(Date.now() - 1000),
+      },
+    });
+    expect(
+      (
+        await request(f.app)
+          .post("/api/v1/auth/guest/verify")
+          .set("Origin", origin)
+          .send({ type: "EMAIL", contact: guest, code: f.codes.get(guest)! })
+      ).status,
+    ).toBe(401);
+    expect(f.codes.has(unknown)).toBe(true); // Existing email anti-enumeration sends a generic challenge for both.
+  });
+  it("retains delivery-failure cleanup and reservations after a signed admission", async () => {
+    const f = fixture({
+        ...signedMode(),
+        provider: { limit: 1, windowSeconds: 3600 },
+      }),
+      contact = email();
+    f.send.mockRejectedValueOnce(new Error("synthetic provider failure"));
+    expect((await f.signedChallenge(contact, "guest").request).status).toBe(
+      202,
+    );
+    await vi.waitFor(async () => {
+      const row = await db.otpChallenge.findFirstOrThrow({
+        where: { contactLookupHash: f.lookup(contact) },
+      });
+      expect(row.consumedAt).not.toBeNull();
+      expect(row.deliveredAt).toBeNull();
+    });
+    expect(
+      (await f.signedChallenge(email(), "account", "192.0.2.2").request).status,
+    ).toBe(429);
+    expect(f.send).toHaveBeenCalledTimes(1);
+    expect(f.failure).toHaveBeenCalledExactlyOnceWith("OTP delivery failed");
   });
 });

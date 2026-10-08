@@ -307,13 +307,14 @@ export function authRouter(deps: AuthDependencies) {
   router.post("/account/challenge", async (request, response) => {
     requireOrigin(request, deps.frontendOrigin);
     const { type, contact } = accountInput(request);
+    const source = otpRequestSource(request, deps.config.otpAbuse);
     const deliver = await deps.otp.request(
       ProofPurpose.ACCOUNT,
       type,
       contact,
       response.locals.correlationId as string,
       null,
-      otpRequestSource(request, deps.config.otpAbuse),
+      source,
     );
     if (deliver)
       response.once("finish", () => {
@@ -349,13 +350,14 @@ export function authRouter(deps: AuthDependencies) {
   router.post("/guest/challenge", async (request, response) => {
     requireOrigin(request, deps.frontendOrigin);
     const { type, contact } = proofInput(request);
+    const source = otpRequestSource(request, deps.config.otpAbuse);
     const deliver = await deps.otp.request(
       ProofPurpose.GUEST_OWNERSHIP,
       type,
       contact,
       response.locals.correlationId as string,
       null,
-      otpRequestSource(request, deps.config.otpAbuse),
+      source,
     );
     if (deliver)
       response.once("finish", () => {

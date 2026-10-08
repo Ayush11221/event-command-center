@@ -32,13 +32,17 @@ async function api(
   method: "GET" | "POST",
   body?: object,
   csrf?: string,
+  sameOrigin = false,
 ) {
   const origin = import.meta.env.VITE_API_ORIGIN;
-  if (!origin) throw new ProofError("NETWORK", 0);
+  if (!sameOrigin && !origin) throw new ProofError("NETWORK", 0);
   let response: Response;
   try {
     response = await (path === "/me" ? accountFetch : fetch)(
-      new URL(`/api/v1/auth${path}`, origin),
+      new URL(
+        `/api/v1/auth${path}`,
+        sameOrigin ? window.location.origin : origin,
+      ),
       {
         method,
         credentials: "include",
@@ -63,7 +67,7 @@ async function api(
 }
 
 export async function challenge(mode: Mode, type: Channel, contact: string) {
-  await api(`/${mode}/challenge`, "POST", { type, contact });
+  await api(`/${mode}/challenge`, "POST", { type, contact }, undefined, true);
 }
 
 export async function verify(

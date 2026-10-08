@@ -22,7 +22,7 @@
     "db:migrate": "prisma migrate deploy --config database/prisma7.config.ts",
     "format": "prettier --write package.json backend frontend database/prisma7.config.ts eslint.config.mjs .github/workflows/checks.yml",
     "format:check": "prettier --check package.json backend frontend database/prisma7.config.ts eslint.config.mjs .github/workflows/checks.yml",
-    "lint": "eslint backend/src frontend/src frontend/vite.config.ts database/prisma7.config.ts",
+    "lint": "eslint backend/src frontend/src frontend/api frontend/vite.config.ts database/prisma7.config.ts",
     "typecheck": "npm run typecheck --workspace=backend && npm run typecheck --workspace=frontend",
     "test": "npm run test --workspace=backend && npm run test --workspace=frontend",
     "build": "npm run build --workspace=backend && npm run build --workspace=frontend"

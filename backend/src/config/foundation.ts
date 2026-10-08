@@ -39,6 +39,19 @@ export function parseFoundationConfig(
   if (!["postgresql:", "postgres:"].includes(parsed.protocol)) {
     throw new Error("DATABASE_URL must be a PostgreSQL URL");
   }
+  const otpAbuse = parseOtpAbuseConfig(env);
+  if (
+    otpAbuse.sourceSigningKey &&
+    [
+      env.JWT_SECRET,
+      env.CONTACT_KEY,
+      env.OTP_KEY,
+      env.FORECAST_SERVICE_KEY,
+    ].some((key) => key?.toLowerCase() === env.OTP_SOURCE_SIGNING_KEY)
+  )
+    throw new Error(
+      "OTP source signing key must be independent of auth/contact/OTP/forecast keys",
+    );
   if (env.SMTP_URL && !env.SMTP_FROM) {
     throw new Error("SMTP_FROM is required with SMTP_URL");
   }
@@ -127,6 +140,6 @@ export function parseFoundationConfig(
     smsGatewayModule: env.SMS_GATEWAY_MODULE,
     forecastServiceUrl: env.FORECAST_SERVICE_URL,
     forecastServiceKey: env.FORECAST_SERVICE_KEY,
-    otpAbuse: parseOtpAbuseConfig(env),
+    otpAbuse,
   };
 }
