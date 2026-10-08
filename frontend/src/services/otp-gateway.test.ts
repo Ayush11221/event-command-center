@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import type { Request as ExpressRequest } from "express";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import gateway from "../../api/v1/auth/[purpose]/challenge";
+import accountChallenge from "../../api/v1/auth/account/challenge";
+import guestChallenge from "../../api/v1/auth/guest/challenge";
 import {
   captureOtpBody,
   canonicalOtpIp,
@@ -14,8 +16,16 @@ const key = randomBytes(32).toString("hex");
 const api = "https://synthetic.up.railway.app";
 const origin = "https://app.example.test";
 const raw = '{ "contact": "synthetic@example.test", "type": "EMAIL" }';
-function incoming(purpose = "account", headers: Record<string, string> = {}) {
-  return new Request(`${origin}/api/v1/auth/${purpose}/challenge`, {
+const staticRoutes = [
+  ["account", accountChallenge],
+  ["guest", guestChallenge],
+] as const;
+function incoming(
+  purpose = "account",
+  headers: Record<string, string> = {},
+  search = "",
+) {
+  return new Request(`${origin}/api/v1/auth/${purpose}/challenge${search}`, {
     method: "POST",
     body: raw,
     headers: {
@@ -45,12 +55,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Vercel Node OTP gateway", () => {
-  it.each(["account", "guest"])(
-    "forwards %s raw bytes with an API-verifiable assertion",
-    async (purpose) => {
+  it.each(staticRoutes)(
+    "forwards static %s raw bytes with an API-verifiable assertion without a purpose query",
+    async (purpose, entrypoint) => {
       const fetcher = vi.fn(async () => accepted());
       vi.stubGlobal("fetch", fetcher);
-      const response = await gateway.fetch(incoming(purpose));
+      const incomingRequest = incoming(purpose);
+      expect(new URL(incomingRequest.url).search).toBe("");
+      const response = await entrypoint.fetch(incomingRequest);
       expect(response.status).toBe(202);
       expect(response.headers.get("Cache-Control")).toBe("no-store");
       const [url, options] = fetcher.mock.calls[0] as unknown as [
@@ -82,6 +94,23 @@ describe("Vercel Node OTP gateway", () => {
       expect(result).not.toContain(assertion);
       expect(result).not.toContain("192.0.2.1");
       expect(result).not.toContain("synthetic@example.test");
+    },
+  );
+  it.each(staticRoutes)(
+    "keeps query-string rejection on the static %s route",
+    async (purpose, entrypoint) => {
+      const fetcher = vi.fn();
+      vi.stubGlobal("fetch", fetcher);
+      for (const search of [
+        `?purpose=${purpose}`,
+        `?purpose=${purpose}&purpose=${purpose}`,
+        "?upstream=https://evil.test",
+      ]) {
+        const response = await entrypoint.fetch(incoming(purpose, {}, search));
+        expect(response.status, search).toBe(404);
+        expect((await response.json()).code).toBe("NOT_FOUND");
+      }
+      expect(fetcher).not.toHaveBeenCalled();
     },
   );
   it.each([
