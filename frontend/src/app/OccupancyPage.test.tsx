@@ -7,9 +7,15 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EventApiError } from "../services/events";
+import { EventApiError, getEventDetail } from "../services/events";
+import { eventDetailFixture } from "../test/event-fixture";
 import { getOperations, type OperationsSnapshot } from "../services/occupancy";
 import { OccupancyPage } from "./OccupancyPage";
+import { currentActor } from "../services/proof";
+vi.mock("../services/proof", async (original) => ({
+  ...(await original<typeof import("../services/proof")>()),
+  currentActor: vi.fn(),
+}));
 vi.mock("../services/operations-realtime", () => ({
   connectOperations: () => ({
     on: () => {},
@@ -21,6 +27,10 @@ vi.mock("../services/operations-realtime", () => ({
   }),
 }));
 vi.mock("../services/occupancy", () => ({ getOperations: vi.fn() }));
+vi.mock("../services/events", async (original) => ({
+  ...(await original<typeof import("../services/events")>()),
+  getEventDetail: vi.fn(),
+}));
 const snapshot: OperationsSnapshot = {
   event_id: "event",
   event_name: "Internal event",
@@ -37,16 +47,48 @@ const snapshot: OperationsSnapshot = {
   revision: 2,
   as_of: "2026-10-03T00:01:00Z",
 };
-beforeEach(() => vi.mocked(getOperations).mockResolvedValue(snapshot));
+beforeEach(() => {
+  vi.mocked(currentActor).mockResolvedValue({
+    user_id: "owner",
+    organizer_capable: true,
+    csrf_token: "csrf",
+    assignments: [],
+  });
+  vi.mocked(getOperations).mockResolvedValue(snapshot);
+  vi.mocked(getEventDetail).mockResolvedValue(
+    eventDetailFixture({ event_id: "event", time_zone: "Asia/Kolkata" }),
+  );
+});
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
 });
 describe("occupancy operations view", () => {
+  it("shows the assigned event role only with an authoritative operations snapshot", async () => {
+    vi.mocked(currentActor).mockResolvedValue({
+      user_id: "admin",
+      organizer_capable: false,
+      csrf_token: "csrf",
+      assignments: [
+        {
+          id: "assignment",
+          event_id: "event",
+          gate_id: null,
+          role: "EVENT_ADMIN",
+        },
+      ],
+    });
+    render(<OccupancyPage eventId="event" />);
+    expect(await screen.findByText("Role: Event Admin")).toBeVisible();
+    expect(screen.getByText(/Confirmed as of:/)).toBeVisible();
+  });
   it("holds values until an authorized snapshot resolves", () => {
     vi.mocked(getOperations).mockReturnValue(new Promise(() => {}));
     render(<OccupancyPage eventId="event" />);
-    expect(screen.getByRole("status")).toHaveTextContent("Loading occupancy");
+    expect(screen.getByText(/Loading occupancy/)).toHaveAttribute(
+      "role",
+      "status",
+    );
     expect(screen.queryByText("200%")).not.toBeInTheDocument();
   });
   it("shows above-capacity arithmetic as factual state distinct from registration", async () => {

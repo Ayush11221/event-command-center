@@ -75,9 +75,10 @@ describe("V8 private bearer detail", () => {
       ).toHaveTextContent("OPEN");
       expect(
         screen.queryByRole("button", {
-          name: /register|issue|revoke|reissue/i,
+          name: /issue|revoke|reissue/i,
         }),
       ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Register" })).toBeVisible();
       expect(document.body.textContent).not.toContain("a".repeat(43));
     },
   );

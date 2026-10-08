@@ -119,6 +119,8 @@ describe("scanner transport boundary", () => {
       event_id: "event",
       gate_id: "gate",
       authorized: true,
+      event_name: "Community event",
+      gate_label: "Gate 1",
     });
     await scannerScope("event", "gate", new AbortController().signal);
     expect(String(fetch.mock.calls[0][0])).toContain(

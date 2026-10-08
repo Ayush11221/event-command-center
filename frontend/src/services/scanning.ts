@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 import { ProofError } from "./proof";
 
 export interface ScanCommand {
@@ -5,6 +6,10 @@ export interface ScanCommand {
   event_id: string;
   gate_id: string;
   credential: string;
+}
+export interface ScannerScope {
+  event_name: string;
+  gate_label: string;
 }
 export type ScanReason =
   | "ACCEPTED"
@@ -39,7 +44,7 @@ async function request(
   signal.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, 15000);
   try {
-    const response = await fetch(new URL("/api/v1" + path, origin), {
+    const response = await accountFetch(new URL("/api/v1" + path, origin), {
       method: command ? "POST" : "GET",
       credentials: "include",
       cache: "no-store",
@@ -81,9 +86,17 @@ export async function scannerScope(
   if (
     body?.authorized !== true ||
     body.event_id !== eventId ||
-    body.gate_id !== gateId
+    body.gate_id !== gateId ||
+    typeof body.event_name !== "string" ||
+    !body.event_name ||
+    typeof body.gate_label !== "string" ||
+    !body.gate_label
   )
     throw new ProofError("INVALID_RESPONSE", 0);
+  return {
+    event_name: body.event_name,
+    gate_label: body.gate_label,
+  } as ScannerScope;
 }
 export async function submitScan(
   command: ScanCommand,

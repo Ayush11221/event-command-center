@@ -75,6 +75,7 @@ export function PublishedEventContent({
       <RegistrationPanel
         key={detail.event_id}
         eventId={detail.event_id}
+        event={detail}
         privateProof={privateProof}
       />
       <p className="freshness">

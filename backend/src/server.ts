@@ -32,9 +32,17 @@ async function main() {
       "Phone OTP delivery unavailable: SMS gateway is not configured",
     );
   }
-  const otp = new OtpService(db, foundation, sender, (message) => {
-    logger.warn(message);
-  });
+  const otp = new OtpService(
+    db,
+    foundation,
+    sender,
+    (message) => logger.warn(message),
+    (category) =>
+      logger.warn(
+        { category, delivery_attempted: false },
+        "OTP request rate limited",
+      ),
+  );
   const dependencies = {
     db,
     config: foundation,

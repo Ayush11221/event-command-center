@@ -52,14 +52,17 @@ describe("read-only management detail", () => {
         screen.getByRole("heading", { name: "Current name" }),
       ).toHaveFocus(),
     );
-    expect(screen.getByText(/Revision 3/)).toBeVisible();
+    expect(screen.getByText("Version")).not.toBeVisible();
+    fireEvent.click(screen.getByText("Advanced details"));
+    expect(screen.getByText("Version")).toBeVisible();
     expect(screen.getByText("Authorized configuration")).toBeVisible();
-    expect(screen.getByText("Configured registration capacity")).toBeVisible();
+    expect(screen.getByText("Registration limit")).toBeVisible();
     expect(
       screen.getAllByRole("button").map((button) => button.textContent),
     ).toEqual(["Reload detail"]);
-    expect(screen.getByText("Registration policy status")).toBeVisible();
-    expect(screen.getByText("OPEN")).toBeVisible();
+    expect(
+      screen.getByText("Registration opens after the event is published"),
+    ).toBeVisible();
     expect(
       screen.queryByText(/remaining places|occupancy|certificate/i),
     ).not.toBeInTheDocument();

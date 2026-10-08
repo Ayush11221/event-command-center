@@ -73,16 +73,14 @@ describe("V6 lifecycle and availability UI", () => {
           permitted_actions: ["COMPLETE", "CANCEL"],
         }),
       );
-      expect(screen.getByText("LIVE")).toBeVisible();
-      expect(screen.getByText("OPEN")).toBeVisible();
+      expect(screen.getByText("Live")).toBeVisible();
       expect(
-        screen.getByText(
-          /LIVE lifecycle prevents new registration independently/,
-        ),
+        screen.getByText("Registration is closed because the event is live"),
       ).toBeVisible();
       expect(
-        screen.getByText(/No registration policy closure reasons/),
+        screen.getByText(/Registration closes when the event becomes live/),
       ).toBeVisible();
+      expect(screen.getByText(/Available places are checked/)).toBeVisible();
       expect(
         screen.getByRole("button", { name: "Complete event" }),
       ).toBeVisible();
@@ -99,7 +97,9 @@ describe("V6 lifecycle and availability UI", () => {
         }),
         false,
       );
-      expect(screen.getByText(state)).toBeVisible();
+      expect(
+        screen.getByText(state.charAt(0) + state.slice(1).toLowerCase()),
+      ).toBeVisible();
       expect(screen.queryByRole("button")).not.toBeInTheDocument();
     },
   );
@@ -119,11 +119,11 @@ describe("V6 lifecycle and availability UI", () => {
         `Confirm: ${label}.`,
       );
       fireEvent.click(
-        screen.getByRole("button", { name: "Keep current lifecycle" }),
+        screen.getByRole("button", { name: "Keep current status" }),
       );
       expect(
         screen.getByRole("heading", {
-          name: "Lifecycle and registration policy",
+          name: "Event status and registration",
         }),
       ).toHaveFocus();
       expect(transitionEvent).not.toHaveBeenCalled();
@@ -142,11 +142,11 @@ describe("V6 lifecycle and availability UI", () => {
       "Enter a nonblank cancellation reason.",
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Keep current lifecycle" }),
+      screen.getByRole("button", { name: "Keep current status" }),
     );
     expect(
       screen.getByRole("heading", {
-        name: "Lifecycle and registration policy",
+        name: "Event status and registration",
       }),
     ).toHaveFocus();
   });
@@ -173,7 +173,7 @@ describe("V6 lifecycle and availability UI", () => {
     expect(
       screen.getByRole("button", { name: "Publish event" }),
     ).toBeDisabled();
-    expect(screen.getByText(/Resolve the Publish blockers/)).toBeVisible();
+    expect(screen.getByText(/at least one configured gate/)).toBeVisible();
   });
   it("shows all approved policy reasons and no participant metrics", () => {
     panel(
@@ -246,7 +246,7 @@ describe("V6 lifecycle and availability UI", () => {
         expect.any(AbortSignal),
       );
       expect(screen.getByRole("status")).toHaveTextContent(
-        `Lifecycle changed to ${state}`,
+        `Event is now ${state.charAt(0) + state.slice(1).toLowerCase()}`,
       );
     },
   );
@@ -281,7 +281,7 @@ describe("V6 lifecycle and availability UI", () => {
       expect.any(AbortSignal),
     );
     expect(
-      screen.getByRole("button", { name: "Changing lifecycle…" }),
+      screen.getByRole("button", { name: "Updating event status…" }),
     ).toBeDisabled();
   });
   it("keeps a cancellation reason when the confirmation is dismissed", () => {
@@ -291,7 +291,7 @@ describe("V6 lifecycle and availability UI", () => {
       target: { value: "Venue unavailable" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Keep current lifecycle" }),
+      screen.getByRole("button", { name: "Keep current status" }),
     );
     expect(transitionEvent).not.toHaveBeenCalled();
   });
@@ -302,7 +302,7 @@ describe("V6 lifecycle and availability UI", () => {
     panel();
     confirmPublish();
     const retry = await screen.findByRole("button", {
-      name: "Retry same lifecycle request",
+      name: "Retry same status request",
     });
     await waitFor(() => expect(retry).toHaveFocus());
     fireEvent.click(retry);
@@ -333,14 +333,14 @@ describe("V6 lifecycle and availability UI", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent("safe-ref");
       await waitFor(() =>
         expect(
-          screen.getByRole("button", { name: "Reload lifecycle detail" }),
+          screen.getByRole("button", { name: "Reload event status" }),
         ).toHaveFocus(),
       );
       expect(
-        screen.queryByRole("button", { name: "Retry same lifecycle request" }),
+        screen.queryByRole("button", { name: "Retry same status request" }),
       ).not.toBeInTheDocument();
       fireEvent.click(
-        screen.getByRole("button", { name: "Reload lifecycle detail" }),
+        screen.getByRole("button", { name: "Reload event status" }),
       );
       await waitFor(() => expect(props.onCurrent).toHaveBeenCalledWith(ready));
     },
@@ -381,9 +381,11 @@ describe("V6 lifecycle and availability UI", () => {
       "change is confirmed",
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Reload lifecycle detail" }),
+      screen.getByRole("button", { name: "Reload event status" }),
     );
-    await screen.findByText(/Current lifecycle and availability refreshed/);
+    await screen.findByText(
+      /Event status and registration information updated/,
+    );
     expect(transitionEvent).toHaveBeenCalledTimes(1);
   });
   it("aborts a pending transition on unmount", () => {

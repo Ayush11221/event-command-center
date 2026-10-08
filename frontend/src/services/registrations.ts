@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 import { ProofError, currentActor, currentGuest } from "./proof";
 
 export interface Registration {
@@ -21,7 +22,12 @@ export async function participantSession() {
   try {
     return { csrf: (await currentActor()).csrf_token, guest: false };
   } catch (error) {
-    if (!(error instanceof ProofError) || error.status !== 401) throw error;
+    if (
+      !(error instanceof ProofError) ||
+      error.status !== 401 ||
+      error.code !== "UNAUTHENTICATED"
+    )
+      throw error;
   }
   return { csrf: (await currentGuest()).csrf_token, guest: true };
 }
@@ -39,7 +45,7 @@ export async function registrationRequest<T>(
   signal.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, 15000);
   try {
-    const response = await fetch(new URL(`/api/v1${path}`, origin), {
+    const response = await accountFetch(new URL(`/api/v1${path}`, origin), {
       method: options ? "POST" : "GET",
       credentials: "include",
       cache: "no-store",

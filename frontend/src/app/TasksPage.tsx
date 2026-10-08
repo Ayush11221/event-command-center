@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { type ActorState } from "../services/proof";
 import { ReviewEntry } from "./ReviewEntry";
 import { TaskDetails, TaskForm } from "./TaskDetails";
+import { listStaff, type StaffAssignment } from "../services/staff";
+import { humanLabel } from "./event-presentation";
+import { useEventInformation } from "./useEventInformation";
+import { EventInformation } from "./EventInformation";
 import {
   tasksPath,
   reviewRequest,
@@ -63,6 +67,28 @@ function TaskWorkspace({
   const lifecycle = useRef(new AbortController()),
     epoch = useRef(0);
   const base = tasksPath(eventId);
+  const information = useEventInformation(staff ? eventId : null);
+  const [volunteers, setVolunteers] = useState<StaffAssignment[]>([]);
+  const [teamError, setTeamError] = useState("");
+  useEffect(() => {
+    if (!staff) return;
+    const controller = new AbortController();
+    setTeamError("");
+    void listStaff(eventId, controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted)
+          setVolunteers(
+            data.assignments.filter((row) => row.role === "VOLUNTEER"),
+          );
+      })
+      .catch(() => {
+        if (!controller.signal.aborted)
+          setTeamError(
+            "The team list could not be loaded. Refresh tasks before assigning a volunteer.",
+          );
+      });
+    return () => controller.abort();
+  }, [staff, eventId, attempt]);
   function error(e: unknown) {
     setMessage(reviewMessage(e));
     if (e instanceof Error && e.message === "VERSION_CONFLICT") setStale(true);
@@ -179,6 +205,13 @@ function TaskWorkspace({
   }
   return (
     <>
+      {staff && (
+        <>
+          <a href="/">Back to event workspace</a>
+          <EventInformation information={information} />
+        </>
+      )}
+      {teamError && <p role="alert">{teamError}</p>}
       <button
         disabled={busy}
         onClick={() => {
@@ -209,13 +242,13 @@ function TaskWorkspace({
                       disabled={busy || !!pending}
                       onClick={() => void select(t.id)}
                     >
-                      {t.title} · {t.status}
+                      {t.title} · {humanLabel(t.status)}
                     </button>
                   ) : (
                     <a
                       href={`/volunteer/${encodeURIComponent(eventId)}/tasks/${encodeURIComponent(t.id)}`}
                     >
-                      {t.title} · {t.status}
+                      {t.title} · {humanLabel(t.status)}
                     </a>
                   )}
                 </li>
@@ -232,7 +265,7 @@ function TaskWorkspace({
           )}
         </>
       )}
-      {staff && list && !pending && (
+      {staff && list && !pending && information.detail && (
         <section aria-label="Create task">
           <h2>Create task</h2>
           <p>
@@ -240,6 +273,8 @@ function TaskWorkspace({
           </p>
           <TaskForm
             busy={busy || stale}
+            timeZone={information.detail?.time_zone ?? null}
+            volunteers={volunteers}
             onSave={(body) =>
               void send({
                 path: base,
@@ -259,7 +294,9 @@ function TaskWorkspace({
           key={selected.task.id}
           task={selected.task}
           staff={staff}
-          busy={busy || stale || !!pending}
+          busy={busy || stale || !!pending || (staff && !information.detail)}
+          timeZone={information.detail?.time_zone ?? null}
+          volunteers={volunteers}
           mutate={mutate}
         />
       )}

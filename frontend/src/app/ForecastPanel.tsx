@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { OperationsState } from "./useOperations";
 import { useForecasts } from "./useForecasts";
+import { formatEventTime } from "../services/event-time";
+import { humanLabel } from "./event-presentation";
 
 const unavailable: Record<string, string> = {
   INSUFFICIENT_DATA: "Not enough accepted attendance history for evaluation.",
@@ -12,10 +14,12 @@ export function ForecastPanel({
   eventId,
   operations,
   connection,
+  timeZone = null,
 }: {
   eventId: string;
   operations: OperationsState;
   connection: string;
+  timeZone?: string | null;
 }) {
   const ready = operations.phase === "ready";
   const lost =
@@ -48,7 +52,7 @@ export function ForecastPanel({
     run.status === "AVAILABLE" &&
     (run.freshness.state === "STALE" || changed || expired || state.failed);
   return (
-    <section aria-label="Advisory crowd forecast">
+    <section className="forecast-panel" aria-label="Advisory crowd forecast">
       <h2>Crowd forecast</h2>
       <p>
         Advisory only. Observed occupancy remains authoritative; forecasts never
@@ -71,10 +75,10 @@ export function ForecastPanel({
       </p>
       {run && (
         <p className="freshness">
-          Generated: {new Date(run.generated_at).toLocaleString()}.<br />
-          Input observed through: {new Date(run.input.end_at).toLocaleString()}.
+          Generated: {formatEventTime(run.generated_at, timeZone)}.<br />
+          Input observed through: {formatEventTime(run.input.end_at, timeZone)}.
           <br />
-          Status: {run.status}.
+          Status: {humanLabel(run.status)}.
         </p>
       )}
       {run?.status === "AVAILABLE" && (
@@ -92,7 +96,7 @@ export function ForecastPanel({
                   {point.uncertainty.upper}
                 </dd>
                 <dd className="forecast-context">
-                  Target: {new Date(point.target_at).toLocaleString()}
+                  Target: {formatEventTime(point.target_at, timeZone)}
                 </dd>
               </div>
             ))}
@@ -114,13 +118,15 @@ export function ForecastPanel({
                 {(["training", "validation", "test"] as const).map((name) => (
                   <p key={name}>
                     {name}:{" "}
-                    {new Date(
+                    {formatEventTime(
                       run.evaluation!.split[name].start_at,
-                    ).toLocaleString()}{" "}
+                      timeZone,
+                    )}{" "}
                     –{" "}
-                    {new Date(
+                    {formatEventTime(
                       run.evaluation!.split[name].end_at,
-                    ).toLocaleString()}
+                      timeZone,
+                    )}
                   </p>
                 ))}
                 {run.evaluation.horizons.map((metric) => (

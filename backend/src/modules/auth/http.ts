@@ -5,6 +5,15 @@ import type { FoundationConfig } from "../../config/foundation.js";
 import { recordAudit, accountActor } from "./audit.js";
 import { ApiError, unavailable } from "./errors.js";
 import { OtpService } from "./otp.js";
+import { otpRequestSource } from "./otp-source.js";
+import {
+  ACCESS_MS,
+  idleExpiry,
+  liveSession,
+  parseRenewal,
+  requireCurrentRenewal,
+  rotateSession,
+} from "./sessions.js";
 import {
   csrfToken,
   signAccountToken,
@@ -15,6 +24,7 @@ import {
 } from "./tokens.js";
 
 const ACCOUNT_COOKIE = "eoc_session";
+const RENEWAL_COOKIE = "eoc_renewal";
 const GUEST_COOKIE = "eoc_guest_proof";
 
 export interface AuthContext {
@@ -43,13 +53,14 @@ function setAuthCookie(
   name: string,
   value: string,
   secure: boolean,
+  maxAge = ACCESS_MS,
 ) {
   response.cookie(name, value, {
     httpOnly: true,
     secure,
-    sameSite: name === ACCOUNT_COOKIE ? "none" : "lax",
-    path: "/api/v1",
-    maxAge: 15 * 60_000,
+    sameSite: name === GUEST_COOKIE ? "lax" : "none",
+    path: name === RENEWAL_COOKIE ? "/api/v1/auth" : "/api/v1",
+    maxAge,
   });
 }
 
@@ -57,8 +68,8 @@ function clearAuthCookie(response: Response, name: string, secure: boolean) {
   response.clearCookie(name, {
     httpOnly: true,
     secure,
-    sameSite: name === ACCOUNT_COOKIE ? "none" : "lax",
-    path: "/api/v1",
+    sameSite: name === GUEST_COOKIE ? "lax" : "none",
+    path: name === RENEWAL_COOKIE ? "/api/v1/auth" : "/api/v1",
   });
 }
 
@@ -89,6 +100,75 @@ function proofInput(request: Request) {
     throw new ApiError(400, "VALIDATION", "Invalid verification input");
   }
   return { type: body.type, contact: body.contact, body };
+}
+
+function accountInput(request: Request, verifying = false) {
+  const result = proofInput(request);
+  const allowed = verifying ? ["type", "contact", "code"] : ["type", "contact"];
+  if (Object.keys(result.body).some((key) => !allowed.includes(key))) {
+    throw new ApiError(400, "VALIDATION", "Invalid verification input");
+  }
+  return result;
+}
+
+async function issueAccountCookies(
+  response: Response,
+  deps: AuthDependencies,
+  result: {
+    userId: string;
+    sessionId: string;
+    renewal: string;
+    absoluteExpiresAt: Date;
+  },
+) {
+  const token = await signAccountToken(
+    result.userId,
+    result.sessionId,
+    deps.config.jwtSecret,
+  );
+  setAuthCookie(response, ACCOUNT_COOKIE, token, deps.config.cookieSecure);
+  setAuthCookie(
+    response,
+    RENEWAL_COOKIE,
+    result.renewal,
+    deps.config.cookieSecure,
+    Math.max(0, result.absoluteExpiresAt.getTime() - Date.now()),
+  );
+}
+
+async function renewalAuthority(
+  request: Request,
+  deps: AuthDependencies,
+  bootstrap = false,
+) {
+  const proof = parseRenewal(
+    cookie(request, RENEWAL_COOKIE),
+    deps.config.jwtSecret,
+  );
+  try {
+    const stored = await deps.db.session.findUnique({
+      where: { id: proof.sessionId },
+    });
+    // A MAC-authenticated historical credential can obtain only the session's
+    // CSRF token, allowing POST refresh to detect and revoke a stale replay.
+    // This read grants no access and never extends the logical session.
+    const session =
+      bootstrap &&
+      liveSession(stored, new Date()) &&
+      stored.renewalHash &&
+      stored.absoluteExpiresAt
+        ? stored
+        : requireCurrentRenewal(
+            stored,
+            proof,
+            deps.config.jwtSecret,
+            new Date(),
+          );
+    return { userId: session.userId, sessionId: session.id };
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw unavailable();
+  }
 }
 
 function safeUuid(value: unknown): value is string {
@@ -124,13 +204,34 @@ export async function authenticate(
   } catch {
     throw unavailable();
   }
-  if (
-    !session ||
-    session.userId !== claims.userId ||
-    session.revokedAt ||
-    session.expiresAt <= new Date()
-  ) {
+  const now = new Date();
+  if (!liveSession(session, now) || session.userId !== claims.userId) {
     throw new ApiError(401, "UNAUTHENTICATED", "Authentication required");
+  }
+  // Touch only renewable sessions, at most once per minute. Guard the write so
+  // an expiry/revocation racing this read cannot revive authority.
+  if (
+    session.absoluteExpiresAt &&
+    session.expiresAt.getTime() <
+      idleExpiry(now, session.absoluteExpiresAt).getTime() - 60_000
+  ) {
+    try {
+      const touched = await deps.db.session.updateMany({
+        where: {
+          id: session.id,
+          userId: claims.userId,
+          revokedAt: null,
+          expiresAt: { gt: now },
+          absoluteExpiresAt: { gt: now },
+        },
+        data: { expiresAt: idleExpiry(now, session.absoluteExpiresAt) },
+      });
+      if (!touched.count)
+        throw new ApiError(401, "UNAUTHENTICATED", "Authentication required");
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw unavailable();
+    }
   }
   return { userId: claims.userId, sessionId: claims.sessionId };
 }
@@ -154,15 +255,65 @@ export function requireCsrf(
 
 export function authRouter(deps: AuthDependencies) {
   const router = Router();
+  router.use((_request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    response.set("Pragma", "no-cache");
+    next();
+  });
+
+  // Safe CSRF bootstrap after the access cookie has expired. No access
+  // credential or account facts are returned; renewal authority is unchanged.
+  router.get("/account/session", async (request, response) => {
+    const actor = await renewalAuthority(request, deps, true);
+    response.json({
+      csrf_token: csrfToken(actor.sessionId, deps.config.jwtSecret),
+    });
+  });
+
+  router.post("/account/refresh", async (request, response) => {
+    requireOrigin(request, deps.frontendOrigin);
+    const proof = parseRenewal(
+      cookie(request, RENEWAL_COOKIE),
+      deps.config.jwtSecret,
+    );
+    requireCsrf(request, { userId: "", sessionId: proof.sessionId }, deps);
+    let result;
+    try {
+      result = await deps.db.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT "id" FROM "Session" WHERE "id" = ${proof.sessionId}::uuid FOR UPDATE`;
+        const session = await tx.session.findUnique({
+          where: { id: proof.sessionId },
+        });
+        return rotateSession(
+          tx,
+          session,
+          proof,
+          deps.config,
+          response.locals.correlationId as string,
+        );
+      });
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw unavailable();
+    }
+    if ("error" in result) throw result.error;
+    await issueAccountCookies(response, deps, result);
+    response.json({
+      status: "authenticated",
+      correlation_id: response.locals.correlationId,
+    });
+  });
 
   router.post("/account/challenge", async (request, response) => {
     requireOrigin(request, deps.frontendOrigin);
-    const { type, contact } = proofInput(request);
+    const { type, contact } = accountInput(request);
     const deliver = await deps.otp.request(
       ProofPurpose.ACCOUNT,
       type,
       contact,
       response.locals.correlationId as string,
+      null,
+      otpRequestSource(request, deps.config.otpAbuse),
     );
     if (deliver)
       response.once("finish", () => {
@@ -176,7 +327,7 @@ export function authRouter(deps: AuthDependencies) {
 
   router.post("/account/verify", async (request, response) => {
     requireOrigin(request, deps.frontendOrigin);
-    const { type, contact, body } = proofInput(request);
+    const { type, contact, body } = accountInput(request, true);
     if (typeof body.code !== "string") {
       throw new ApiError(400, "VALIDATION", "Invalid verification input");
     }
@@ -188,12 +339,7 @@ export function authRouter(deps: AuthDependencies) {
       response.locals.correlationId as string,
     );
     if (result.kind !== "account") throw unavailable();
-    const token = await signAccountToken(
-      result.userId,
-      result.sessionId,
-      deps.config.jwtSecret,
-    );
-    setAuthCookie(response, ACCOUNT_COOKIE, token, deps.config.cookieSecure);
+    await issueAccountCookies(response, deps, result);
     response.json({
       status: "authenticated",
       correlation_id: response.locals.correlationId,
@@ -208,6 +354,8 @@ export function authRouter(deps: AuthDependencies) {
       type,
       contact,
       response.locals.correlationId as string,
+      null,
+      otpRequestSource(request, deps.config.otpAbuse),
     );
     if (deliver)
       response.once("finish", () => {
@@ -297,13 +445,19 @@ export function authRouter(deps: AuthDependencies) {
   });
 
   router.post("/logout", async (request, response) => {
-    const actor = await authenticate(request, deps);
+    let actor;
+    try {
+      actor = await authenticate(request, deps);
+    } catch (error) {
+      if (!(error instanceof ApiError) || error.status !== 401) throw error;
+      actor = await renewalAuthority(request, deps);
+    }
     requireCsrf(request, actor, deps);
     try {
       await deps.db.$transaction(async (tx) => {
         await tx.session.update({
           where: { id: actor.sessionId },
-          data: { revokedAt: new Date() },
+          data: { revokedAt: new Date(), renewalHash: null },
         });
         await recordAudit(tx, {
           actorKind: accountActor,
@@ -317,6 +471,7 @@ export function authRouter(deps: AuthDependencies) {
       throw unavailable();
     }
     clearAuthCookie(response, ACCOUNT_COOKIE, deps.config.cookieSecure);
+    clearAuthCookie(response, RENEWAL_COOKIE, deps.config.cookieSecure);
     response.json({
       status: "logged_out",
       correlation_id: response.locals.correlationId,

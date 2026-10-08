@@ -43,7 +43,7 @@ export function CreateDraftForm({
       setAttempt(null);
       setName("");
       setFeedback(
-        `Draft “${result.name}” created. Revision ${result.revision}.`,
+        `Draft “${result.name}” created. Continue in Setup to prepare your event.`,
       );
       onCreated(result.event_id);
     } catch (error) {
@@ -76,7 +76,7 @@ export function CreateDraftForm({
             ? ` Reference: ${error.correlationId}.`
             : "";
         setFeedback(
-          `The result is unknown. Retry the same draft request with its original key.${reference}`,
+          `The result is unknown. Retry this request to confirm it without creating a duplicate.${reference}`,
         );
       }
     } finally {
@@ -103,7 +103,7 @@ export function CreateDraftForm({
     >
       <div className="section-heading">
         <p className="eyebrow">START HERE</p>
-        <h2 id="create-heading">Create a Draft</h2>
+        <h2 id="create-heading">Create an event</h2>
         <p>
           A name is enough to start. Your event remains a Draft until it is
           fully configured and you publish it.
@@ -130,7 +130,7 @@ export function CreateDraftForm({
             }
           />
           <button type="submit" disabled={pending || attempt !== null}>
-            {pending ? "Creating…" : "Create Draft"}
+            {pending ? "Creating…" : "Create event"}
           </button>
         </div>
         <p id="event-name-help" className="field-help">

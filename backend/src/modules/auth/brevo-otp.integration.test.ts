@@ -153,10 +153,29 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         expect(p.fetchMock).toHaveBeenCalledTimes(1);
       },
     );
-    it("does not deliver for unknown accounts or introduce an account-existence signal", async () => {
+    it("delivers for new verified-email signup without creating an account before proof or exposing existence", async () => {
       const p = provider(),
         otp = new OtpService(db, config, createOtpSender(config));
       const contact = `${randomUUID()}@example.invalid`;
+      const deliver = await otp.request(
+        ProofPurpose.ACCOUNT,
+        ContactType.EMAIL,
+        contact,
+        randomUUID(),
+      );
+      expect(deliver).toBeTypeOf("function");
+      await deliver!();
+      expect(
+        await db.verifiedContact.count({
+          where: {
+            lookupHash: normalizeContact(
+              ContactType.EMAIL,
+              contact,
+              config.contactKey,
+            ).lookupHash,
+          },
+        }),
+      ).toBe(0);
       expect(
         await otp.request(
           ProofPurpose.ACCOUNT,
@@ -165,15 +184,7 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
           randomUUID(),
         ),
       ).toBeNull();
-      expect(
-        await otp.request(
-          ProofPurpose.ACCOUNT,
-          ContactType.EMAIL,
-          contact,
-          randomUUID(),
-        ),
-      ).toBeNull();
-      expect(p.fetchMock).not.toHaveBeenCalled();
+      expect(p.fetchMock).toHaveBeenCalledTimes(1);
     });
     it("preserves guest email proof and its event binding with the same selected transport", async () => {
       const p = provider(),

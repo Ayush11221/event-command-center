@@ -74,24 +74,26 @@ describe("V5 Gate configuration and readiness", () => {
     (mode) => {
       applyTheme(mode, true);
       const props = panel();
-      expect(screen.getByText(/Gate missing/)).toHaveTextContent(
-        "Publish and Live require a gate",
+      expect(screen.getAllByText(/at least one configured gate/)).toHaveLength(
+        3,
       );
       expect(
-        screen.getByRole("heading", { name: "Publish blockers" }),
+        screen.getByRole("heading", { name: "Before publishing" }),
       ).toBeVisible();
       expect(
-        screen.getByRole("heading", { name: "Live blockers" }),
+        screen.getByRole("heading", { name: "Before starting the event" }),
       ).toBeVisible();
-      expect(screen.getByText("No gates associated.")).toBeVisible();
+      expect(screen.getByText("No gates configured.")).toBeVisible();
       props.view.rerender(<GatePanel {...props} detail={configured} />);
       expect(screen.getByText(/Gate configured/)).toHaveTextContent(
-        "gate prerequisite is satisfied",
+        "gate requirement for publishing and starting the event is satisfied",
       );
-      expect(screen.getByText("Gate gate-one")).toBeVisible();
-      expect(screen.getByText("Choose event visibility.")).toBeVisible();
+      expect(screen.getByText("Gate 1")).toBeVisible();
       expect(
-        screen.queryByRole("heading", { name: "Live blockers" }),
+        screen.getByText("Choose Public or Invitation access in Setup."),
+      ).toBeVisible();
+      expect(
+        screen.queryByRole("heading", { name: "Before starting the event" }),
       ).not.toBeInTheDocument();
       expect(document.documentElement.dataset.themeMode).toBe(mode);
       expect(document.documentElement.dataset.theme).toBe(
@@ -116,6 +118,7 @@ describe("V5 Gate configuration and readiness", () => {
             relationship,
           }}
           csrf="csrf"
+          section="gates"
           onUpdated={updated}
           onSessionExpired={vi.fn()}
           onScopeLost={vi.fn()}
@@ -125,9 +128,7 @@ describe("V5 Gate configuration and readiness", () => {
         await screen.findByRole("button", { name: "Create gate" }),
       );
       expect(
-        await screen.findByText(
-          /Gate gate-one created. Current detail refreshed/,
-        ),
+        await screen.findByText(/Gate created. Current detail refreshed/),
       ).toBeVisible();
       expect(createGate).toHaveBeenCalledWith(
         "one",
@@ -137,11 +138,11 @@ describe("V5 Gate configuration and readiness", () => {
         expect.any(AbortSignal),
       );
       expect(updated).toHaveBeenCalledWith(configured);
-      expect(screen.getByText(/Revision 4/)).toBeVisible();
+      expect(screen.getByText("Gate 1")).toBeVisible();
       expect(
         within(
           screen.getByRole("region", {
-            name: "Gate configuration and readiness",
+            name: "Gates",
           }),
         ).queryByRole("button", {
           name: /publish|live|scanner|registration|cancel/i,
@@ -153,7 +154,7 @@ describe("V5 Gate configuration and readiness", () => {
     "hides creation in %s even with stale action guidance",
     (state) => {
       panel({ ...configured, state });
-      expect(screen.getByText("Gate gate-one")).toBeVisible();
+      expect(screen.getByText("Gate 1")).toBeVisible();
       expect(
         screen.queryByRole("button", { name: "Create gate" }),
       ).not.toBeInTheDocument();

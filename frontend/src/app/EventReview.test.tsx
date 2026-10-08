@@ -16,6 +16,9 @@ import {
   type TaskList,
   type Results,
 } from "../services/event-review";
+import { getEventDetail } from "../services/events";
+import { eventDetailFixture } from "../test/event-fixture";
+import { listStaff } from "../services/staff";
 import { TasksPage, VolunteerEntry } from "./TasksPage";
 import { ResultsPage } from "./ResultsPage";
 import { AuditPage } from "./AuditPage";
@@ -26,6 +29,14 @@ vi.mock("../services/proof", async () => ({
 vi.mock("../services/event-review", async () => ({
   ...(await vi.importActual("../services/event-review")),
   reviewRequest: vi.fn(),
+}));
+vi.mock("../services/events", async (original) => ({
+  ...(await original<typeof import("../services/events")>()),
+  getEventDetail: vi.fn(),
+}));
+vi.mock("../services/staff", async (original) => ({
+  ...(await original<typeof import("../services/staff")>()),
+  listStaff: vi.fn(),
 }));
 const actor: ActorState = {
   user_id: "vol",
@@ -58,6 +69,13 @@ const list: TaskList = {
 };
 const api = vi.mocked(reviewRequest);
 beforeEach(() => {
+  vi.mocked(getEventDetail).mockResolvedValue(
+    eventDetailFixture({ event_id: "event", time_zone: "Asia/Kolkata" }),
+  );
+  vi.mocked(listStaff).mockResolvedValue({
+    assignments: [],
+    allowed_roles: [],
+  });
   vi.mocked(currentActor).mockResolvedValue(actor);
   api.mockImplementation(async (path) =>
     path.includes("?")
@@ -248,14 +266,14 @@ describe("Slice 11 screens", () => {
       });
     render(<AuditPage eventId="event" />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "Next audit records" }),
+      await screen.findByRole("button", { name: "Next activity" }),
     );
-    await screen.findByText("No matching audit records.");
+    await screen.findByText("No matching activity.");
     expect(api.mock.calls[1]![0]).toContain("cursor=signed");
     fireEvent.change(screen.getByLabelText("Action (exact)"), {
       target: { value: "EVENT_UPDATED" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Search audit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Search activity" }));
     await waitFor(() =>
       expect(api.mock.calls.at(-1)![0]).toBe(
         "/events/event/audit-events?action=EVENT_UPDATED",

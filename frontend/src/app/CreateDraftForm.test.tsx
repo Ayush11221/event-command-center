@@ -47,7 +47,7 @@ describe("Draft creation", () => {
     fireEvent.change(screen.getByLabelText(/Event name/), {
       target: { value: "  Opening night  " },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create Draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
     expect(
       await screen.findByText(/Draft “Opening night” created/),
     ).toBeVisible();
@@ -75,7 +75,7 @@ describe("Draft creation", () => {
     fireEvent.change(screen.getByLabelText(/Event name/), {
       target: { value: "Uncertain" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create Draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
     expect(await screen.findByText(/result is unknown/)).toBeVisible();
     expect(screen.getByLabelText(/Event name/)).toBeDisabled();
     await waitFor(() =>
@@ -98,7 +98,7 @@ describe("Draft creation", () => {
     fireEvent.change(screen.getByLabelText(/Event name/), {
       target: { value: "Needs correction" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create Draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
     expect(
       await screen.findByText(/Enter a nonblank event name/),
     ).toBeVisible();
@@ -112,7 +112,7 @@ describe("Draft creation", () => {
     fireEvent.change(screen.getByLabelText(/Event name/), {
       target: { value: name },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create Draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
     expect(screen.getByText(/Enter a nonblank event name/)).toBeVisible();
     expect(createDraft).not.toHaveBeenCalled();
   });

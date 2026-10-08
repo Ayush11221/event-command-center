@@ -8,7 +8,7 @@ import {
   type ManagementEvent,
 } from "../services/events";
 import { eventDetailFixture } from "../test/event-fixture";
-import { currentActor, type ActorState } from "../services/proof";
+import { currentActor, logout, type ActorState } from "../services/proof";
 import { Workspace } from "./Workspace";
 
 vi.mock("../services/events", async (importOriginal) => {
@@ -53,6 +53,56 @@ afterEach(() => {
 });
 
 describe("authenticated Event workspace", () => {
+  it("uses the new access verification after reauthentication while retaining draft input", async () => {
+    vi.mocked(currentActor).mockResolvedValue(actor);
+    vi.mocked(listAllEvents).mockResolvedValue([]);
+    vi.mocked(logout).mockResolvedValue();
+    const p = {
+      initialActor: actor,
+      onSessionExpired: vi.fn(),
+      onSignedOut: vi.fn(),
+    };
+    const view = render(<Workspace {...p} />);
+    const input = await screen.findByLabelText(/Event name/);
+    fireEvent.change(input, { target: { value: "Unsaved draft" } });
+    view.rerender(
+      <Workspace {...p} initialActor={{ ...actor, csrf_token: "new-csrf" }} />,
+    );
+    expect(input).toHaveValue("Unsaved draft");
+    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    await vi.waitFor(() => expect(logout).toHaveBeenCalledWith("new-csrf"));
+  });
+  it("keeps the mounted draft and its unsaved value during visibility renewal and transient session-store failure", async () => {
+    vi.mocked(currentActor).mockResolvedValue(actor);
+    vi.mocked(listAllEvents).mockResolvedValue([]);
+    render(
+      <Workspace
+        initialActor={actor}
+        onSessionExpired={vi.fn()}
+        onSignedOut={vi.fn()}
+      />,
+    );
+    const input = await screen.findByLabelText(/Event name/);
+    fireEvent.change(input, { target: { value: "Unsaved event" } });
+    fireEvent(document, new Event("visibilitychange"));
+    await vi.waitFor(() => expect(currentActor).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Refresh workspace" }),
+      ).toBeEnabled(),
+    );
+    expect(screen.getByLabelText(/Event name/)).toBe(input);
+    expect(input).toHaveValue("Unsaved event");
+    vi.mocked(currentActor).mockRejectedValueOnce(
+      new Error("store unavailable"),
+    );
+    fireEvent(document, new Event("visibilitychange"));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "session could not be checked",
+    );
+    expect(screen.getByLabelText(/Event name/)).toBe(input);
+    expect(input).toHaveValue("Unsaved event");
+  });
   it.each(["GATE_SECURITY", "VOLUNTEER", "PARTICIPANT"])(
     "offers no event-wide operations link for %s alone",
     async (role) => {
@@ -77,9 +127,16 @@ describe("authenticated Event workspace", () => {
           onSignedOut={vi.fn()}
         />,
       );
-      await screen.findByRole("heading", { name: "No event context" });
+      if (role === "GATE_SECURITY") {
+        await screen.findByText("Role: Gate / Security");
+        expect(
+          screen.getByRole("link", {
+            name: "Scan entry QR at your assigned gate",
+          }),
+        ).toHaveAttribute("href", "/scanner");
+      } else await screen.findByRole("heading", { name: "No event context" });
       expect(
-        screen.queryByRole("link", { name: "Attendance & occupancy" }),
+        screen.queryByRole("link", { name: "Live Operations" }),
       ).not.toBeInTheDocument();
     },
   );
@@ -111,7 +168,7 @@ describe("authenticated Event workspace", () => {
         />,
       );
       expect(
-        await screen.findByRole("link", { name: "Attendance & occupancy" }),
+        await screen.findByRole("link", { name: "Live Operations" }),
       ).toHaveAttribute("href", "/operations/one");
     },
   );
@@ -126,7 +183,7 @@ describe("authenticated Event workspace", () => {
       />,
     );
     expect(
-      await screen.findByRole("heading", { name: "Owned events" }),
+      await screen.findByRole("heading", { name: "My events" }),
     ).toBeVisible();
     expect(screen.queryByLabelText("Event and role")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Owned draft/ })).toBeVisible();
@@ -175,16 +232,16 @@ describe("authenticated Event workspace", () => {
       screen.getByRole("region", { name: "Event Admin context" }),
     ).toBeVisible();
     expect(
-      screen.queryByRole("button", { name: "Create Draft" }),
+      screen.queryByRole("button", { name: "Create event" }),
     ).not.toBeInTheDocument();
     fireEvent.change(switcher, { target: { value: "owned:one" } });
     expect(
-      await screen.findByRole("heading", { name: "Owned events" }),
+      await screen.findByRole("heading", { name: "My events" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Create Draft" })).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Refresh access" }));
+    expect(screen.getByRole("button", { name: "Create event" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Refresh workspace" }));
     expect(
-      await screen.findByRole("heading", { name: "Owned events" }),
+      await screen.findByRole("heading", { name: "My events" }),
     ).toBeVisible();
     expect(screen.queryByLabelText("Event and role")).not.toBeInTheDocument();
     expect(localStorage.getItem("eoc.active_context.v1")).toContain(
@@ -208,7 +265,7 @@ describe("authenticated Event workspace", () => {
       "could not be loaded",
     );
     fireEvent.click(screen.getByRole("button", { name: "Retry event list" }));
-    expect(await screen.findByText("No owned events yet")).toBeVisible();
+    expect(await screen.findByText("No events yet")).toBeVisible();
   });
 
   it("shows only assigned events for Admin, supports detail navigation and preserves role limits", async () => {
@@ -234,9 +291,9 @@ describe("authenticated Event workspace", () => {
     expect(listAllEvents).toHaveBeenCalledWith("assigned");
     expect(listAllEvents).not.toHaveBeenCalledWith("owned");
     expect(
-      screen.queryByRole("button", { name: "Create Draft" }),
+      screen.queryByRole("button", { name: "Create event" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Event setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
     expect(
       await screen.findByRole("heading", { name: "Owned draft" }),
     ).toBeVisible();
@@ -246,14 +303,16 @@ describe("authenticated Event workspace", () => {
         name: /publish|cancel|live|capacity|certificate/i,
       }),
     ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Gates" }));
     expect(screen.getByRole("button", { name: "Create gate" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
     fireEvent.click(screen.getByRole("button", { name: "Edit event" }));
     expect(screen.getByRole("form", { name: "Edit event" })).toBeVisible();
     expect(screen.queryByLabelText("Visibility")).not.toBeInTheDocument();
     expect(
-      screen.queryByLabelText("Manual registration closure configured"),
+      screen.queryByLabelText("Close registration manually"),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Assigned events" }));
+    fireEvent.click(screen.getByRole("button", { name: "My events" }));
     expect(
       await screen.findByRole("heading", { name: "Assigned events" }),
     ).toBeVisible();
@@ -282,9 +341,7 @@ describe("authenticated Event workspace", () => {
         onSignedOut={vi.fn()}
       />,
     );
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Loading authorized events",
-    );
+    expect(screen.getByRole("status")).toHaveTextContent("Loading workspace");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "could not be loaded",
     );
@@ -292,7 +349,7 @@ describe("authenticated Event workspace", () => {
     expect(await screen.findByText("No assigned events.")).toBeVisible();
     expect(localStorage.getItem("eoc.active_context.v1")).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Event setup" }),
+      screen.queryByRole("button", { name: "Overview" }),
     ).not.toBeInTheDocument();
   });
 
@@ -321,7 +378,7 @@ describe("authenticated Event workspace", () => {
     expect(
       await screen.findByRole("heading", { name: "Assigned events" }),
     ).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Event setup" }));
+    fireEvent.click(screen.getByRole("button", { name: "Overview" }));
     expect(
       await screen.findByRole("heading", { name: "No event context" }),
     ).toBeVisible();

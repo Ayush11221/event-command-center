@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 import { ProofError } from "./proof";
 
 export class CertificateError extends ProofError {
@@ -82,7 +83,7 @@ async function response(
   signal.addEventListener("abort", abort, { once: true });
   const timer = setTimeout(abort, 15000);
   try {
-    const result = await fetch(new URL(`/api/v1${path}`, origin), {
+    const result = await accountFetch(new URL(`/api/v1${path}`, origin), {
       method: command ? "POST" : "GET",
       credentials: "include",
       cache: "no-store",

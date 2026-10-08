@@ -21,6 +21,7 @@ it("defaults explicitly to SMTP even in production and ignores unselected Brevo 
   const config = parseFoundationConfig({
     ...env,
     NODE_ENV: "production",
+    OTP_SOURCE_MODE: "direct",
     BREVO_API_KEY: "unused",
   });
   expect(config.emailTransport).toBe("smtp");

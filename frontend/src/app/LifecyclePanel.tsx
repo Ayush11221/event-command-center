@@ -6,6 +6,12 @@ import {
   type ManagementDetail,
   type TransitionBody,
 } from "../services/events";
+import { formatEventTime } from "../services/event-time";
+import {
+  humanLabel,
+  readinessLabels,
+  registrationStatus,
+} from "./event-presentation";
 
 const controls = [
   {
@@ -46,6 +52,7 @@ interface Props {
   onCurrent: (detail: ManagementDetail) => void;
   onSessionExpired: () => void;
   onScopeLost: () => void;
+  registeredCount?: number | null;
 }
 interface Attempt {
   body: TransitionBody;
@@ -60,6 +67,7 @@ export function LifecyclePanel({
   onCurrent,
   onSessionExpired,
   onScopeLost,
+  registeredCount,
 }: Props) {
   const [selected, setSelected] = useState<(typeof controls)[number] | null>(
     null,
@@ -134,12 +142,12 @@ export function LifecyclePanel({
       setReason("");
       setRefreshRequired(true);
       setFeedback(
-        `Lifecycle changed to ${result.state}. Revision ${result.revision}. Refreshing current detail.`,
+        `Event is now ${humanLabel(result.state)}. Updating latest information.`,
       );
       await refresh(signal);
       if (!signal.aborted)
         setFeedback(
-          `Lifecycle changed to ${result.state}. Current detail refreshed.`,
+          `Event is now ${humanLabel(result.state)}. Latest information updated.`,
         );
     } catch (error) {
       if (signal.aborted || denied(error)) return;
@@ -151,7 +159,7 @@ export function LifecyclePanel({
         setRefreshRequired(true);
         setAttempt(null);
         setFeedback(
-          `The lifecycle change is confirmed, but current detail could not be refreshed. Retry loading detail.${reference}`,
+          `The event status change is confirmed, but current detail could not be refreshed. Retry loading detail.${reference}`,
         );
       } else if (
         error instanceof EventApiError &&
@@ -161,11 +169,11 @@ export function LifecyclePanel({
         setRefreshRequired(true);
         setFeedback(
           (error.code === "MISSING_CONFIGURED_GATE"
-            ? "A configured gate is required. Reload current detail to review blockers."
+            ? readinessLabels.CONFIGURED_GATE_REQUIRED
             : error.code === "VALIDATION"
-              ? "The lifecycle request was rejected. Review the cancellation reason or event configuration, then reload current detail."
+              ? "The status change was rejected. Review the cancellation reason or event setup, then reload current detail."
               : error.code === "INVALID_TRANSITION"
-                ? "This lifecycle transition is no longer permitted. Reload current detail."
+                ? "This event status change is no longer available. Reload current detail."
                 : error.code === "IDEMPOTENCY_CONFLICT"
                   ? "This request conflicts with a previous request. Reload current detail."
                   : "Event data changed. Reload current detail before proceeding.") +
@@ -174,7 +182,7 @@ export function LifecyclePanel({
       } else {
         setAttempt(next);
         setFeedback(
-          `The lifecycle result is unknown. Retry the same request to confirm the outcome.${reference}`,
+          `The status change result is unknown. Retry the same request to confirm the outcome.${reference}`,
         );
       }
     } finally {
@@ -190,7 +198,7 @@ export function LifecyclePanel({
       await refresh(signal);
       if (!signal.aborted)
         setFeedback(
-          "Current lifecycle and availability refreshed. Review before proceeding.",
+          "Event status and registration information updated. Review before proceeding.",
         );
     } catch (error) {
       if (!signal.aborted && !denied(error))
@@ -207,54 +215,48 @@ export function LifecyclePanel({
       aria-labelledby="lifecycle-panel-heading"
     >
       <h3 id="lifecycle-panel-heading" ref={heading} tabIndex={-1}>
-        Lifecycle and registration policy
+        Event status and registration
       </h3>
       <dl className="event-detail-fields">
         <div>
-          <dt>Lifecycle state</dt>
-          <dd>{detail.state}</dd>
+          <dt>Event status</dt>
+          <dd>{humanLabel(detail.state)}</dd>
         </div>
         <div>
-          <dt>Registration policy status</dt>
-          <dd>{detail.availability.policy_status}</dd>
+          <dt>Registration</dt>
+          <dd>{registrationStatus(detail, registeredCount)}</dd>
         </div>
         <div>
-          <dt>Policy opening time</dt>
+          <dt>Registration opens</dt>
           <dd>
             {detail.availability.opens_at
-              ? new Date(detail.availability.opens_at).toLocaleString()
+              ? formatEventTime(detail.availability.opens_at, detail.time_zone)
               : "On publication"}
           </dd>
         </div>
         <div>
-          <dt>Policy closing time</dt>
+          <dt>Registration closes</dt>
           <dd>
             {detail.availability.closes_at
-              ? new Date(detail.availability.closes_at).toLocaleString()
+              ? formatEventTime(detail.availability.closes_at, detail.time_zone)
               : "Not configured"}
           </dd>
         </div>
       </dl>
-      <p className="notice">
-        {detail.state === "PUBLISHED"
-          ? "Published lifecycle permits registration only when registration policy is OPEN."
-          : `The ${detail.state} lifecycle prevents new registration independently of registration policy status.`}
-      </p>
-      {detail.availability.reasons.length > 0 ? (
+      {detail.availability.reasons.length > 0 && (
         <ul>
           {detail.availability.reasons.map((value) => (
             <li key={value}>{reasonLabels[value]}</li>
           ))}
         </ul>
-      ) : (
-        <p>No registration policy closure reasons apply.</p>
       )}
       <p>
-        Participant registration is unavailable. Policy OPEN describes
-        configuration only.
+        Available places are checked in Registrations. Registration closes when
+        the event becomes live.
       </p>
       <p className="freshness">
-        Policy confirmed {new Date(detail.availability.as_of).toLocaleString()}.
+        Registration information confirmed{" "}
+        {formatEventTime(detail.availability.as_of, detail.time_zone)}.
       </p>
       {feedback && (
         <p
@@ -326,7 +328,7 @@ export function LifecyclePanel({
             <div className="lifecycle-actions">
               <button type="submit" disabled={busy}>
                 {busy
-                  ? "Changing lifecycle…"
+                  ? "Updating event status…"
                   : `Confirm ${selected.label.toLowerCase()}`}
               </button>
               <button
@@ -339,7 +341,7 @@ export function LifecyclePanel({
                   heading.current?.focus();
                 }}
               >
-                Keep current lifecycle
+                Keep current status
               </button>
             </div>
           </form>
@@ -372,11 +374,17 @@ export function LifecyclePanel({
                       {control.label}
                     </button>
                     {blocked && (
-                      <p>
-                        Resolve the{" "}
-                        {control.action === "PUBLISH" ? "Publish" : "Live"}{" "}
-                        blockers shown in readiness.
-                      </p>
+                      <ul>
+                        {(control.action === "PUBLISH"
+                          ? detail.readiness.publish_blockers
+                          : detail.readiness.live_blockers
+                        ).map((reason) => (
+                          <li key={reason}>
+                            {readinessLabels[reason] ??
+                              "Review the event setup before continuing."}
+                          </li>
+                        ))}
+                      </ul>
                     )}
                   </div>
                 );
@@ -390,7 +398,7 @@ export function LifecyclePanel({
           disabled={busy}
           onClick={() => void send(attempt)}
         >
-          {busy ? "Confirming lifecycle…" : "Retry same lifecycle request"}
+          {busy ? "Confirming event status…" : "Retry same status request"}
         </button>
       )}
       {refreshRequired && (
@@ -400,7 +408,7 @@ export function LifecyclePanel({
           disabled={busy}
           onClick={() => void reload()}
         >
-          {busy ? "Loading current detail…" : "Reload lifecycle detail"}
+          {busy ? "Loading current detail…" : "Reload event status"}
         </button>
       )}
     </section>

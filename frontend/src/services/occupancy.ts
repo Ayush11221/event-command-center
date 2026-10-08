@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 import { EventApiError, type ManagementEvent } from "./events";
 
 export interface OperationsSnapshot {
@@ -28,7 +29,7 @@ export async function getOperations(
   signal.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, 15000);
   try {
-    const response = await fetch(
+    const response = await accountFetch(
       new URL(
         `/api/v1/events/${encodeURIComponent(eventId)}/operations`,
         origin,

@@ -28,13 +28,13 @@ function form(owner = true) {
   return props;
 }
 function changeName() {
-  fireEvent.change(screen.getByLabelText("Name"), {
+  fireEvent.change(screen.getByLabelText("Event name"), {
     target: { value: "Edited" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 }
 describe("V4 role-scoped event editing", () => {
-  it("refreshes a lifecycle rejection and removes editing when the event is now Live", async () => {
+  it("refreshes a lifecycle rejection and retains a disabled draft when the event is now Live", async () => {
     vi.mocked(getEventDetail)
       .mockResolvedValueOnce(eventDetailFixture())
       .mockResolvedValueOnce(
@@ -68,13 +68,14 @@ describe("V4 role-scoped event editing", () => {
     );
     await vi.waitFor(() =>
       expect(
-        screen.queryByRole("form", { name: "Edit event" }),
-      ).not.toBeInTheDocument(),
+        screen.getByRole("button", { name: "Save changes" }),
+      ).toBeDisabled(),
     );
     expect(
       screen.queryByRole("button", { name: "Edit event" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText(/Revision 4/)).toBeVisible();
+    expect(screen.getByLabelText("Event name")).toHaveValue("Edited");
+    expect(screen.getByText(/Your draft is retained/)).toBeVisible();
     expect(editEvent).toHaveBeenCalledTimes(1);
   });
   it("does not offer editing when the server's current actions exclude it", async () => {
@@ -101,18 +102,10 @@ describe("V4 role-scoped event editing", () => {
   });
   it("shows the complete Organizer form and saves only changed configuration", async () => {
     const props = form();
-    expect(
-      screen.getByLabelText("Registration opening time (ISO 8601 with offset)"),
-    ).toBeVisible();
-    expect(
-      screen.getByLabelText("Registration closing time (ISO 8601 with offset)"),
-    ).toBeVisible();
-    expect(
-      screen.getByLabelText("Manual registration closure configured"),
-    ).toBeVisible();
-    expect(
-      screen.getByLabelText("Configured registration capacity"),
-    ).toBeVisible();
+    expect(screen.getByLabelText("Registration opens date")).toBeVisible();
+    expect(screen.getByLabelText("Registration closes date")).toBeVisible();
+    expect(screen.getByLabelText("Close registration manually")).toBeVisible();
+    expect(screen.getByLabelText("Registration limit")).toBeVisible();
     vi.mocked(editEvent).mockResolvedValue(
       eventDetailFixture({
         name: "Edited",
@@ -120,9 +113,7 @@ describe("V4 role-scoped event editing", () => {
         registration_manually_closed: true,
       }),
     );
-    fireEvent.click(
-      screen.getByLabelText("Manual registration closure configured"),
-    );
+    fireEvent.click(screen.getByLabelText("Close registration manually"));
     changeName();
     expect(await screen.findByText("Changes saved.")).toBeVisible();
     expect(editEvent).toHaveBeenCalledWith(
@@ -202,13 +193,13 @@ describe("V4 role-scoped event editing", () => {
       );
     changeName();
     expect(await screen.findByRole("alert")).toHaveTextContent("ref");
-    expect(screen.getByLabelText("Name")).toHaveFocus();
-    expect(screen.getByLabelText("Name")).toHaveValue("Edited");
-    expect(screen.getByLabelText("Name")).toHaveAttribute(
+    expect(screen.getByLabelText("Event name")).toHaveFocus();
+    expect(screen.getByLabelText("Event name")).toHaveValue("Edited");
+    expect(screen.getByLabelText("Event name")).toHaveAttribute(
       "aria-invalid",
       "true",
     );
-    fireEvent.change(screen.getByLabelText("Name"), {
+    fireEvent.change(screen.getByLabelText("Event name"), {
       target: { value: "Corrected" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
@@ -245,10 +236,8 @@ describe("V4 role-scoped event editing", () => {
       fireEvent.click(
         screen.getByRole("button", { name: "Load current detail" }),
       );
-      expect(
-        await screen.findByText(/Current revision 7 loaded/),
-      ).toBeVisible();
-      expect(screen.getByLabelText("Name")).toHaveValue("Edited");
+      expect(await screen.findByText(/Latest event loaded/)).toBeVisible();
+      expect(screen.getByLabelText("Event name")).toHaveValue("Edited");
       expect(screen.getByLabelText("Description")).toHaveValue(
         "Concurrent description",
       );

@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { currentActor, ProofError, type ActorState } from "../services/proof";
+import { subscribeAccountSession } from "../services/account-session";
 import { ProofEntry } from "./ProofEntry";
 import { ThemeControl } from "./ThemeControl";
 import { Workspace } from "./Workspace";
@@ -14,14 +15,34 @@ import { CertificatesPage } from "./CertificatesPage";
 import { TasksPage, VolunteerEntry } from "./TasksPage";
 import { ResultsPage } from "./ResultsPage";
 import { AuditPage } from "./AuditPage";
+import { ParticipantHome } from "./ParticipantHome";
+import { accessMessage } from "./auth-feedback";
 
 function ManagementEntry() {
   const [session, setSession] = useState<
     | { state: "checking" }
-    | { state: "anonymous" }
-    | { state: "error" }
-    | { state: "authenticated"; actor: ActorState }
+    | { state: "anonymous"; expired?: boolean }
+    | { state: "error"; message: string }
+    | { state: "authenticated"; actor: ActorState; expired?: boolean }
   >({ state: "checking" });
+
+  const expire = useCallback(() => {
+    setSession((current) =>
+      current.state === "authenticated"
+        ? { ...current, expired: true }
+        : { state: "anonymous", expired: true },
+    );
+  }, []);
+  const signedOut = useCallback(() => setSession({ state: "anonymous" }), []);
+
+  useEffect(
+    () =>
+      subscribeAccountSession((event) => {
+        if (event === "expired") expire();
+        if (event === "signed-out") signedOut();
+      }),
+    [expire, signedOut],
+  );
 
   useEffect(() => {
     let current = true;
@@ -33,8 +54,8 @@ function ManagementEntry() {
         if (!current) return;
         setSession(
           error instanceof ProofError && error.status === 401
-            ? { state: "anonymous" }
-            : { state: "error" },
+            ? { state: "anonymous", expired: error.code === "SESSION_EXPIRED" }
+            : { state: "error", message: accessMessage(error) },
         );
       });
     return () => {
@@ -50,10 +71,8 @@ function ManagementEntry() {
         </main>
       ) : session.state === "error" ? (
         <main className="page-shell">
-          <h1>Session unavailable</h1>
-          <p role="alert">
-            Your session could not be checked. Check the connection and retry.
-          </p>
+          <h1>Access unavailable</h1>
+          <p role="alert">{session.message}</p>
           <button
             type="button"
             onClick={() => {
@@ -63,30 +82,79 @@ function ManagementEntry() {
                 .catch((error: unknown) => {
                   setSession(
                     error instanceof ProofError && error.status === 401
-                      ? { state: "anonymous" }
-                      : { state: "error" },
+                      ? {
+                          state: "anonymous",
+                          expired: error.code === "SESSION_EXPIRED",
+                        }
+                      : { state: "error", message: accessMessage(error) },
                   );
                 });
             }}
           >
-            Retry session check
+            Try again
           </button>
         </main>
       ) : session.state === "anonymous" ? (
         <ProofEntry
+          expired={session.expired}
           onAccountAuthenticated={(actor) =>
             setSession({ state: "authenticated", actor })
           }
         />
       ) : (
-        <Workspace
-          initialActor={session.actor}
-          onSessionExpired={() => setSession({ state: "anonymous" })}
-          onSignedOut={() => setSession({ state: "anonymous" })}
-        />
+        <>
+          {session.expired && (
+            <ProofEntry
+              expired
+              onAccountAuthenticated={(actor) =>
+                setSession({ state: "authenticated", actor })
+              }
+            />
+          )}
+          <div
+            hidden={session.expired}
+            inert={session.expired}
+            key={session.actor.user_id}
+          >
+            {session.actor.organizer_capable ||
+            session.actor.assignments.length > 0 ? (
+              <Workspace
+                initialActor={session.actor}
+                onSessionExpired={expire}
+                onSignedOut={signedOut}
+              />
+            ) : (
+              <ParticipantHome actor={session.actor} onSignedOut={signedOut} />
+            )}
+          </div>
+        </>
       )}
     </>
   );
+}
+
+function AccountSessionNotice() {
+  const [message, setMessage] = useState("");
+  useEffect(
+    () =>
+      subscribeAccountSession((event) => {
+        setMessage(
+          event === "expired"
+            ? "Your session has expired. Sign in again to continue."
+            : event === "unavailable"
+              ? "We couldn't verify your access right now. Please try again."
+              : event === "renewed"
+                ? ""
+                : "You signed out.",
+        );
+      }),
+    [],
+  );
+  return message ? (
+    <p className="notice page-shell" role="status" aria-live="polite">
+      {message}
+    </p>
+  ) : null;
 }
 
 export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
@@ -113,7 +181,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     }
   }
   useEffect(() => {
-    document.title = `${taskEvent ? "Volunteer tasks" : resultEvent ? "Completed event results" : auditEvent ? "Event audit evidence" : volunteerRoute ? "My tasks" : certificates ? "Certificates" : operations ? "Attendance and occupancy" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
+    document.title = `${taskEvent ? "Volunteer tasks" : resultEvent ? "Results" : auditEvent ? "Activity" : volunteerRoute ? "My tasks" : certificates ? "Certificates" : operations ? "Live Operations" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
   }, [
     catalog,
     eventId,
@@ -161,14 +229,22 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
           ) : (
             <>
               <a href="/">Event workspace</a>
-              <a href="/scanner" aria-current={scanner ? "page" : undefined}>
-                Gate scanner
-              </a>
+              {(scanner ||
+                operations ||
+                certificates ||
+                taskEvent ||
+                resultEvent ||
+                auditEvent) && (
+                <a href="/scanner" aria-current={scanner ? "page" : undefined}>
+                  Gate scanner
+                </a>
+              )}
             </>
           )}
         </nav>
         <ThemeControl />
       </header>
+      <AccountSessionNotice />
       {taskEvent ? (
         <TasksPage key={taskEvent} eventId={taskEvent} staff />
       ) : resultEvent ? (
@@ -193,7 +269,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
         <GateScanner />
       ) : registration ? (
         <main className="page-shell public-page">
-          <h1>Registration recovery</h1>
+          <h1>View your registration</h1>
           <RegistrationPanel registrationId={registration} />
         </main>
       ) : privatePage ? (

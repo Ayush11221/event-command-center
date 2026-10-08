@@ -12,9 +12,18 @@ import {
 } from "@prisma/client";
 import type { FoundationConfig } from "../../config/foundation.js";
 import { recordAudit, accountActor, guestActor, systemActor } from "./audit.js";
-import { normalizeContact, type Contact } from "./contact.js";
+import { encryptContact, normalizeContact, type Contact } from "./contact.js";
+import { createAccountSession } from "./sessions.js";
 import { ApiError, unavailable } from "./errors.js";
 import type { OtpSender } from "./sender.js";
+import { defaultOtpAbuseConfig } from "../../config/otp-abuse.js";
+import {
+  OtpBudgetExceeded,
+  otpContactBudgetHash,
+  reserveOtpBudgets,
+  type OtpLimitCategory,
+} from "./otp-abuse.js";
+import { canonicalOtpIp } from "./otp-source.js";
 
 const OTP_LIFETIME_MS = 5 * 60_000;
 const RESEND_COOLDOWN_MS = 60_000;
@@ -38,6 +47,8 @@ export interface VerifiedAccountResult {
   kind: "account";
   userId: string;
   sessionId: string;
+  renewal: string;
+  absoluteExpiresAt: Date;
 }
 
 export interface VerifiedGuestResult {
@@ -56,6 +67,9 @@ export class OtpService {
     private readonly reportDeliveryFailure: (
       message: string,
     ) => void = () => {},
+    private readonly reportRateLimit: (
+      category: OtpLimitCategory,
+    ) => void = () => {},
   ) {}
 
   async request(
@@ -64,6 +78,7 @@ export class OtpService {
     raw: string,
     correlationId: string,
     contextEventId: string | null = null,
+    source = "internal",
   ): Promise<OtpDelivery | null> {
     let contact: Contact;
     try {
@@ -73,16 +88,30 @@ export class OtpService {
     }
     // Configuration is channel-wide, never dependent on account existence.
     if (!this.sender.available(type)) throw unavailable();
+    const contactBudgetHash = otpContactBudgetHash(
+      contact,
+      this.config.contactKey,
+    );
+    const sourceIdentity =
+      source === "internal" ? source : canonicalOtpIp(source);
     const id = randomUUID();
     const code = randomInt(0, 1_000_000).toString().padStart(6, "0");
     let shouldDeliver = false;
     let coolingDown = false;
     try {
       await this.db.$transaction(async (tx) => {
+        await reserveOtpBudgets(
+          tx,
+          this.config.otpAbuse ?? defaultOtpAbuseConfig,
+          contactBudgetHash,
+          sourceIdentity,
+          this.config.otpKey,
+        );
         await lockContact(tx, contact.lookupHash);
         const now = new Date();
         shouldDeliver =
           purpose === ProofPurpose.GUEST_OWNERSHIP ||
+          type === ContactType.EMAIL ||
           Boolean(
             await tx.verifiedContact.findUnique({
               where: {
@@ -138,6 +167,8 @@ export class OtpService {
         });
       });
     } catch (error) {
+      if (error instanceof OtpBudgetExceeded)
+        this.reportRateLimit(error.category);
       if (error instanceof ApiError) throw error;
       throw unavailable();
     }
@@ -150,7 +181,10 @@ export class OtpService {
     if (!shouldDeliver) return null;
     // The HTTP response is deliberately independent of sender latency and outcome.
     // A 202 means the challenge was accepted, not that delivery succeeded.
+    let deliveryStarted = false;
     return async () => {
+      if (deliveryStarted) return;
+      deliveryStarted = true;
       try {
         await this.sender.send(type, contact.value, code);
         await this.db.$transaction(async (tx) => {
@@ -310,29 +344,45 @@ export class OtpService {
               contextEventId,
             } as const;
           }
-          const linked = await tx.verifiedContact.findUnique({
+          let linked = await tx.verifiedContact.findUnique({
             where: {
               type_lookupHash: { type, lookupHash: contact.lookupHash },
             },
           });
-          if (!linked) throw unavailable();
-          const sessionId = randomUUID();
-          await tx.session.create({
-            data: {
-              id: sessionId,
-              userId: linked.userId,
-              createdAt: now,
-              expiresAt: new Date(now.getTime() + 15 * 60_000),
-            },
-          });
-          await recordAudit(tx, {
-            actorKind: accountActor,
-            actorUserId: linked.userId,
-            action: "SESSION_CREATED",
-            outcome: "ACCEPTED",
+          if (!linked) {
+            // Only verified email creates a public account. Phone remains an
+            // existing-account login channel; guest proof never reaches here.
+            if (type !== ContactType.EMAIL) throw unavailable();
+            const user = await tx.user.create({
+              data: { organizerCapable: false },
+            });
+            linked = await tx.verifiedContact.create({
+              data: {
+                userId: user.id,
+                type,
+                lookupHash: contact.lookupHash,
+                encrypted: encryptContact(
+                  contact.value,
+                  this.config.contactKey,
+                ),
+                verifiedAt: now,
+              },
+            });
+            await recordAudit(tx, {
+              actorKind: accountActor,
+              actorUserId: user.id,
+              action: "ACCOUNT_CREATED",
+              outcome: "ACCEPTED",
+              correlationId,
+            });
+          }
+          return createAccountSession(
+            tx,
+            linked.userId,
+            this.config,
             correlationId,
-          });
-          return { kind: "account", userId: linked.userId, sessionId } as const;
+            now,
+          );
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
       );

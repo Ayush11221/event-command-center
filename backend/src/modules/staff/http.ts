@@ -5,6 +5,7 @@ import type { AuthDependencies } from "../auth/http.js";
 import { authenticate, requireCsrf } from "../auth/http.js";
 import { accountActor, recordAudit } from "../auth/audit.js";
 import { ApiError, unavailable } from "../auth/errors.js";
+import { decryptContact, normalizeContact } from "../auth/contact.js";
 import { requireGateScope, requireStaffAuthority } from "./policy.js";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -61,19 +62,108 @@ function translate(error: unknown): never {
 
 export function staffRouter(deps: AuthDependencies) {
   const router = Router();
+  router.use((_request, response, next) => {
+    response.set("Cache-Control", "private, no-store");
+    response.set("Referrer-Policy", "no-referrer");
+    next();
+  });
+
+  // Exact verified-email match, never a directory or prefix search. The contact
+  // stays in the POST body and is never copied into logs or audit metadata.
+  router.post(
+    "/:eventId/assignments/account-lookup",
+    async (request, response) => {
+      const actor = await authenticate(request, deps);
+      requireCsrf(request, actor, deps);
+      const eventId = id(request.params.eventId);
+      try {
+        const account = await deps.db.$transaction(async (tx) => {
+          await requireStaffAuthority(tx, actor.userId, eventId, "READ");
+          const data = body(request);
+          if (
+            Object.keys(request.query).length ||
+            Object.keys(data).length !== 1 ||
+            typeof data.email !== "string"
+          )
+            throw new ApiError(400, "VALIDATION", "Enter a verified email");
+          let contact;
+          try {
+            contact = normalizeContact(
+              "EMAIL",
+              data.email,
+              deps.config.contactKey,
+            );
+          } catch {
+            throw new ApiError(400, "VALIDATION", "Enter a valid email");
+          }
+          const found = await tx.verifiedContact.findUnique({
+            where: {
+              type_lookupHash: {
+                type: "EMAIL",
+                lookupHash: contact.lookupHash,
+              },
+            },
+            select: { userId: true },
+          });
+          if (found?.userId === actor.userId)
+            throw new ApiError(
+              403,
+              "SELF_ASSIGNMENT",
+              "Self-assignment not permitted",
+            );
+          await recordAudit(tx, {
+            actorKind: accountActor,
+            actorUserId: actor.userId,
+            eventId,
+            action: "STAFF_ACCOUNT_LOOKUP",
+            outcome: "ACCEPTED",
+            correlationId: response.locals.correlationId as string,
+          });
+          return found ? { user_id: found.userId, email: contact.value } : null;
+        });
+        response.json({
+          account,
+          correlation_id: response.locals.correlationId,
+        });
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 403)
+          await auditDenied(
+            deps.db,
+            actor.userId,
+            eventId,
+            response.locals.correlationId as string,
+          );
+        translate(error);
+      }
+    },
+  );
 
   router.get("/:eventId/gates/:gateId/scope", async (request, response) => {
     const actor = await authenticate(request, deps);
     const eventId = id(request.params.eventId);
     const gateId = id(request.params.gateId);
     try {
-      await deps.db.$transaction((tx) =>
-        requireGateScope(tx, actor.userId, eventId, gateId),
-      );
+      const labels = await deps.db.$transaction(async (tx) => {
+        await requireGateScope(tx, actor.userId, eventId, gateId);
+        const event = await tx.event.findUniqueOrThrow({
+          where: { id: eventId },
+          select: { name: true },
+        });
+        const gates = await tx.gate.findMany({
+          where: { eventId },
+          orderBy: { id: "asc" },
+          select: { id: true },
+        });
+        return {
+          event_name: event.name,
+          gate_label: `Gate ${gates.findIndex((gate) => gate.id === gateId) + 1}`,
+        };
+      });
       response.json({
         event_id: eventId,
         gate_id: gateId,
         authorized: true,
+        ...labels,
         correlation_id: response.locals.correlationId,
       });
     } catch (error) {
@@ -100,7 +190,7 @@ export function staffRouter(deps: AuthDependencies) {
           eventId,
           "READ",
         );
-        return tx.eventRoleAssignment.findMany({
+        const assignments = await tx.eventRoleAssignment.findMany({
           where: {
             eventId,
             revokedAt: null,
@@ -114,11 +204,40 @@ export function staffRouter(deps: AuthDependencies) {
             role: true,
             gateId: true,
             grantedAt: true,
+            user: {
+              select: {
+                contacts: {
+                  where: { type: "EMAIL" },
+                  select: { encrypted: true },
+                  take: 1,
+                },
+              },
+            },
           },
+          orderBy: [{ grantedAt: "asc" }, { id: "asc" }],
         });
+        return {
+          assignments: assignments.map(({ user, ...assignment }) => ({
+            ...assignment,
+            email: user.contacts[0]
+              ? decryptContact(
+                  user.contacts[0].encrypted,
+                  deps.config.contactKey,
+                )
+              : null,
+          })),
+          allowed_roles:
+            authority === "OWNER"
+              ? [
+                  StaffRole.EVENT_ADMIN,
+                  StaffRole.GATE_SECURITY,
+                  StaffRole.VOLUNTEER,
+                ]
+              : [StaffRole.GATE_SECURITY, StaffRole.VOLUNTEER],
+        };
       });
       response.json({
-        assignments: rows,
+        ...rows,
         correlation_id: response.locals.correlationId,
       });
     } catch (error) {

@@ -1,4 +1,5 @@
 import { Buffer } from "node:buffer";
+import { parseOtpAbuseConfig, type OtpAbuseConfig } from "./otp-abuse.js";
 
 export interface FoundationConfig {
   databaseUrl: string;
@@ -14,6 +15,7 @@ export interface FoundationConfig {
   smsGatewayModule?: string;
   forecastServiceUrl?: string;
   forecastServiceKey?: string;
+  otpAbuse?: OtpAbuseConfig;
 }
 
 function requiredKey(value: string | undefined, name: string): Buffer {
@@ -125,5 +127,6 @@ export function parseFoundationConfig(
     smsGatewayModule: env.SMS_GATEWAY_MODULE,
     forecastServiceUrl: env.FORECAST_SERVICE_URL,
     forecastServiceKey: env.FORECAST_SERVICE_KEY,
+    otpAbuse: parseOtpAbuseConfig(env),
   };
 }

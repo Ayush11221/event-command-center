@@ -11,8 +11,13 @@ import {
 import { ProofEntry } from "./ProofEntry";
 import { CertificateBatchPanel } from "./CertificateBatchPanel";
 import { CertificateDeliveryPanel } from "./CertificateDeliveryPanel";
+import { humanLabel } from "./event-presentation";
+import { formatEventTime } from "../services/event-time";
+import { useEventInformation } from "./useEventInformation";
+import { EventInformation } from "./EventInformation";
 
 export function CertificatesPage({ eventId }: { eventId: string }) {
+  const information = useEventInformation(eventId);
   const [csrf, setCsrf] = useState<string | null>(null),
     [catalogue, setCatalogue] = useState<Catalogue | null>(null),
     [registrationId, setRegistrationId] = useState(""),
@@ -54,6 +59,7 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
       setCatalogue(null);
       setCsrf(null);
       setVerify(error.status === 401);
+      information.clear();
     }
   }
   useEffect(() => {
@@ -192,6 +198,7 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
     <main className="page-shell public-page">
       <a href="/">Back to event workspace</a>
       <h1>Certificates</h1>
+      <EventInformation information={information} />
       <p>
         Preview and explicitly issue one eligible registration. Only its owner
         can supply the recipient name or download the issued PDF.
@@ -211,30 +218,35 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
           className="certificate-panel"
           aria-label="Single certificate operations"
         >
-          <form
-            className="certificate-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              setBusy(true);
-              void read().finally(() => setBusy(false));
-            }}
-          >
-            <label htmlFor="certificate-registration-id">Registration ID</label>
-            <input
-              id="certificate-registration-id"
-              value={registrationId}
-              disabled={busy}
-              required
-              onChange={(event) => changeScope(event.target.value)}
-              autoComplete="off"
-            />
-            <button disabled={busy} type="submit">
-              Read certificate status
-            </button>
-          </form>
+          <details className="advanced-details">
+            <summary>Advanced details — registration lookup</summary>
+            <form
+              className="certificate-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setBusy(true);
+                void read().finally(() => setBusy(false));
+              }}
+            >
+              <label htmlFor="certificate-registration-id">
+                Registration reference
+              </label>
+              <input
+                id="certificate-registration-id"
+                value={registrationId}
+                disabled={busy}
+                required
+                onChange={(event) => changeScope(event.target.value)}
+                autoComplete="off"
+              />
+              <button disabled={busy} type="submit">
+                Read certificate status
+              </button>
+            </form>
+          </details>
           {status && (
             <>
-              <h2>Certificate status: {status.state}</h2>
+              <h2>Certificate status: {humanLabel(status.state)}</h2>
               <p>
                 Recipient name:{" "}
                 {status.recipient_name_set
@@ -243,7 +255,7 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
               </p>
               {status.issue_work && (
                 <p role="status">
-                  Generation: {status.issue_work.status}. Attempt{" "}
+                  Generation: {humanLabel(status.issue_work.status)}. Attempt{" "}
                   {status.issue_work.attempt_count} of 3.{" "}
                   {status.issue_work.last_error_code
                     ? `Last result: ${status.issue_work.last_error_code}.`
@@ -251,26 +263,44 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
                 </p>
               )}
               {status.certificate && (
-                <dl className="certificate-identifiers">
-                  <dt>Certificate number</dt>
-                  <dd>{status.certificate.certificate_number}</dd>
-                  <dt>Issued</dt>
-                  <dd>
-                    {new Date(status.certificate.issued_at).toLocaleString()}
-                  </dd>
-                  <dt>Template / font</dt>
-                  <dd>
-                    {status.certificate.template_id} v
-                    {status.certificate.template_version} /{" "}
-                    {status.certificate.font_id}
-                  </dd>
-                  <dt>Eligibility evidence</dt>
-                  <dd>{status.certificate.attendance_transition_id}</dd>
-                  <dt>Issuer</dt>
-                  <dd>{status.certificate.issued_by_user_id}</dd>
-                  <dt>PDF SHA-256</dt>
-                  <dd>{status.certificate.pdf_sha256}</dd>
-                </dl>
+                <>
+                  <p>
+                    Certificate number: {status.certificate.certificate_number}
+                  </p>
+                  <p>
+                    Issued:{" "}
+                    {formatEventTime(
+                      status.certificate.issued_at,
+                      information.detail?.time_zone ?? null,
+                    )}
+                  </p>
+                  <details className="advanced-details">
+                    <summary>Advanced details — certificate</summary>
+                    <dl className="certificate-identifiers">
+                      <dt>Certificate number</dt>
+                      <dd>{status.certificate.certificate_number}</dd>
+                      <dt>Issued</dt>
+                      <dd>
+                        {formatEventTime(
+                          status.certificate.issued_at,
+                          information.detail?.time_zone ?? null,
+                        )}
+                      </dd>
+                      <dt>Template / font</dt>
+                      <dd>
+                        {status.certificate.template_id} v
+                        {status.certificate.template_version} /{" "}
+                        {status.certificate.font_id}
+                      </dd>
+                      <dt>Eligibility evidence</dt>
+                      <dd>{status.certificate.attendance_transition_id}</dd>
+                      <dt>Issuer</dt>
+                      <dd>{status.certificate.issued_by_user_id}</dd>
+                      <dt>PDF SHA-256</dt>
+                      <dd>{status.certificate.pdf_sha256}</dd>
+                    </dl>
+                  </details>
+                </>
               )}
               {status.certificate && (
                 <CertificateDeliveryPanel
@@ -408,6 +438,7 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
           eventId={eventId}
           csrf={csrf}
           catalogue={catalogue}
+          timeZone={information.detail?.time_zone ?? null}
           onFailure={fail}
         />
       )}

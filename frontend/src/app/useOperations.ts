@@ -167,7 +167,9 @@ export function useOperations(eventId: string, attempt: number) {
       if (active) setConnection("Disconnected — live connection unavailable");
     });
     const refresh = () => {
-      if (!active) return;
+      // Freshness events are reads only. Coalesce foreground/cadence bursts;
+      // socket revision notifications still request a follow-up reconciliation.
+      if (!active || reading || document.visibilityState !== "visible") return;
       setConnection("Reconciling — checking freshness");
       void reconcile();
     };

@@ -75,4 +75,12 @@ describe("registration security transport", () => {
     await expect(participantSession()).rejects.toMatchObject({ status: 503 });
     expect(currentGuest).not.toHaveBeenCalled();
   });
+  it.each([
+    ["SESSION_EXPIRED", 401],
+    ["FORBIDDEN", 403],
+  ])("does not fall back to guest for account %s", async (code, status) => {
+    vi.mocked(currentActor).mockRejectedValueOnce(new ProofError(code, status));
+    await expect(participantSession()).rejects.toMatchObject({ code, status });
+    expect(currentGuest).not.toHaveBeenCalled();
+  });
 });

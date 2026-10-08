@@ -61,7 +61,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
           where: { contactType: type, contactLookupHash: lookupHash },
           orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         });
-        expect(row?.deliveredAt).not.toBeNull();
+        expect(row?.deliveredAt).toBeTruthy();
       },
       { timeout: 5_000, interval: 20 },
     );
@@ -96,7 +96,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     expect(cookie).toContain("eoc_session=");
     expect(String(verified.headers["set-cookie"]?.[0])).toContain("HttpOnly");
     expect(String(verified.headers["set-cookie"]?.[0])).toContain(
-      "SameSite=Lax",
+      "SameSite=None",
     );
     const me = await request(app).get("/api/v1/auth/me").set("Cookie", cookie);
     expect(me.status).toBe(200);
@@ -118,6 +118,13 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const code = sent.get(user.contact);
     expect(code).toMatch(/^\d{6}$/);
     const stored = await db.otpChallenge.findFirst({
+      where: {
+        contactLookupHash: normalizeContact(
+          ContactType.EMAIL,
+          user.contact,
+          config.contactKey,
+        ).lookupHash,
+      },
       orderBy: { createdAt: "desc" },
     });
     expect(stored?.codeHash).not.toBe(code);
@@ -160,7 +167,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
           .send({ type: "EMAIL", contact: unknown })
       ).status,
     ).toBe(202);
-    expect(sent.has(unknown)).toBe(false);
+    await waitForDelivery(ContactType.EMAIL, unknown);
     const user = await account("latest");
     await request(app)
       .post("/api/v1/auth/account/challenge")
@@ -169,6 +176,13 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     await waitForDelivery(ContactType.EMAIL, user.contact);
     const oldCode = sent.get(user.contact)!;
     const old = await db.otpChallenge.findFirst({
+      where: {
+        contactLookupHash: normalizeContact(
+          ContactType.EMAIL,
+          user.contact,
+          config.contactKey,
+        ).lookupHash,
+      },
       orderBy: { createdAt: "desc" },
     });
     await db.otpChallenge.update({
@@ -185,6 +199,13 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     ).toBe(202);
     await waitForDelivery(ContactType.EMAIL, user.contact);
     const latest = await db.otpChallenge.findFirst({
+      where: {
+        contactLookupHash: normalizeContact(
+          ContactType.EMAIL,
+          user.contact,
+          config.contactKey,
+        ).lookupHash,
+      },
       orderBy: { createdAt: "desc" },
     });
     expect(latest!.id).not.toBe(old!.id);
@@ -243,7 +264,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
         "status",
       ]);
     }
-    expect(sent.has(unknown)).toBe(false);
+    await waitForDelivery(ContactType.EMAIL, unknown);
     expect(sent.get(known.contact)).toBe(code);
     for (const contact of [known.contact, unknown]) {
       const lookupHash = normalizeContact(
@@ -405,7 +426,13 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     const user = await account("session");
     const first = await signIn(user.contact);
     const challenge = await db.otpChallenge.findFirst({
-      where: { contactLookupHash: { not: "" } },
+      where: {
+        contactLookupHash: normalizeContact(
+          ContactType.EMAIL,
+          user.contact,
+          config.contactKey,
+        ).lookupHash,
+      },
       orderBy: { createdAt: "desc" },
     });
     await db.otpChallenge.update({
@@ -485,6 +512,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
       data: {
         createdAt: new Date(Date.now() - 120_000),
         expiresAt: new Date(Date.now() - 60_000),
+        absoluteExpiresAt: new Date(Date.now() + 60_000),
       },
     });
     expect(
@@ -704,7 +732,9 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
       "authorized",
       "correlation_id",
       "event_id",
+      "event_name",
       "gate_id",
+      "gate_label",
     ]);
     expect(
       (await scope(operatorAuth.cookie, event.id, otherGate.id)).status,
@@ -1194,6 +1224,13 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
       expect(challenge.status).toBe(202);
       await waitForDelivery(ContactType.EMAIL, target.contact);
       const row = await db.otpChallenge.findFirst({
+        where: {
+          contactLookupHash: normalizeContact(
+            ContactType.EMAIL,
+            target.contact,
+            config.contactKey,
+          ).lookupHash,
+        },
         orderBy: { createdAt: "desc" },
       });
       const failedAttempt = await request(app)

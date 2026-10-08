@@ -1,9 +1,48 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useOperations } from "./useOperations";
 import { ForecastPanel } from "./ForecastPanel";
+import { humanLabel } from "./event-presentation";
+import { useEventInformation } from "./useEventInformation";
+import { EventInformation } from "./EventInformation";
+import { formatEventTime } from "../services/event-time";
+import { currentActor } from "../services/proof";
 export function OccupancyPage({ eventId }: { eventId: string }) {
   const [attempt, setAttempt] = useState(0);
   const { state, connection } = useOperations(eventId, attempt);
+  const information = useEventInformation(eventId);
+  const [role, setRole] = useState<string | null>(null);
+  const denied =
+    state.phase === "error" && [401, 403, 404].includes(state.status);
+  useEffect(() => {
+    if (denied) information.clear();
+  }, [denied, information.clear]);
+  useEffect(() => {
+    let active = true;
+    setRole(null);
+    if (!denied)
+      void currentActor()
+        .then((actor) => {
+          if (!active) return;
+          const admin = actor.assignments.some(
+            (assignment) =>
+              assignment.event_id === eventId &&
+              assignment.role === "EVENT_ADMIN",
+          );
+          // A successful operations read is required before showing this label:
+          // the server admits only the capable owner or this event's assigned Admin.
+          setRole(
+            admin
+              ? "Event Admin"
+              : actor.organizer_capable
+                ? "Organizer"
+                : null,
+          );
+        })
+        .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [eventId, denied]);
   const snapshot = state.phase === "ready" ? state.snapshot : null;
   const over =
     snapshot !== null &&
@@ -12,9 +51,22 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
   return (
     <main className="page-shell operations-page">
       <a href="/">Back to event workspace</a>
-      <h1>Attendance &amp; occupancy</h1>
+      <h1>Live Operations</h1>
+      <EventInformation information={information} />
+      {state.phase === "ready" && (
+        <p>
+          Role:{" "}
+          {role ?? "Unconfirmed — return to the workspace to check your role"}
+        </p>
+      )}
       <p className="notice" aria-live="polite">
-        {connection}
+        {connection.startsWith("Reconciling")
+          ? "Updating latest information… Last confirmed values are shown until the update is confirmed."
+          : connection.startsWith("Live")
+            ? "Live — latest information confirmed."
+            : state.phase === "ready"
+              ? "Live connection unavailable. Showing last confirmed information; refresh to check the latest values."
+              : "Latest information is not confirmed."}
       </p>
       {state.phase === "loading" ? (
         <p role="status" className="notice">
@@ -34,21 +86,21 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
         <section aria-label="Event occupancy">
           <h2>{state.snapshot.event_name}</h2>
           <p>
-            Lifecycle: {state.snapshot.event_state}. Occupancy counts
-            registrations currently INSIDE from accepted check-ins.
+            Event status: {humanLabel(state.snapshot.event_state)}. People
+            currently inside are counted from accepted check-ins.
+          </p>
+          <p className="freshness">
+            Confirmed as of:{" "}
+            {formatEventTime(
+              state.snapshot.as_of,
+              information.detail?.time_zone ?? null,
+            )}
+            .
           </p>
           <dl className="occupancy-values">
             <div>
               <dt>Currently inside</dt>
               <dd>{state.snapshot.occupied}</dd>
-            </div>
-            <div>
-              <dt>Configured registration capacity</dt>
-              <dd>{state.snapshot.capacity ?? "Not configured"}</dd>
-            </div>
-            <div>
-              <dt>Remaining relative to capacity</dt>
-              <dd>{state.snapshot.remaining ?? "Unavailable"}</dd>
             </div>
             <div>
               <dt>Utilization</dt>
@@ -59,8 +111,16 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
               </dd>
             </div>
             <div>
+              <dt>Registration limit</dt>
+              <dd>{state.snapshot.capacity ?? "Not configured"}</dd>
+            </div>
+            <div>
               <dt>Active registrations</dt>
               <dd>{state.snapshot.registered}</dd>
+            </div>
+            <div>
+              <dt>Remaining relative to capacity</dt>
+              <dd>{state.snapshot.remaining ?? "Unavailable"}</dd>
             </div>
           </dl>
           <p className="notice">
@@ -80,17 +140,28 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
             ceiling.
           </p>
           <p className="freshness">
-            Revision: {state.snapshot.revision}.<br />
-            Confirmed as of: {new Date(state.snapshot.as_of).toLocaleString()}.
-            <br />
             Calculated:{" "}
-            {new Date(state.snapshot.calculated_at).toLocaleString()}.<br />
+            {formatEventTime(
+              state.snapshot.calculated_at,
+              information.detail?.time_zone ?? null,
+            )}
+            .<br />
             Attendance last changed:{" "}
             {state.snapshot.last_attendance_at
-              ? new Date(state.snapshot.last_attendance_at).toLocaleString()
+              ? formatEventTime(
+                  state.snapshot.last_attendance_at,
+                  information.detail?.time_zone ?? null,
+                )
               : "No accepted check-ins"}
             .
           </p>
+          <details className="advanced-details">
+            <summary>Advanced details</summary>Version:{" "}
+            {state.snapshot.revision}
+            <p>{connection}</p>
+            <br />
+            Event reference: {state.snapshot.event_id}
+          </details>
           <button
             type="button"
             onClick={() => setAttempt((value) => value + 1)}
@@ -107,6 +178,7 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
         eventId={eventId}
         operations={state}
         connection={connection}
+        timeZone={information.detail?.time_zone ?? null}
       />
     </main>
   );

@@ -161,6 +161,19 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
         );
         await sql.query("COMMIT");
 
+        // The current Prisma client requires the independent additive Session
+        // columns. Apply that migration before exercising current services;
+        // the Slice 11 before/after preservation assertions remain unchanged.
+        await sql.query(
+          readFileSync(
+            resolve(
+              root,
+              "20261008000000_renewable_account_sessions",
+              "migration.sql",
+            ),
+            "utf8",
+          ),
+        );
         db = createDatabase(target.href);
         const config = {
           databaseUrl: target.href,

@@ -1,15 +1,31 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { currentActor, ProofError } from "../services/proof";
+import { challenge, verify, currentActor, ProofError } from "../services/proof";
 import { App } from "./App";
 
 vi.mock("../services/proof", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/proof")>();
-  return { ...actual, currentActor: vi.fn() };
+  return {
+    ...actual,
+    currentActor: vi.fn(),
+    challenge: vi.fn(),
+    verify: vi.fn(),
+  };
 });
 vi.mock("./Workspace", () => ({
-  Workspace: () => <p>Authorized workspace</p>,
+  Workspace: ({ onSessionExpired }: { onSessionExpired: () => void }) => (
+    <main>
+      <p>Authorized workspace</p>
+      <label>
+        Unfinished event name
+        <input defaultValue="" />
+      </label>
+      <button type="button" onClick={onSessionExpired}>
+        Expire access
+      </button>
+    </main>
+  ),
 }));
 vi.mock("./OccupancyPage", () => ({
   OccupancyPage: ({ eventId }: { eventId: string }) => (
@@ -38,6 +54,65 @@ afterEach(() => {
 });
 
 describe("application entry", () => {
+  it("continues an ordinary account to participant guidance without privileged controls", async () => {
+    vi.mocked(currentActor).mockResolvedValue({
+      user_id: "u",
+      organizer_capable: false,
+      assignments: [],
+      csrf_token: "csrf",
+    });
+    render(<App />);
+    expect(
+      await screen.findByRole("heading", { name: "Find your next event" }),
+    ).toBeVisible();
+    expect(screen.queryByText("Authorized workspace")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Gate scanner" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/role/i)).not.toBeInTheDocument();
+  });
+  it.each([
+    ["FORBIDDEN", 403, "don't have permission"],
+    ["DEPENDENCY_UNAVAILABLE", 503, "couldn't verify your access"],
+  ])("distinguishes %s from anonymous entry", async (code, status, message) => {
+    vi.mocked(currentActor).mockRejectedValue(new ProofError(code, status));
+    render(<App />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.queryByLabelText("Email address")).not.toBeInTheDocument();
+  });
+  it("preserves unfinished form input across expiry and same-account reauthentication", async () => {
+    const actor = {
+      user_id: "u",
+      organizer_capable: true,
+      assignments: [],
+      csrf_token: "csrf",
+    };
+    vi.mocked(currentActor).mockResolvedValue(actor);
+    vi.mocked(challenge).mockResolvedValue();
+    vi.mocked(verify).mockResolvedValue();
+    render(<App />);
+    const field = await screen.findByLabelText("Unfinished event name");
+    fireEvent.change(field, { target: { value: "My unfinished event" } });
+    fireEvent.click(screen.getByRole("button", { name: "Expire access" }));
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Your session has expired",
+    );
+    expect(field).not.toBeVisible();
+    expect(screen.getAllByRole("main")).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Email address"), {
+      target: { value: "owner@example.com" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    const code = await screen.findByLabelText("Verification code");
+    fireEvent.change(code, { target: { value: "123456" } });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verify and continue" }),
+    );
+    expect(await screen.findByText("Authorized workspace")).toBeVisible();
+    expect(screen.getByLabelText("Unfinished event name")).toHaveValue(
+      "My unfinished event",
+    );
+  });
   it("routes an operations deep link through the internal reader while preserving appearance controls", () => {
     window.history.replaceState(null, "", "/operations/internal-event");
     render(<App />);
@@ -45,7 +120,7 @@ describe("application entry", () => {
       screen.getByRole("heading", { name: "Scoped operations internal-event" }),
     ).toBeVisible();
     expect(screen.getByLabelText("Appearance")).toBeVisible();
-    expect(document.title).toContain("occupancy");
+    expect(document.title).toContain("Live Operations");
     expect(
       screen.queryByText("Anonymous public catalog"),
     ).not.toBeInTheDocument();
@@ -106,7 +181,7 @@ describe("application entry", () => {
     render(<App />);
     expect(
       await screen.findByRole("heading", {
-        name: /Sign in to your event workspace/,
+        name: /Sign in or create an account/,
       }),
     ).toBeVisible();
     expect(screen.queryByText("Authorized workspace")).not.toBeInTheDocument();
@@ -123,11 +198,9 @@ describe("application entry", () => {
       });
     render(<App />);
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "could not be checked",
+      "couldn't verify your access",
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: "Retry session check" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Authorized workspace")).toBeVisible();
   });
 });

@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 export type EventRelationship = "owned" | "assigned";
 
 export interface ManagementEvent {
@@ -97,7 +98,7 @@ async function eventRequest<T>(
   if (!origin) throw new EventApiError("NETWORK", 0);
   let response: Response;
   try {
-    response = await fetch(new URL(`/api/v1/events${path}`, origin), {
+    response = await accountFetch(new URL(`/api/v1/events${path}`, origin), {
       method: options.method ?? "GET",
       credentials: "include",
       cache: "no-store",

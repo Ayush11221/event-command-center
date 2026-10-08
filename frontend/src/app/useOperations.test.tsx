@@ -119,7 +119,7 @@ afterEach(() => {
 describe("versioned operations reconciliation", () => {
   it("stores initial REST revision and confirms after subscription", async () => {
     await open();
-    expect(screen.getByText(/Revision: 2/)).toBeVisible();
+    expect(screen.getByText(/Version: 2/)).toBeInTheDocument();
     expect(sockets[0].emit).toHaveBeenCalledWith(
       "operations.subscribe",
       { event_id: "event" },
@@ -136,7 +136,7 @@ describe("versioned operations reconciliation", () => {
     act(() =>
       sockets[0].handlers["occupancy.updated"]({ ...update(3), occupied: 999 }),
     );
-    await screen.findByText(/Revision: 3/);
+    await screen.findByText(/Version: 3/);
     expect(getOperations).toHaveBeenCalledTimes(1);
     expect(screen.queryByText("999")).not.toBeInTheDocument();
   });
@@ -149,10 +149,10 @@ describe("versioned operations reconciliation", () => {
       }),
     );
     act(() => sockets[0].handlers["occupancy.updated"](update(5)));
-    expect(screen.getByText(/revision gap detected/)).toBeVisible();
+    expect(screen.getByText(/Updating latest information/)).toBeVisible();
     expect(screen.queryByText(/^Live —/)).not.toBeInTheDocument();
     await act(async () => resolve({ ...snapshot, revision: 5, occupied: 5 }));
-    await screen.findByText(/Revision: 5/);
+    await screen.findByText(/Version: 5/);
   });
   it("ignores duplicate, stale, out-of-order and wrong-event messages", async () => {
     await open();
@@ -162,7 +162,7 @@ describe("versioned operations reconciliation", () => {
       sockets[0].handlers["occupancy.updated"](update(5, "other"));
     });
     expect(getOperations).not.toHaveBeenCalled();
-    expect(screen.getByText(/Revision: 2/)).toBeVisible();
+    expect(screen.getByText(/Version: 2/)).toBeInTheDocument();
   });
   it("never regresses after a late REST response and retries the required revision", async () => {
     await open();
@@ -171,10 +171,13 @@ describe("versioned operations reconciliation", () => {
       .mockResolvedValue({ ...snapshot, revision: 5 });
     act(() => sockets[0].handlers["occupancy.updated"](update(5)));
     await screen.findByText(/awaiting authoritative revision/);
-    expect(screen.getByText(/Revision: 2/)).toBeVisible();
-    await waitFor(() => expect(screen.getByText(/Revision: 5/)).toBeVisible(), {
-      timeout: 2500,
-    });
+    expect(screen.getByText(/Version: 2/)).toBeInTheDocument();
+    await waitFor(
+      () => expect(screen.getByText(/Version: 5/)).toBeInTheDocument(),
+      {
+        timeout: 2500,
+      },
+    );
   });
   it("shows disconnect and reconciles after reconnect", async () => {
     await open();
@@ -182,10 +185,10 @@ describe("versioned operations reconciliation", () => {
       sockets[0].connected = false;
       sockets[0].handlers.disconnect("transport close");
     });
-    expect(screen.getByText(/Disconnected — last confirmed/)).toBeVisible();
+    expect(screen.getByText(/Live connection unavailable/)).toBeVisible();
     vi.mocked(getOperations).mockResolvedValue({ ...snapshot, revision: 4 });
     act(() => sockets[0].connect());
-    await screen.findByText(/Revision: 4/);
+    await screen.findByText(/Version: 4/);
     expect(getOperations).toHaveBeenCalledTimes(1);
   });
   it("removes old subscription and aborts old-event reads on context change", async () => {
@@ -202,7 +205,7 @@ describe("versioned operations reconciliation", () => {
     expect(sockets[0].disconnect).toHaveBeenCalled();
     act(() => sockets[0].handlers["occupancy.updated"](update(8)));
     expect(screen.queryByText("Realtime event")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Revision: 8/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Version: 8/)).not.toBeInTheDocument();
   });
   it("reconciles unsupported schemas and clears protected state on access loss", async () => {
     await open();
@@ -258,10 +261,30 @@ describe("versioned operations reconciliation", () => {
         resolve = done;
       }),
     );
-    act(() => document.dispatchEvent(new Event("visibilitychange")));
-    expect(screen.getByText(/checking freshness/)).toBeVisible();
+    act(() => {
+      for (let index = 0; index < 5; index++)
+        document.dispatchEvent(new Event("visibilitychange"));
+    });
+    expect(screen.getByText(/Updating latest information/)).toBeVisible();
     await act(async () => resolve({ ...snapshot, revision: 4 }));
-    await screen.findByText(/Revision: 4/);
+    await screen.findByText(/Version: 4/);
     expect(getOperations).toHaveBeenCalledTimes(1);
+  });
+  it("does not poll hidden operations but still reconciles a foreground revision gap", async () => {
+    await open();
+    vi.useFakeTimers();
+    const visibility = vi
+      .spyOn(document, "visibilityState", "get")
+      .mockReturnValue("hidden");
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90000);
+    });
+    expect(getOperations).not.toHaveBeenCalled();
+    visibility.mockReturnValue("visible");
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => {});
+    expect(getOperations).toHaveBeenCalledTimes(1);
+    visibility.mockRestore();
+    vi.useRealTimers();
   });
 });

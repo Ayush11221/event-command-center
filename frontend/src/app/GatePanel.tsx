@@ -5,20 +5,17 @@ import {
   getEventDetail,
   type ManagementDetail,
 } from "../services/events";
+import { gateLabel } from "./gate-label";
+import { readinessLabels } from "./event-presentation";
+import { staffRoleLabels, type StaffAssignment } from "../services/staff";
 
-const blockerLabels: Record<string, string> = {
-  VISIBILITY_REQUIRED: "Choose event visibility.",
-  SCHEDULE_REQUIRED: "Configure the event start and end.",
-  TIME_ZONE_REQUIRED: "Choose the event time zone.",
-  REGISTRATION_CAPACITY_REQUIRED: "Configure registration capacity.",
-  CONFIGURED_GATE_REQUIRED: "Create a gate associated with this event.",
-};
 interface Props {
   detail: ManagementDetail;
   csrf?: string;
   onCurrent: (detail: ManagementDetail) => void;
   onSessionExpired: () => void;
   onScopeLost: () => void;
+  assignments?: StaffAssignment[];
 }
 interface Attempt {
   revision: number;
@@ -31,6 +28,7 @@ export function GatePanel({
   onCurrent,
   onSessionExpired,
   onScopeLost,
+  assignments,
 }: Props) {
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState<Attempt | null>(null);
@@ -81,25 +79,15 @@ export function GatePanel({
     setFeedback("");
     let confirmed = false;
     try {
-      const result = await createGate(
-        detail.event_id,
-        next.revision,
-        csrf!,
-        next.key,
-        signal,
-      );
+      await createGate(detail.event_id, next.revision, csrf!, next.key, signal);
       if (signal.aborted) return;
       confirmed = true;
       setAttempt(null);
       setRefreshRequired(true);
-      setFeedback(
-        `Gate ${result.gate_id} created. Revision ${result.revision}. Refreshing current detail.`,
-      );
+      setFeedback("Gate created. Refreshing current detail.");
       await refresh(signal);
       if (!signal.aborted)
-        setFeedback(
-          `Gate ${result.gate_id} created. Current detail refreshed.`,
-        );
+        setFeedback("Gate created. Current detail refreshed.");
     } catch (error) {
       if (signal.aborted || denied(error)) return;
       const reference =
@@ -161,34 +149,61 @@ export function GatePanel({
   return (
     <section className="gate-panel" aria-labelledby="gate-panel-heading">
       <h3 id="gate-panel-heading" ref={heading} tabIndex={-1}>
-        Gate configuration and readiness
+        Gates
       </h3>
       <p className="notice">
         {detail.readiness.configured_gate_present
-          ? "Gate configured. The Publish and Live gate prerequisite is satisfied."
-          : "Gate missing. Publish and Live require a gate associated with this event."}
+          ? "Gate configured. The gate requirement for publishing and starting the event is satisfied."
+          : "Your event needs at least one configured gate before it can be published or started."}
       </p>
       <p>
-        A persistent event–gate association is sufficient. Staff assignment,
-        scanner hardware, connectivity, and scanner health are separate
-        operational concerns.
+        Add gates here and assign Gate / Security staff in Team &amp; Staff.
       </p>
       {detail.gates.length ? (
-        <ul>
-          {detail.gates.map((gate) => (
-            <li key={gate.gate_id}>Gate {gate.gate_id}</li>
-          ))}
+        <ul className="gate-list">
+          {[...detail.gates]
+            .sort((a, b) => a.gate_id.localeCompare(b.gate_id))
+            .map((gate) => (
+              <li key={gate.gate_id}>
+                <strong>{gateLabel(detail.gates, gate.gate_id)}</strong> ·
+                Configured
+                <div>
+                  <p>Team assignment:</p>
+                  {assignments ? (
+                    assignments
+                      .filter((row) => row.gateId === gate.gate_id)
+                      .map((row) => (
+                        <p key={row.id}>
+                          {row.email ?? "Verified account"} —{" "}
+                          {staffRoleLabels[row.role]}
+                        </p>
+                      ))
+                  ) : (
+                    <p>Open Team &amp; Staff to check assignments</p>
+                  )}
+                  {assignments &&
+                    !assignments.some((row) => row.gateId === gate.gate_id) && (
+                      <p>No staff assigned</p>
+                    )}
+                </div>
+                <details className="advanced-details">
+                  <summary>Advanced details</summary>Gate reference:{" "}
+                  {gate.gate_id}
+                </details>
+              </li>
+            ))}
         </ul>
       ) : (
-        <p>No gates associated.</p>
+        <p>No gates configured.</p>
       )}
       {detail.readiness.publish_blockers.length > 0 && (
         <div>
-          <h4>Publish blockers</h4>
+          <h4>Before publishing</h4>
           <ul>
             {detail.readiness.publish_blockers.map((blocker) => (
               <li key={blocker}>
-                {blockerLabels[blocker] ?? "Event configuration is incomplete."}
+                {readinessLabels[blocker] ??
+                  "Event configuration is incomplete. Review Setup."}
               </li>
             ))}
           </ul>
@@ -196,11 +211,12 @@ export function GatePanel({
       )}
       {detail.readiness.live_blockers.length > 0 && (
         <div>
-          <h4>Live blockers</h4>
+          <h4>Before starting the event</h4>
           <ul>
             {detail.readiness.live_blockers.map((blocker) => (
               <li key={blocker}>
-                {blockerLabels[blocker] ?? "Event configuration is incomplete."}
+                {readinessLabels[blocker] ??
+                  "Event configuration is incomplete. Review Setup."}
               </li>
             ))}
           </ul>

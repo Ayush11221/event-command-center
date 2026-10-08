@@ -211,7 +211,7 @@ describe("Slice 9 certificate UI", () => {
         : status,
     );
     render(<CertificatesPage eventId="event" />);
-    fireEvent.change(await screen.findByLabelText("Registration ID"), {
+    fireEvent.change(await screen.findByLabelText("Registration reference"), {
       target: { value: "registration" },
     });
     fireEvent.click(

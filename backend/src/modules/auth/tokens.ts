@@ -14,14 +14,15 @@ export async function signAccountToken(
   userId: string,
   sessionId: string,
   key: Uint8Array,
+  issuedAt = new Date(),
 ): Promise<string> {
   return new SignJWT({ sid: sessionId })
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setSubject(userId)
     .setIssuer(ACCOUNT_ISSUER)
     .setAudience(ACCOUNT_AUDIENCE)
-    .setIssuedAt()
-    .setExpirationTime("15m")
+    .setIssuedAt(Math.floor(issuedAt.getTime() / 1000))
+    .setExpirationTime(Math.floor(issuedAt.getTime() / 1000) + 15 * 60)
     .sign(key);
 }
 

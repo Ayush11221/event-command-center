@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import {
   cleanup,
+  act,
   fireEvent,
   render,
   screen,
@@ -14,6 +15,7 @@ import {
 } from "../services/events";
 import { eventDetailFixture } from "../test/event-fixture";
 import { PrivateLinkPanel } from "./PrivateLinkPanel";
+import { accountSignedOut } from "../services/account-session";
 import { applyTheme, type ThemeMode } from "./theme";
 vi.mock("../services/events", async (original) => ({
   ...(await original<typeof import("../services/events")>()),
@@ -48,6 +50,15 @@ function props() {
   };
 }
 describe("V8 Organizer private link panel", () => {
+  it("discards bearer link material when account access ends while forms are retained", async () => {
+    vi.mocked(issuePrivateLink).mockResolvedValue(response);
+    render(<PrivateLinkPanel {...props()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Issue private link" }));
+    await screen.findByLabelText("Shareable URL");
+    act(() => accountSignedOut());
+    expect(screen.queryByLabelText("Shareable URL")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toContain(url);
+  });
   it("discards the shareable result when the page context ends", async () => {
     vi.mocked(issuePrivateLink).mockResolvedValue(response);
     render(<PrivateLinkPanel {...props()} />);

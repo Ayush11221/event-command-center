@@ -61,9 +61,10 @@ describe("V7 public event detail", () => {
       ).toBeVisible();
       expect(
         screen.queryByRole("button", {
-          name: /register|scan|publish|cancel|private/i,
+          name: /scan|publish|cancel|private/i,
         }),
       ).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Register" })).toBeVisible();
       expect(document.documentElement.dataset.themeMode).toBe(mode);
       await waitFor(() =>
         expect(

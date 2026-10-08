@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { ReviewEntry } from "./ReviewEntry";
+import { gateLabel } from "./gate-label";
+import { humanLabel } from "./event-presentation";
+import { formatEventTime } from "../services/event-time";
+import { useEventInformation } from "./useEventInformation";
+import { EventInformation } from "./EventInformation";
 import {
   reviewRequest,
   reviewMessage,
@@ -22,7 +27,7 @@ const limitations: Record<string, string> = {
 };
 export function ResultsPage({ eventId }: { eventId: string }) {
   return (
-    <ReviewEntry title="Completed event results">
+    <ReviewEntry title="Results">
       {(_actor, fail) => <ResultsView eventId={eventId} fail={fail} />}
     </ReviewEntry>
   );
@@ -37,6 +42,7 @@ function ResultsView({
   const [data, setData] = useState<Results | null>(null),
     [message, setMessage] = useState(""),
     [attempt, setAttempt] = useState(0);
+  const information = useEventInformation(eventId);
   useEffect(() => {
     const c = new AbortController();
     setData(null);
@@ -66,19 +72,22 @@ function ResultsView({
   }, [eventId, attempt]);
   return (
     <>
+      <a href="/">Back to event workspace</a>
+      <EventInformation information={information} />
       <button onClick={() => setAttempt((a) => a + 1)}>Refresh results</button>
       {message && <p role="alert">{message}</p>}
       {!data && !message && <p role="status">Loading results…</p>}
       {data && (
         <>
           <p>
-            As of {new Date(data.as_of).toLocaleString()}. Certificate and
-            delivery states may continue to change.
+            As of{" "}
+            {formatEventTime(data.as_of, information.detail?.time_zone ?? null)}
+            . Certificate and delivery states may continue to change.
           </p>
           <dl className="review-metrics">
             {Object.entries({
-              "Total registration rows": data.total_registrations,
-              "Cancelled registration rows": data.cancelled_registrations,
+              "Total registrations": data.total_registrations,
+              "Cancelled registrations": data.cancelled_registrations,
               "Accepted check-ins": data.accepted_check_ins,
               "Attendance percentage":
                 data.attendance_rate_percentage === null
@@ -103,7 +112,11 @@ function ResultsView({
             <ul>
               {data.gate_check_ins.map((g) => (
                 <li key={g.gate_id}>
-                  Gate {g.gate_id}: {g.accepted_check_ins}
+                  {gateLabel(
+                    information.detail?.gates ?? data.gate_check_ins,
+                    g.gate_id,
+                  )}
+                  : {g.accepted_check_ins}
                 </li>
               ))}
             </ul>
@@ -115,7 +128,7 @@ function ResultsView({
             {Object.entries(data.certificate_delivery_counts).map(
               ([state, count]) => (
                 <div key={state}>
-                  <dt>{state}</dt>
+                  <dt>{humanLabel(state)}</dt>
                   <dd>{count}</dd>
                 </div>
               ),

@@ -79,7 +79,7 @@ it("confirms explicit selection and submits the finalized closed request", async
       : ({ batch } as never),
   );
   setupBatch();
-  fireEvent.change(screen.getByLabelText(/Registration IDs/), {
+  fireEvent.change(screen.getByLabelText(/Registration references/), {
     target: { value: "first, second" },
   });
   fireEvent.click(
@@ -90,7 +90,7 @@ it("confirms explicit selection and submits the finalized closed request", async
   fireEvent.click(
     screen.getByRole("button", { name: "Confirm batch issuance" }),
   );
-  await screen.findByText(/RUNNING: 0 successful, 1 failed, 1 pending/);
+  await screen.findByText(/Running: 0 successful, 1 failed, 1 pending/);
   expect(certificateRequest).toHaveBeenCalledWith(
     "/events/event/certificate-batches",
     expect.anything(),
@@ -123,24 +123,24 @@ it("reads saved batch progress and paginates outcomes without losing context", a
     return { batch } as never;
   });
   setupBatch();
-  fireEvent.change(screen.getByLabelText("Batch ID"), {
+  fireEvent.change(screen.getByLabelText("Batch reference"), {
     target: { value: "batch" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Read batch status" }));
-  await screen.findByText("first: FAILED — NAME_MISSING");
+  await screen.findByText(/Registration reference: first — NAME_MISSING/);
   fireEvent.click(screen.getByRole("button", { name: "Next item page" }));
-  await screen.findByText("second: FAILED — NAME_MISSING");
+  await screen.findByText(/Registration reference: second — NAME_MISSING/);
   expect(certificateRequest).toHaveBeenCalledWith(
     "/events/event/certificate-batches/batch/items?limit=25&cursor=first",
     expect.anything(),
   );
   fireEvent.click(screen.getByRole("button", { name: "First item page" }));
-  await screen.findByText("first: FAILED — NAME_MISSING");
+  await screen.findByText(/Registration reference: first — NAME_MISSING/);
 });
 it("retains the same batch key/body for an uncertain request and reports validation errors", async () => {
   vi.mocked(certificateRequest).mockRejectedValue(new ProofError("NETWORK", 0));
   setupBatch();
-  fireEvent.change(screen.getByLabelText(/Registration IDs/), {
+  fireEvent.change(screen.getByLabelText(/Registration references/), {
     target: { value: "first" },
   });
   fireEvent.click(
@@ -212,7 +212,7 @@ it("retries FAILED through the delivery endpoint, without issuance, and exposes 
   fireEvent.click(
     await screen.findByRole("button", { name: "Retry failed delivery" }),
   );
-  await screen.findByText("PENDING");
+  await screen.findByText("Pending");
   expect(certificateRequest).toHaveBeenLastCalledWith(
     "/events/event/registrations/reg/certificate/delivery/retry",
     expect.anything(),
@@ -240,7 +240,9 @@ it.each([
       onFailure={vi.fn()}
     />,
   );
-  await screen.findByText(row.status);
+  await screen.findByText(
+    row.status.charAt(0) + row.status.slice(1).toLowerCase(),
+  );
   expect(
     screen.queryByRole("button", { name: "Retry failed delivery" }),
   ).not.toBeInTheDocument();
@@ -263,7 +265,7 @@ it("shows empty state, enrolls previous issuance and clears data on scope loss",
   fireEvent.click(
     screen.getByRole("button", { name: "Request email delivery" }),
   );
-  await screen.findByText("PENDING");
+  await screen.findByText("Pending");
   fireEvent.click(
     screen.getByRole("button", { name: "Refresh delivery status" }),
   );

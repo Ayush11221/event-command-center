@@ -94,6 +94,7 @@ input:focus-visible,
 textarea:focus-visible,
 select:focus-visible,
 a:focus-visible,
+summary:focus-visible,
 [tabindex="-1"]:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 3px;
@@ -154,6 +155,61 @@ select[aria-invalid="true"] {
 .event-edit-form button {
   align-self: end;
   justify-self: start;
+}
+
+/* P1-B structural grouping and reflow; visual tokens stay unchanged. */
+.form-group-help {
+  grid-column: 1 / -1;
+}
+.event-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.event-edit-form .event-date-time {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 130px), 1fr));
+  padding: 0;
+}
+.event-date-time legend {
+  padding: 0;
+}
+.advanced-details summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding-block: 12px;
+}
+.advanced-details,
+.active-context,
+.event-section,
+.review-page,
+.certificate-panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.context-switcher select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.workspace-bar-inner,
+.page-heading,
+.workspace-nav {
+  flex-wrap: wrap;
+}
+.workspace-nav > * {
+  max-width: 100%;
+  white-space: normal;
+  min-height: 44px;
+}
+.team-list li > div {
+  min-width: 0;
+  max-width: 100%;
+}
+.event-date-time input {
+  max-width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
 }
 a {
   color: var(--action);
@@ -374,6 +430,7 @@ p {
 }
 .workspace-nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 24px;
   margin: 22px 0 34px;
   border-bottom: 1px solid var(--border);
@@ -777,6 +834,101 @@ p {
 .registration-panel figure {
   margin: 1rem 0;
 }
+.verification-flow,
+.registration-proof,
+.registration-event,
+.participant-home {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.verification-flow form {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+.verification-flow input,
+.verification-flow select {
+  width: 100%;
+  min-width: 0;
+}
+.verification-flow label {
+  display: grid;
+  gap: 8px;
+  font-weight: 650;
+}
+.verification-code {
+  font-size: 24px;
+  letter-spacing: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+.verification-timer {
+  margin-bottom: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+.verification-actions,
+.registration-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.registration-choices > div {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.registration-choices button {
+  width: 100%;
+}
+.registration-choices p {
+  margin: 8px 0;
+  color: var(--text-muted);
+}
+.participant-link,
+.registration-panel a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 0;
+}
+.participant-home {
+  max-width: 720px;
+}
+.participant-home h2 {
+  margin-top: 32px;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+@media (max-width: 520px) {
+  .entry-layout:has(.verification-code)
+    .entry-intro
+    > p:not(.eyebrow):not([role="alert"]),
+  .entry-layout:has(.verification-code) .entry-intro > a {
+    display: none;
+  }
+  .entry-panel {
+    padding: 20px;
+    min-width: 0;
+  }
+  .entry-layout {
+    padding-top: 24px;
+  }
+  .registration-panel button,
+  .verification-actions button {
+    max-width: 100%;
+    white-space: normal;
+  }
+  .verification-actions {
+    flex-direction: column;
+  }
+}
 .participant-qr {
   display: block;
   width: min(100%, 20rem);
@@ -893,6 +1045,10 @@ p {
   justify-self: start;
 }
 .scanner-result {
+  position: sticky;
+  top: 12px;
+  z-index: 1;
+  background: var(--surface);
   border: 2px solid var(--border);
   padding: 16px 24px;
   margin-top: 24px;
@@ -949,14 +1105,221 @@ p {
 .scanner-page button {
   margin-right: 12px;
 }
+.camera-viewport {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: 45vh;
+  background: var(--surface-inset);
+  border: 2px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.camera-viewport video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.camera-capture,
+.team-panel {
+  margin-block: 24px;
+  min-width: 0;
+}
+.scanner-manual {
+  margin-block: 24px;
+}
+.scanner-manual summary {
+  min-height: 44px;
+  cursor: pointer;
+  padding-block: 12px;
+}
+.team-form {
+  display: grid;
+  gap: 12px;
+  max-width: 580px;
+  margin-block: 16px;
+}
+.team-form input,
+.team-form select {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.team-list {
+  list-style: none;
+  padding: 0;
+}
+.team-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: anywhere;
+}
+.team-list p {
+  margin-block: 6px;
+}
+.team-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.team-actions + .notice button,
+.team-panel .notice button {
+  margin: 4px 12px 4px 0;
+}
+.scanner-page button,
+.team-panel button,
+.team-panel input,
+.team-panel select {
+  min-height: 44px;
+}
 @media (max-width: 520px) {
-  .scanner-identifiers {
-    grid-template-columns: 1fr;
-  }
   .scanner-form button {
     width: 100%;
   }
   .scanner-result {
     padding: 16px;
+  }
+}
+
+/* P1-C operational structure; existing visual tokens remain in use. */
+.scanner-page {
+  padding-top: 24px;
+}
+.workspace-navigation-toggle {
+  display: none;
+}
+.assigned-gate-context p {
+  margin-block: 4px;
+}
+.camera-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-block: 12px;
+}
+.scanner-page button {
+  margin-right: 0;
+}
+.scanner-page,
+.operations-page,
+.team-form,
+.gate-panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.scanner-page button,
+.operations-page button,
+.team-panel button,
+.gate-panel button {
+  max-width: 100%;
+  white-space: normal;
+}
+.scanner-page > a,
+.operations-page > a,
+.workspace-main > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.workspace-main section > a,
+.review-page > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+.forecast-panel {
+  margin-top: 24px;
+}
+.forecast-panel summary {
+  min-height: 44px;
+  padding-block: 12px;
+}
+.gate-list {
+  padding-left: 20px;
+}
+.gate-list > li {
+  margin-block: 16px;
+}
+.review-metrics {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+@media (max-width: 1023px) {
+  .workspace-navigation-toggle {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-block: 16px;
+  }
+  .workspace-nav {
+    display: none;
+    margin-block: 16px 24px;
+  }
+  .workspace-nav.is-open {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .workspace-nav > * {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    text-align: left;
+  }
+  .active-context {
+    flex: 1 1 100%;
+  }
+  .active-context span {
+    display: block;
+  }
+  .team-actions {
+    width: 100%;
+  }
+  .team-actions button {
+    flex: 1 1 180px;
+  }
+  .review-table table {
+    min-width: 0;
+  }
+  .review-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .review-table table,
+  .review-table tbody,
+  .review-table tr,
+  .review-table td {
+    display: block;
+    width: 100%;
+  }
+  .review-table td[data-label]:not([data-label=""])::before {
+    content: attr(data-label) ": ";
+    font-weight: 650;
+  }
+  .review-table th,
+  .review-table td {
+    padding: 8px 4px;
+    overflow-wrap: anywhere;
+  }
+}
+@media (min-width: 375px) and (max-width: 520px) {
+  .occupancy-values {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .forecast-panel .occupancy-values {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 374px) {
+  .workspace-nav.is-open {
+    grid-template-columns: 1fr;
   }
 }

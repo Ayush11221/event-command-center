@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { humanLabel } from "./event-presentation";
 import {
   certificateRequest,
   certificateMessage,
@@ -117,7 +118,10 @@ export function CertificateDeliveryPanel({
       {delivery ? (
         <>
           <p>
-            Delivery status: <strong>{delivery.status}</strong>
+            Delivery status:{" "}
+            <strong>
+              {staff ? humanLabel(delivery.status) : delivery.status}
+            </strong>
           </p>
           <p>{deliveryExplanation(delivery.status, delivery.reason_code)}</p>
           <p>

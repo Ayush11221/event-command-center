@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { subscribeAccountSession } from "../services/account-session";
 import {
   EventApiError,
   getEventDetail,
@@ -55,7 +56,13 @@ export function PrivateLinkPanel({
       setBusy(false);
     };
     window.addEventListener("pagehide", discard);
-    return () => window.removeEventListener("pagehide", discard);
+    const unsubscribe = subscribeAccountSession((event) => {
+      if (event === "expired" || event === "signed-out") discard();
+    });
+    return () => {
+      window.removeEventListener("pagehide", discard);
+      unsubscribe();
+    };
   }, []);
   const eligible =
     owner &&
@@ -183,7 +190,7 @@ export function PrivateLinkPanel({
       setAttempt(null);
       setReloadRequired(false);
       setFeedback(
-        "Current detail loaded. Review PRIVATE Published eligibility before changing a link. An active link is required for revoke or reissue.",
+        "Current detail loaded. Check that your invitation-only event is published before changing its link. An active link is required to replace or revoke it.",
       );
       panelHeading.current?.focus();
     } catch (error) {
@@ -208,7 +215,7 @@ export function PrivateLinkPanel({
   return (
     <section className="lifecycle-panel" aria-label="Private controlled link">
       <h3 ref={panelHeading} tabIndex={-1}>
-        PRIVATE controlled link
+        Invitation link
       </h3>
       <p>
         Share event details by possession of a controlled link. This grants no
@@ -218,7 +225,11 @@ export function PrivateLinkPanel({
         Revoke and reissue require an active link. The server checks current
         eligibility before changing it.
       </p>
-      {!eligible && <p>Issuance requires an owned PRIVATE Published event.</p>}
+      {!eligible && (
+        <p>
+          Publish your invitation-only event before creating an invitation link.
+        </p>
+      )}
       {feedback && (
         <p role="status" className="notice">
           {feedback}

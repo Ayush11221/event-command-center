@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 import { ProofError } from "./proof";
 export interface Task {
   id: string;
@@ -78,7 +79,7 @@ export async function reviewRequest<T>(
   if (signal.aborted) abort();
   const timer = setTimeout(abort, 15000);
   try {
-    const response = await fetch(new URL(`/api/v1${path}`, origin), {
+    const response = await accountFetch(new URL(`/api/v1${path}`, origin), {
       method: command?.method ?? "GET",
       credentials: "include",
       cache: "no-store",

@@ -20,6 +20,10 @@ import {
 } from "./contexts";
 import { CreateDraftForm } from "./CreateDraftForm";
 import { EventDetail } from "./EventDetail";
+import type { WorkspaceSection } from "./EventDetail";
+import { formatEventTime, timeZoneLabel } from "../services/event-time";
+import { humanLabel } from "./event-presentation";
+import { AssignedGateContext } from "./AssignedGateContext";
 
 interface Props {
   initialActor: ActorState;
@@ -41,22 +45,7 @@ type WorkspaceState =
 
 function schedule(event: ManagementEvent): string {
   if (!event.start_at) return "Schedule not set";
-  try {
-    return (
-      new Intl.DateTimeFormat(undefined, {
-        dateStyle: "medium",
-        timeStyle: "short",
-        ...(event.time_zone ? { timeZone: event.time_zone } : {}),
-      }).format(new Date(event.start_at)) +
-      (event.time_zone ? ` · ${event.time_zone}` : "")
-    );
-  } catch {
-    return "Schedule unavailable";
-  }
-}
-
-function stateLabel(state: ManagementEvent["state"]): string {
-  return state.charAt(0) + state.slice(1).toLowerCase();
+  return `${formatEventTime(event.start_at, event.time_zone)} · ${timeZoneLabel(event.time_zone)}`;
 }
 
 export function Workspace({
@@ -71,7 +60,19 @@ export function Workspace({
   const [signingOut, setSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
+  const [detailVisited, setDetailVisited] = useState(false);
+  const [section, setSection] = useState<WorkspaceSection>("overview");
+  const [refreshing, setRefreshing] = useState(false);
+  const [refreshToken, setRefreshToken] = useState(0);
+  const [accessError, setAccessError] = useState("");
   const generation = useRef(0);
+  const refreshingRead = useRef(false);
+  const [navigationOpen, setNavigationOpen] = useState(false);
+  const navigationButton = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setActor(initialActor);
+  }, [initialActor]);
 
   const expireSession = useCallback(() => {
     rememberContext(null);
@@ -81,9 +82,14 @@ export function Workspace({
   const reload = useCallback(
     async (
       preferred: Pick<EventContext, "eventId" | "relationship"> | null,
+      preserveForms = false,
     ) => {
+      if (preserveForms && refreshingRead.current) return;
+      refreshingRead.current = true;
       const current = ++generation.current;
-      setWorkspace({ phase: "loading" });
+      if (!preserveForms) setWorkspace({ phase: "loading" });
+      else setRefreshing(true);
+      setAccessError("");
       try {
         const fresh = await currentActor();
         const [owned, assigned] = await Promise.all([
@@ -111,6 +117,7 @@ export function Workspace({
           selected,
           asOf: new Date().toISOString(),
         });
+        if (preserveForms) setRefreshToken((value) => value + 1);
       } catch (error) {
         if (generation.current !== current) return;
         if (
@@ -125,10 +132,21 @@ export function Workspace({
           error instanceof EventApiError && error.correlationId
             ? ` Reference: ${error.correlationId}.`
             : "";
+        if (preserveForms) {
+          setAccessError(
+            "Your session could not be checked. Check the connection and retry.",
+          );
+          return;
+        }
         setWorkspace({
           phase: "error",
           message: `The event workspace could not be loaded.${reference}`,
         });
+      } finally {
+        if (generation.current === current) {
+          refreshingRead.current = false;
+          setRefreshing(false);
+        }
       }
     },
     [expireSession],
@@ -144,7 +162,7 @@ export function Workspace({
   useEffect(() => {
     function onVisible() {
       if (document.visibilityState === "visible")
-        void reload(rememberedContext());
+        void reload(rememberedContext(), true);
     }
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
@@ -168,6 +186,9 @@ export function Workspace({
   }
 
   const selected = workspace.phase === "ready" ? workspace.selected : null;
+  const hasGateAssignment = actor.assignments.some(
+    (assignment) => assignment.role === "GATE_SECURITY" && assignment.gate_id,
+  );
   const showOwned =
     workspace.phase === "ready" &&
     (selected?.relationship === "owned" ||
@@ -181,7 +202,11 @@ export function Workspace({
 
   return (
     <>
-      <div className="workspace-bar">
+      <div
+        className="workspace-bar"
+        role="region"
+        aria-label="Current event and role"
+      >
         <div className="workspace-bar-inner">
           <span className="workspace-label">WORKSPACE</span>
           {workspace.phase === "ready" && workspace.contexts.length > 1 ? (
@@ -206,16 +231,19 @@ export function Workspace({
                 ))}
               </select>
             </label>
-          ) : workspace.phase === "ready" && selected ? (
+          ) : null}
+          {workspace.phase === "ready" && selected ? (
             <p className="active-context">
-              {selected.name}{" "}
+              Event: {selected.name}{" "}
               <span>
-                ·{" "}
+                · Role:{" "}
                 {selected.relationship === "owned"
                   ? "Organizer"
                   : "Event Admin"}
               </span>
             </p>
+          ) : hasGateAssignment ? (
+            <AssignedGateContext assignments={actor.assignments} />
           ) : (
             <span className="active-context">No active event</span>
           )}
@@ -235,17 +263,18 @@ export function Workspace({
             <p className="eyebrow">EVENT MANAGEMENT</p>
             <h1>Event workspace</h1>
             <p>
-              Work in the Event and Role context shown above. Access is checked
-              with the server whenever the workspace refreshes.
+              {hasGateAssignment && !selected
+                ? "Your assigned event and gate are shown above. Open the scanner to check entries."
+                : "Manage the event and role shown above. Choose a section to continue."}
             </p>
           </div>
           <button
             className="secondary-button"
             type="button"
-            disabled={workspace.phase === "loading"}
-            onClick={() => void reload(selected ?? rememberedContext())}
+            disabled={workspace.phase === "loading" || refreshing}
+            onClick={() => void reload(selected ?? rememberedContext(), true)}
           >
-            Refresh access
+            Refresh workspace
           </button>
         </div>
         {signOutError && (
@@ -253,9 +282,15 @@ export function Workspace({
             {signOutError}
           </p>
         )}
+        {accessError && (
+          <p role="alert" className="notice critical">
+            {accessError}
+          </p>
+        )}
+        {refreshing && <p role="status">Updating latest information…</p>}
         {workspace.phase === "loading" ? (
           <p role="status" className="notice">
-            Loading authorized events…
+            Loading workspace…
           </p>
         ) : workspace.phase === "error" ? (
           <div className="notice critical" role="alert">
@@ -269,71 +304,139 @@ export function Workspace({
           </div>
         ) : (
           <>
+            {actor.assignments.some(
+              (a) => a.role === "GATE_SECURITY" && a.gate_id,
+            ) && <a href="/scanner">Scan entry QR at your assigned gate</a>}
             {actor.assignments.some((a) => a.role === "VOLUNTEER") && (
               <a href="/volunteer">My volunteer tasks</a>
             )}
             {(selected || actor.organizer_capable) && (
-              <nav className="workspace-nav" aria-label="Workspace navigation">
+              <>
                 <button
+                  ref={navigationButton}
+                  className="workspace-navigation-toggle secondary-button"
                   type="button"
-                  className="text-button"
-                  aria-current={!detailOpen ? "page" : undefined}
-                  onClick={() => setDetailOpen(false)}
+                  aria-expanded={navigationOpen}
+                  aria-controls="workspace-sections"
+                  onClick={() => setNavigationOpen((value) => !value)}
                 >
-                  {showOwned ? "Owned events" : "Assigned events"}
+                  Sections ·{" "}
+                  {detailOpen
+                    ? {
+                        overview: "Overview",
+                        setup: "Setup",
+                        registrations: "Registrations",
+                        team: "Team & Staff",
+                        gates: "Gates",
+                      }[section]
+                    : "My events"}
                 </button>
-                {selected && (
-                  <a
-                    href={`/operations/${encodeURIComponent(selected.eventId)}`}
-                  >
-                    Attendance &amp; occupancy
-                  </a>
-                )}
-                {selected && (
-                  <a
-                    href={`/certificates/${encodeURIComponent(selected.eventId)}`}
-                  >
-                    Certificates
-                  </a>
-                )}
-                {selected && (
-                  <>
-                    <a href={`/tasks/${encodeURIComponent(selected.eventId)}`}>
-                      Volunteer tasks
-                    </a>
-                    <a
-                      href={`/results/${encodeURIComponent(selected.eventId)}`}
-                    >
-                      Completed results
-                    </a>
-                    <a href={`/audit/${encodeURIComponent(selected.eventId)}`}>
-                      Audit evidence
-                    </a>
-                  </>
-                )}
-                {selected && (
+                <nav
+                  id="workspace-sections"
+                  className={`workspace-nav${navigationOpen ? " is-open" : ""}`}
+                  aria-label="Workspace navigation"
+                  onClick={() => {
+                    setNavigationOpen(false);
+                    if (window.matchMedia?.("(max-width: 1023px)").matches)
+                      navigationButton.current?.focus();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setNavigationOpen(false);
+                      navigationButton.current?.focus();
+                    }
+                  }}
+                >
                   <button
                     type="button"
                     className="text-button"
-                    aria-current={detailOpen ? "page" : undefined}
-                    onClick={() => setDetailOpen(true)}
+                    aria-current={!detailOpen ? "page" : undefined}
+                    onClick={() => setDetailOpen(false)}
                   >
-                    Event setup
+                    My events
                   </button>
-                )}
-                {showOwned && (
-                  <a href="#create-draft" onClick={() => setDetailOpen(false)}>
-                    Create Draft
-                  </a>
-                )}
-              </nav>
+                  {selected && (
+                    <a
+                      href={`/operations/${encodeURIComponent(selected.eventId)}`}
+                    >
+                      Live Operations
+                    </a>
+                  )}
+                  {selected && (
+                    <a
+                      href={`/certificates/${encodeURIComponent(selected.eventId)}`}
+                    >
+                      Certificates
+                    </a>
+                  )}
+                  {selected && (
+                    <>
+                      <a
+                        href={`/tasks/${encodeURIComponent(selected.eventId)}`}
+                      >
+                        Volunteer tasks
+                      </a>
+                      <a
+                        href={`/results/${encodeURIComponent(selected.eventId)}`}
+                      >
+                        Results
+                      </a>
+                      <a
+                        href={`/audit/${encodeURIComponent(selected.eventId)}`}
+                      >
+                        Activity
+                      </a>
+                    </>
+                  )}
+                  {selected &&
+                    (
+                      [
+                        ["overview", "Overview"],
+                        ["setup", "Setup"],
+                        ["registrations", "Registrations"],
+                        ["team", "Team & Staff"],
+                        ["gates", "Gates"],
+                      ] as const
+                    ).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="text-button"
+                        aria-current={
+                          detailOpen && section === value ? "page" : undefined
+                        }
+                        onClick={() => {
+                          setSection(value);
+                          setDetailVisited(true);
+                          setDetailOpen(true);
+                        }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  {showOwned && (
+                    <a
+                      href="#create-draft"
+                      onClick={() => setDetailOpen(false)}
+                    >
+                      Create event
+                    </a>
+                  )}
+                </nav>
+              </>
             )}
-            {workspace.contexts.length === 0 && !actor.organizer_capable && (
-              <section className="notice" aria-label="No event context">
-                <h2>No event context</h2>
-                <p>You do not currently have an Event management assignment.</p>
-              </section>
-            )}
+            {workspace.contexts.length === 0 &&
+              !actor.organizer_capable &&
+              !hasGateAssignment && (
+                <section className="notice" aria-label="No event context">
+                  <h2>No event context</h2>
+                  <p>
+                    Your account is ready to register for events. You do not
+                    currently have an Event management assignment.
+                  </p>
+                  <a href="/events">Browse public events</a>
+                </section>
+              )}
             {selected?.relationship === "assigned" && !detailOpen && (
               <section className="notice" aria-label="Event Admin context">
                 <h2>Assigned events</h2>
@@ -348,6 +451,7 @@ export function Workspace({
                         className="event-row"
                         onClick={() => {
                           setDetailOpen(true);
+                          setDetailVisited(true);
                           void reload({
                             eventId: event.event_id,
                             relationship: "assigned",
@@ -361,7 +465,7 @@ export function Workspace({
                         <span
                           className={`state-pill state-${event.state.toLowerCase()}`}
                         >
-                          {stateLabel(event.state)}
+                          {humanLabel(event.state)}
                         </span>
                       </button>
                     </li>
@@ -371,65 +475,71 @@ export function Workspace({
             )}
             {workspace.assigned.length === 0 &&
               !actor.organizer_capable &&
+              !hasGateAssignment &&
               !detailOpen && <p className="empty-state">No assigned events.</p>}
-            {detailOpen && selected && (
-              <EventDetail
-                key={contextKey(selected)}
-                context={selected}
-                csrf={actor.csrf_token}
-                onUpdated={(detail) =>
-                  setWorkspace((current) =>
-                    current.phase !== "ready"
-                      ? current
-                      : {
-                          ...current,
-                          owned: current.owned.map((item) =>
-                            item.event_id === detail.event_id
-                              ? {
-                                  ...item,
-                                  name: detail.name,
-                                  state: detail.state,
-                                  start_at: detail.start_at,
-                                  end_at: detail.end_at,
-                                  time_zone: detail.time_zone,
-                                }
-                              : item,
-                          ),
-                          assigned: current.assigned.map((item) =>
-                            item.event_id === detail.event_id
-                              ? {
-                                  ...item,
-                                  name: detail.name,
-                                  state: detail.state,
-                                  start_at: detail.start_at,
-                                  end_at: detail.end_at,
-                                  time_zone: detail.time_zone,
-                                }
-                              : item,
-                          ),
-                          contexts: current.contexts.map((item) =>
-                            item.eventId === detail.event_id
-                              ? {
-                                  ...item,
-                                  name: detail.name,
-                                  state: detail.state,
-                                }
-                              : item,
-                          ),
-                          selected:
-                            current.selected?.eventId === detail.event_id
-                              ? {
-                                  ...current.selected,
-                                  name: detail.name,
-                                  state: detail.state,
-                                }
-                              : current.selected,
-                        },
-                  )
-                }
-                onSessionExpired={expireSession}
-                onScopeLost={onScopeLost}
-              />
+            {selected && detailVisited && (
+              <div hidden={!detailOpen}>
+                <EventDetail
+                  key={contextKey(selected)}
+                  context={selected}
+                  csrf={actor.csrf_token}
+                  section={section}
+                  refreshToken={refreshToken}
+                  onSectionChange={setSection}
+                  onUpdated={(detail) =>
+                    setWorkspace((current) =>
+                      current.phase !== "ready"
+                        ? current
+                        : {
+                            ...current,
+                            owned: current.owned.map((item) =>
+                              item.event_id === detail.event_id
+                                ? {
+                                    ...item,
+                                    name: detail.name,
+                                    state: detail.state,
+                                    start_at: detail.start_at,
+                                    end_at: detail.end_at,
+                                    time_zone: detail.time_zone,
+                                  }
+                                : item,
+                            ),
+                            assigned: current.assigned.map((item) =>
+                              item.event_id === detail.event_id
+                                ? {
+                                    ...item,
+                                    name: detail.name,
+                                    state: detail.state,
+                                    start_at: detail.start_at,
+                                    end_at: detail.end_at,
+                                    time_zone: detail.time_zone,
+                                  }
+                                : item,
+                            ),
+                            contexts: current.contexts.map((item) =>
+                              item.eventId === detail.event_id
+                                ? {
+                                    ...item,
+                                    name: detail.name,
+                                    state: detail.state,
+                                  }
+                                : item,
+                            ),
+                            selected:
+                              current.selected?.eventId === detail.event_id
+                                ? {
+                                    ...current.selected,
+                                    name: detail.name,
+                                    state: detail.state,
+                                  }
+                                : current.selected,
+                          },
+                    )
+                  }
+                  onSessionExpired={expireSession}
+                  onScopeLost={onScopeLost}
+                />
+              </div>
             )}
             {showOwned && !detailOpen && (
               <>
@@ -440,7 +550,7 @@ export function Workspace({
                 >
                   <div className="section-heading">
                     <p className="eyebrow">YOUR EVENTS</p>
-                    <h2 id="owned-heading">Owned events</h2>
+                    <h2 id="owned-heading">My events</h2>
                     <p>
                       Drafts remain private to management until you configure
                       and publish them.
@@ -448,7 +558,7 @@ export function Workspace({
                   </div>
                   {workspace.owned.length === 0 ? (
                     <div className="empty-state">
-                      <h3>No owned events yet</h3>
+                      <h3>No events yet</h3>
                       <p>
                         Create a Draft to start an event. Only you can manage
                         events you own.
@@ -483,7 +593,7 @@ export function Workspace({
                             <span
                               className={`state-pill state-${event.state.toLowerCase()}`}
                             >
-                              {stateLabel(event.state)}
+                              {humanLabel(event.state)}
                             </span>
                           </button>
                         </li>
@@ -496,9 +606,12 @@ export function Workspace({
                 </section>
                 <CreateDraftForm
                   csrf={actor.csrf_token}
-                  onCreated={(eventId) =>
-                    void reload({ eventId, relationship: "owned" })
-                  }
+                  onCreated={(eventId) => {
+                    setDetailVisited(true);
+                    setDetailOpen(true);
+                    setSection("setup");
+                    void reload({ eventId, relationship: "owned" });
+                  }}
                   onSessionExpired={onSessionExpired}
                   onForbidden={() => void reload(rememberedContext())}
                 />

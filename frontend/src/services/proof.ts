@@ -1,3 +1,8 @@
+import {
+  accountAuthenticated,
+  accountFetch,
+  accountSignedOut,
+} from "./account-session";
 type Channel = "EMAIL" | "PHONE";
 type Mode = "account" | "guest";
 
@@ -32,16 +37,19 @@ async function api(
   if (!origin) throw new ProofError("NETWORK", 0);
   let response: Response;
   try {
-    response = await fetch(new URL(`/api/v1/auth${path}`, origin), {
-      method,
-      credentials: "include",
-      cache: "no-store",
-      headers: {
-        ...(body ? { "Content-Type": "application/json" } : {}),
-        ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+    response = await (path === "/me" ? accountFetch : fetch)(
+      new URL(`/api/v1/auth${path}`, origin),
+      {
+        method,
+        credentials: "include",
+        cache: "no-store",
+        headers: {
+          ...(body ? { "Content-Type": "application/json" } : {}),
+          ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
       },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    );
   } catch {
     throw new ProofError("NETWORK", 0);
   }
@@ -65,6 +73,7 @@ export async function verify(
   code: string,
 ) {
   await api(`/${mode}/verify`, "POST", { type, contact, code });
+  if (mode === "account") accountAuthenticated();
 }
 
 export async function currentActor(): Promise<ActorState> {
@@ -83,4 +92,5 @@ export async function currentGuest(): Promise<{
 
 export async function logout(csrf: string) {
   await api("/logout", "POST", undefined, csrf);
+  accountSignedOut();
 }

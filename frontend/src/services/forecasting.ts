@@ -1,3 +1,4 @@
+import { accountFetch } from "./account-session";
 import { EventApiError } from "./events";
 
 export interface ForecastRun {
@@ -275,7 +276,7 @@ export async function getCurrentForecast(
   signal.addEventListener("abort", abort, { once: true });
   const timeout = setTimeout(abort, 15000);
   try {
-    const response = await fetch(
+    const response = await accountFetch(
       new URL(
         `/api/v1/events/${encodeURIComponent(eventId)}/forecasts/current`,
         origin,

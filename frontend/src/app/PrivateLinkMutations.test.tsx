@@ -96,7 +96,7 @@ describe("V9 Organizer standalone link controls", () => {
       );
       expect(screen.queryByRole("group")).not.toBeInTheDocument();
       expect(
-        screen.getByRole("heading", { name: "PRIVATE controlled link" }),
+        screen.getByRole("heading", { name: "Invitation link" }),
       ).toHaveFocus();
     },
   );
@@ -225,7 +225,7 @@ describe("V9 Organizer standalone link controls", () => {
     expect(reissuePrivateLink).toHaveBeenCalledTimes(1);
     await waitFor(() =>
       expect(
-        screen.getByRole("heading", { name: "PRIVATE controlled link" }),
+        screen.getByRole("heading", { name: "Invitation link" }),
       ).toHaveFocus(),
     );
     expect(screen.queryByLabelText("Shareable URL")).not.toBeInTheDocument();
