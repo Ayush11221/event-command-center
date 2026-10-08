@@ -336,7 +336,7 @@ describe("Vercel Node OTP gateway", () => {
     ).toBe(400);
     expect(fetcher).not.toHaveBeenCalled();
   });
-  it("keeps both challenge routes ahead of the existing SPA fallback", () => {
+  it("keeps both challenge routes ahead of a SPA fallback that excludes API paths", () => {
     const configuration = JSON.parse(readFileSync("vercel.json", "utf8"));
     expect(configuration.rewrites).toEqual([
       {
@@ -347,7 +347,26 @@ describe("Vercel Node OTP gateway", () => {
         source: "/api/v1/auth/guest/challenge",
         destination: "/api/v1/auth/guest/challenge",
       },
-      { source: "/(.*)", destination: "/index.html" },
+      { source: "/((?!api(?:/|$)).*)", destination: "/index.html" },
     ]);
+    const fallback = new RegExp(`^${configuration.rewrites.at(-1).source}$`);
+    for (const path of [
+      "/api",
+      "/api/",
+      "/api/v1/auth/account/challenge",
+      "/api/v1/auth/guest/challenge",
+      "/api/v1/unknown",
+    ]) {
+      expect(fallback.test(path), path).toBe(false);
+    }
+    for (const path of [
+      "/",
+      "/events",
+      "/events/synthetic/operations",
+      "/apiary",
+      "/api-example",
+    ]) {
+      expect(fallback.test(path), path).toBe(true);
+    }
   });
 });

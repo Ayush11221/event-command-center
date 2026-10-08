@@ -8,6 +8,6 @@
       "source": "/api/v1/auth/guest/challenge",
       "destination": "/api/v1/auth/guest/challenge"
     },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
   ]
 }
