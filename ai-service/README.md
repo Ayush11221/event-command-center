@@ -34,6 +34,21 @@ other binds/ports, other URLs and unknown transport values. Leaving the mode
 absent preserves loopback HTTP and the existing off-loopback TLS requirement.
 It never falls back from HTTPS to HTTP.
 
+Railpack installs the production dependency closure from `requirements.txt`.
+Keep its pins identical to `requirements.lock`; deployment tests enforce this.
+A bare `pyproject.toml` and `requirements.lock` do not select a Railpack install
+step. The requirements file contains the pins directly because Railpack's pip
+install layer does not copy `requirements.lock` for a `-r` include. See
+[Railpack Python support](https://railpack.com/languages/python).
+
+The wrapper launches the current Python interpreter with `-m uvicorn app.main:app`
+and checks imports before the process handoff. Failures identify `configuration`,
+`uvicorn_import`, `application_import` or `process_launch`. Configuration messages
+name the failed variable/check; import/launch messages report an exception type,
+an OS error number when applicable, and a fixed troubleshooting hint. They omit
+exception contents, tracebacks, secret values, file paths and environment dumps.
+Errors after a successful process handoff are reported by Uvicorn.
+
 The bearer and forecast data rely on Railway's isolated encrypted private network
 in this mode. Runtime metadata cannot attest the destination's project/environment,
 DNS resolution or all public routes. Operators must confirm both services are in
