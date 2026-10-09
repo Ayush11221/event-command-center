@@ -1,17 +1,6 @@
 import { Accent } from "../components/common/Iso";
-import { useRef, useState } from "react";
-import { logout, type ActorState } from "../services/proof";
-import { accessMessage } from "./auth-feedback";
-export function ParticipantHome({
-  actor,
-  onSignedOut,
-}: {
-  actor: ActorState;
-  onSignedOut: () => void;
-}) {
-  const [busy, setBusy] = useState(false),
-    [error, setError] = useState("");
-  const pending = useRef(false);
+// Sign out lives in the header Settings menu.
+export function ParticipantHome() {
   return (
     <main className="page-shell participant-home">
       <p className="eyebrow">YOU'RE SIGNED IN</p>
@@ -30,29 +19,6 @@ export function ParticipantHome({
         Open your event and choose View my registration to find your entry QR.
         You can also use a saved registration link.
       </p>
-      {error && <p role="alert">{error}</p>}
-      <button
-        type="button"
-        className="secondary-button"
-        disabled={busy}
-        onClick={async () => {
-          if (pending.current) return;
-          pending.current = true;
-          setBusy(true);
-          setError("");
-          try {
-            await logout(actor.csrf_token);
-            onSignedOut();
-          } catch (failure) {
-            setError(accessMessage(failure));
-          } finally {
-            pending.current = false;
-            setBusy(false);
-          }
-        }}
-      >
-        {busy ? "Signing out…" : "Sign out"}
-      </button>
     </main>
   );
 }

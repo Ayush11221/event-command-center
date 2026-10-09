@@ -35,9 +35,9 @@ export const WORKSPACE_TOUR: TourStep[] = [
     body: "Press Ctrl K (⌘K on Mac) anywhere in the workspace to jump to any section, page or event.",
   },
   {
-    target: ".theme-control",
-    title: "Appearance",
-    body: "Light, Dark, or follow your system setting.",
+    target: ".settings-trigger",
+    title: "Settings",
+    body: "Switch between Light, Dark or System appearance, and sign out.",
   },
 ];
 

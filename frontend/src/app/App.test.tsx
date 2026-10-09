@@ -122,7 +122,10 @@ describe("application entry", () => {
         name: "Scoped operations internal-event",
       }),
     ).toBeVisible();
-    expect(screen.getByLabelText("Appearance")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(
+      screen.getByRole("radiogroup", { name: "Appearance" }),
+    ).toBeVisible();
     expect(document.title).toContain("Live Operations");
     expect(
       screen.queryByText("Anonymous public catalog"),
@@ -174,7 +177,8 @@ describe("application entry", () => {
       "Checking your session",
     );
     expect(screen.queryByText("Authorized workspace")).not.toBeInTheDocument();
-    expect(screen.getByLabelText("Appearance")).toBeVisible();
+    // No header until a verified account session exists.
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
   });
 
   it("shows the account entry for an expired session", async () => {
@@ -233,4 +237,19 @@ describe("scanner navigation link", () => {
       );
     },
   );
+});
+
+describe("sign-in screen chrome", () => {
+  it("shows no header while signed out on the workspace", async () => {
+    vi.mocked(currentActor).mockRejectedValue(
+      new ProofError("UNAUTHENTICATED", 401),
+    );
+    window.history.replaceState(null, "", "/");
+    render(<App />);
+    expect(await screen.findByLabelText("Email address")).toBeVisible();
+    expect(screen.queryByRole("banner")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Settings" }),
+    ).not.toBeInTheDocument();
+  });
 });

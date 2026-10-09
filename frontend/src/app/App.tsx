@@ -4,7 +4,7 @@ import { MotionConfig } from "motion/react";
 import { currentActor, ProofError, type ActorState } from "../services/proof";
 import { subscribeAccountSession } from "../services/account-session";
 import { ProofEntry } from "./ProofEntry";
-import { ThemeControl } from "./ThemeControl";
+import { SettingsMenu } from "./SettingsMenu";
 import { Workspace } from "./Workspace";
 import { PublicCatalog } from "./PublicCatalog";
 import { PublicEventDetail } from "./PublicEventDetail";
@@ -52,13 +52,19 @@ function RouteFallback() {
   );
 }
 
-function ManagementEntry() {
+function ManagementEntry({
+  onSignedInChange,
+}: {
+  onSignedInChange?: (signedIn: boolean) => void;
+}) {
   const [session, setSession] = useState<
     | { state: "checking" }
     | { state: "anonymous"; expired?: boolean }
     | { state: "error"; message: string }
     | { state: "authenticated"; actor: ActorState; expired?: boolean }
   >({ state: "checking" });
+  const signedIn = session.state === "authenticated" && !session.expired;
+  useEffect(() => onSignedInChange?.(signedIn), [signedIn, onSignedInChange]);
 
   const expire = useCallback(() => {
     setSession((current) =>
@@ -155,10 +161,9 @@ function ManagementEntry() {
               <Workspace
                 initialActor={session.actor}
                 onSessionExpired={expire}
-                onSignedOut={signedOut}
               />
             ) : (
-              <ParticipantHome actor={session.actor} onSignedOut={signedOut} />
+              <ParticipantHome />
             )}
           </div>
         </>
@@ -242,6 +247,22 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
       /* Malformed IDs receive the same public unavailable response. */
     }
   }
+  const [managementSignedIn, setManagementSignedIn] = useState(false);
+  const managementRoute = !(
+    taskEvent ||
+    resultEvent ||
+    auditEvent ||
+    volunteerRoute ||
+    certificates ||
+    operations ||
+    scanner ||
+    registration ||
+    privatePage ||
+    catalog ||
+    eventId
+  );
+  // Signed-out visitors on the workspace see only the sign-in screen.
+  const showHeader = !managementRoute || managementSignedIn;
   useEffect(() => {
     document.title = `${taskEvent ? "Volunteer tasks" : resultEvent ? "Results" : auditEvent ? "Activity" : volunteerRoute ? "My tasks" : certificates ? "Certificates" : operations ? "Live Operations" : scanner ? "Gate scanner" : registration ? "Registration recovery" : privatePage ? "Private event detail" : catalog ? "Public events" : eventId ? "Public event detail" : "Event workspace"} · Event Command Center`;
   }, [
@@ -273,38 +294,40 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
         >
           Skip to main content
         </button>
-        <header className="topbar">
-          <div className="brand">
-            <span className="brand-mark" aria-hidden="true">
-              <Activity strokeWidth={2.4} />
-            </span>
-            <span>Event Command Center</span>
-          </div>
-          <nav className="entry-nav" aria-label="Primary navigation">
-            <a
-              href="/events"
-              aria-current={catalog || detail ? "page" : undefined}
-            >
-              Public events
-            </a>
-            {volunteerRoute ? (
-              <a href="/volunteer">My tasks</a>
-            ) : (
-              <>
-                <a href="/">Event workspace</a>
-                {(scanner || (staffRoute && canScan)) && (
-                  <a
-                    href="/scanner"
-                    aria-current={scanner ? "page" : undefined}
-                  >
-                    Gate scanner
-                  </a>
-                )}
-              </>
-            )}
-          </nav>
-          <ThemeControl />
-        </header>
+        {showHeader && (
+          <header className="topbar">
+            <div className="brand">
+              <span className="brand-mark" aria-hidden="true">
+                <Activity strokeWidth={2.4} />
+              </span>
+              <span>Event Command Center</span>
+            </div>
+            <nav className="entry-nav" aria-label="Primary navigation">
+              <a
+                href="/events"
+                aria-current={catalog || detail ? "page" : undefined}
+              >
+                Public events
+              </a>
+              {volunteerRoute ? (
+                <a href="/volunteer">My tasks</a>
+              ) : (
+                <>
+                  <a href="/">Event workspace</a>
+                  {(scanner || (staffRoute && canScan)) && (
+                    <a
+                      href="/scanner"
+                      aria-current={scanner ? "page" : undefined}
+                    >
+                      Gate scanner
+                    </a>
+                  )}
+                </>
+              )}
+            </nav>
+            <SettingsMenu />
+          </header>
+        )}
         <AccountSessionNotice />
         <Suspense fallback={<RouteFallback />}>
           {taskEvent ? (
@@ -341,7 +364,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
           ) : eventId ? (
             <PublicEventDetail key={eventId} eventId={eventId} />
           ) : (
-            <ManagementEntry />
+            <ManagementEntry onSignedInChange={setManagementSignedIn} />
           )}
         </Suspense>
       </div>
