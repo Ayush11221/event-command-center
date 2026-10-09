@@ -26,7 +26,7 @@ All existing secret files were preserved without reading their contents. Consequ
 Native backend/frontend commands remain `npm run dev:backend` and `npm run dev:frontend`. For the native forecast on this Windows checkout, launch from repository root:
 
 ```powershell
-node --env-file=.env.forecast -e "const c=require('node:child_process');const r=c.spawnSync('ai-service/.venv/Scripts/python.exe',['docker/forecast-entry.py'],{stdio:'inherit'});process.exit(r.status ?? 1)"
+node --env-file=.env.forecast -e "const c=require('node:child_process');const r=c.spawnSync('ai-service/.venv/Scripts/python.exe',['ai-service/forecast-entry.py'],{stdio:'inherit'});process.exit(r.status ?? 1)"
 ```
 
 This future operator command loads the shared file through the existing entrypoint. Do not run it as a secret-free configuration check.
@@ -56,7 +56,7 @@ An old `.env.railway.api` worksheet describes SMTP; it is not executable or auth
 | API file loader                 | `DATABASE_URL_FILE`, `JWT_SECRET_FILE`, `CONTACT_KEY_FILE`, `OTP_KEY_FILE`, `FORECAST_SERVICE_KEY_FILE`, `SMTP_URL_FILE`, `BREVO_API_KEY_FILE`, `METRICS_TOKEN_FILE`                                                   | `backend/src/config/secrets.ts`                                    |
 | API database/observability      | `DB_POOL_MAX`, `TELEMETRY_ENABLED`, `TRACE_SAMPLE_RATIO`, `METRICS_TOKEN`                                                                                                                                              | `database.ts`; `observability/startup.ts`; `observability/http.ts` |
 | API Node TLS                    | `NODE_EXTRA_CA_CERTS`                                                                                                                                                                                                  | Node process startup; Railway runbook                              |
-| Forecast startup/API            | `FORECAST_SERVICE_KEY`, `FORECAST_SERVICE_KEY_FILE`, `UVICORN_HOST`, `UVICORN_PORT`, `UVICORN_SSL_CERTFILE`, `UVICORN_SSL_KEYFILE`                                                                                     | `docker/forecast-entry.py`; `ai-service/app/main.py`               |
+| Forecast startup/API            | `FORECAST_SERVICE_KEY`, `FORECAST_SERVICE_KEY_FILE`, `UVICORN_HOST`, `UVICORN_PORT`, `UVICORN_SSL_CERTFILE`, `UVICORN_SSL_KEYFILE`                                                                                     | `ai-service/forecast-entry.py`; `ai-service/app/main.py`           |
 | Forecast Python runtime         | `PYTHONDONTWRITEBYTECODE`, `PYTHONUNBUFFERED`; `PYTHONPATH` for native launch                                                                                                                                          | Forecast Dockerfile; ignored native forecast configuration         |
 | Migration                       | `DATABASE_URL`, `DATABASE_URL_FILE`, `PGPASSWORD`                                                                                                                                                                      | `docker/migrate.mjs`; `database/prisma7.config.ts`                 |
 | Vite frontend                   | `VITE_API_ORIGIN`; Docker build argument `FRONTEND_ORIGIN`                                                                                                                                                             | Frontend service clients; `docker/frontend.Dockerfile`             |

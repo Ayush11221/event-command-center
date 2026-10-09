@@ -19,6 +19,18 @@ Deployment instructions, not evidence of a Railway deployment. Baseline `54102e2
 
 Every Docker build uses the repository root as context, not a workspace subdirectory. Set the documented platform variable `RAILWAY_DOCKERFILE_PATH` per service; retain the image's default command. [Railway Dockerfile configuration](https://docs.railway.com/builds/dockerfiles).
 
+### Forecast Railpack startup
+
+For the forecast service, retain **Root Directory** `/ai-service`, the **Railpack** builder, custom **Start Command** `python forecast-entry.py`, and no **Railway Config File**. The startup wrapper now lives at `ai-service/forecast-entry.py`, inside the service's build root. No dashboard change or builder switch is needed for this fix. Rebuild forecast from a source revision containing the moved file; local, unpublished files cannot appear in a Git-backed deployment. [Railway source root configuration](https://docs.railway.com/builds/build-configuration).
+
+The startup chain is service-root `forecast-entry.py` → Uvicorn `app.main:app`, defined in `ai-service/app/main.py`. The existing wrapper resolves the service key and requires TLS when binding off loopback; its behavior is unchanged. Keep the key, private networking, bind/port and TLS settings unchanged. Do not replace it with a direct Uvicorn command that bypasses its startup validation.
+
+Before this fix, the wrapper was tracked only at `docker/forecast-entry.py`, outside `/ai-service`; `ai-service/forecast-entry.py` was absent and was not excluded by `.gitignore`. A Railpack build rooted at `/ai-service` therefore could not supply the file requested by `python forecast-entry.py`, producing `python: can't open file '/app/forecast-entry.py'` before FastAPI loaded. The `/app` path in that error is the runtime working directory, not the repository's root. Changing the command to `../docker/forecast-entry.py` cannot recover a sibling directory omitted from the service build root.
+
+The repository-root Docker build remains supported: `docker/forecast.Dockerfile` now uses `COPY ai-service/forecast-entry.py ./` and retains `WORKDIR /app` and `CMD ["python", "forecast-entry.py"]`. Both builders use the same startup wrapper; the Docker topology below still requires repository-root context.
+
+Confirm the deployed commit contains `ai-service/forecast-entry.py` and startup logs reach Uvicorn application startup; restarting the old failed image does not add the file. Verify `/internal/health` over existing private, verified HTTPS with bearer authentication. Startup regression tests isolate the `ai-service` source root and stage the Docker `COPY` paths, execute the wrapper with process handoff intercepted, and import the configured application from each isolated filesystem. Run `python -m pytest ai-service/tests -q` with `PYTHONPATH=ai-service`, or `python -m pytest -q` from `ai-service`. These are local configuration checks, not evidence of a successful Railway deployment.
+
 | Service    | Dockerfile / command                                                                                                      | Networking                                                          |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | PostgreSQL | Railway managed PostgreSQL; no application PostgreSQL Dockerfile                                                          | Private only; port 5432; no public TCP proxy                        |
