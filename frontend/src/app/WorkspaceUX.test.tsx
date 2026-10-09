@@ -142,7 +142,9 @@ describe("P1-B workspace workflows", () => {
     expect(screen.getByLabelText("Event starts time")).toHaveValue("10:00");
     expect(screen.getByLabelText("Time zone")).toHaveValue("Asia/Kolkata");
     expect(
-      screen.getByRole("option", { name: "Mumbai / India (Asia/Kolkata)" }),
+      screen.getByRole("option", {
+        name: "India Standard Time (IST, UTC+05:30)",
+      }),
     ).toBeInTheDocument();
     for (const name of [
       "Basic details",

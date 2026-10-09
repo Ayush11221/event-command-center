@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_EVENT_TIME_ZONE,
   eventTimeInput,
   formatEventTime,
   serializeEventTime,
@@ -60,16 +61,63 @@ describe("event time model boundary", () => {
     expect(formatEventTime(instant, "Asia/Kolkata", "date")).toMatch(/20/);
     expect(formatEventTime("bad", "Asia/Kolkata")).toBe("Time unavailable");
   });
-  it("offers recognizable locations and preserves valid existing aliases", () => {
-    expect(timeZoneLabel("Asia/Kolkata")).toBe("Mumbai / India (Asia/Kolkata)");
-    expect(timeZoneOptions("Asia/Calcutta")).toEqual(
-      expect.arrayContaining([
-        "Asia/Kolkata",
-        "Asia/Calcutta",
-        "UTC",
-        "America/New_York",
-      ]),
+  it("keeps India first and preserves only the existing event's other zone", () => {
+    expect(timeZoneLabel(DEFAULT_EVENT_TIME_ZONE)).toBe(
+      "India Standard Time (IST, UTC+05:30)",
     );
+    expect(timeZoneOptions()).toEqual(["Asia/Kolkata"]);
+    expect(timeZoneOptions("Asia/Calcutta")).toEqual([
+      "Asia/Kolkata",
+      "Asia/Calcutta",
+    ]);
+    expect(timeZoneOptions("Asia/Irkutsk")).toEqual([
+      "Asia/Kolkata",
+      "Asia/Irkutsk",
+    ]);
+    expect(timeZoneOptions("Asia/Kolkata")).toEqual(["Asia/Kolkata"]);
+  });
+  it("defaults new Draft setup to India and saves the zone with all five local times", () => {
+    const detail = eventDetailFixture();
+    const values = eventFormValues(detail);
+    expect(values.time_zone).toBe("Asia/Kolkata");
+    expect(eventFormPatch(values, detail, true)).toEqual({});
+    expect(
+      eventFormPatch(
+        {
+          ...values,
+          start_at: "2026-10-20T10:00",
+          end_at: "2026-10-20T18:00",
+          registration_opens_at: "2026-10-09T09:00",
+          registration_closes_at: "2026-10-20T09:00",
+          registration_cancellation_cutoff_at: "2026-10-19T23:59",
+        },
+        detail,
+        true,
+      ),
+    ).toEqual({
+      time_zone: "Asia/Kolkata",
+      start_at: "2026-10-20T04:30:00.000Z",
+      end_at: "2026-10-20T12:30:00.000Z",
+      registration_opens_at: "2026-10-09T03:30:00.000Z",
+      registration_closes_at: "2026-10-20T03:30:00.000Z",
+      registration_cancellation_cutoff_at: "2026-10-19T18:29:00.000Z",
+    });
+  });
+  it("never defaults a legacy record with timestamps but no configured zone", () => {
+    const detail = eventDetailFixture({
+      start_at: "2026-10-20T04:30:12.125Z",
+      time_zone: null,
+    });
+    const values = eventFormValues(detail);
+    expect(values.time_zone).toBe("");
+    expect(
+      eventFormPatch({ ...values, name: "New name" }, detail, true),
+    ).toEqual({
+      name: "New name",
+    });
+    expect(
+      eventFormValues(eventDetailFixture({ state: "PUBLISHED" })).time_zone,
+    ).toBe("");
   });
   it("preserves exact unchanged instants and serializes only changed fields", () => {
     const detail = eventDetailFixture({

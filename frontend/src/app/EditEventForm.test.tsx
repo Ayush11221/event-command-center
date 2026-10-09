@@ -34,6 +34,86 @@ function changeName() {
   fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
 }
 describe("V4 role-scoped event editing", () => {
+  it("defaults a newly created Draft to IST and saves its schedule in UTC", async () => {
+    form();
+    const zone = screen.getByLabelText("Time zone");
+    expect(zone).toHaveValue("Asia/Kolkata");
+    expect(zone).toHaveDisplayValue("India Standard Time (IST, UTC+05:30)");
+    expect((zone as HTMLSelectElement).options).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Event starts date"), {
+      target: { value: "2026-10-20" },
+    });
+    fireEvent.change(screen.getByLabelText("Event starts time"), {
+      target: { value: "10:00" },
+    });
+    fireEvent.change(screen.getByLabelText("Event ends date"), {
+      target: { value: "2026-10-20" },
+    });
+    fireEvent.change(screen.getByLabelText("Event ends time"), {
+      target: { value: "18:00" },
+    });
+    vi.mocked(editEvent).mockResolvedValue(
+      eventDetailFixture({
+        time_zone: "Asia/Kolkata",
+        start_at: "2026-10-20T04:30:00.000Z",
+        end_at: "2026-10-20T12:30:00.000Z",
+        revision: 4,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await screen.findByText("Changes saved.");
+    expect(editEvent).toHaveBeenCalledWith(
+      "one",
+      3,
+      {
+        time_zone: "Asia/Kolkata",
+        start_at: "2026-10-20T04:30:00.000Z",
+        end_at: "2026-10-20T12:30:00.000Z",
+      },
+      "csrf",
+      expect.any(AbortSignal),
+    );
+  });
+  it("retains an existing Irkutsk zone and sends no date or zone changes for a name edit", async () => {
+    const detail = eventDetailFixture({
+      time_zone: "Asia/Irkutsk",
+      start_at: "2026-10-20T02:00:12.125Z",
+      end_at: "2026-10-20T10:00:00.000Z",
+    });
+    render(
+      <EditEventForm
+        detail={detail}
+        owner
+        csrf="csrf"
+        onCurrent={vi.fn()}
+        onSessionExpired={vi.fn()}
+        onScopeLost={vi.fn()}
+      />,
+    );
+    expect(screen.getByLabelText("Time zone")).toHaveValue("Asia/Irkutsk");
+    expect(
+      screen
+        .getAllByRole("option")
+        .filter((option) => (option as HTMLOptionElement).value.includes("/")),
+    ).toHaveLength(2);
+    expect(screen.getByLabelText("Event starts time")).toHaveValue(
+      "10:00:12.125",
+    );
+    vi.mocked(editEvent).mockResolvedValue({
+      ...detail,
+      name: "Edited",
+      revision: 4,
+    });
+    changeName();
+    await screen.findByText("Changes saved.");
+    expect(editEvent).toHaveBeenCalledWith(
+      "one",
+      3,
+      { name: "Edited" },
+      "csrf",
+      expect.any(AbortSignal),
+    );
+  });
   it("refreshes a lifecycle rejection and retains a disabled draft when the event is now Live", async () => {
     vi.mocked(getEventDetail)
       .mockResolvedValueOnce(eventDetailFixture())

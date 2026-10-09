@@ -10,6 +10,8 @@ Setup groups existing fields into Basic details, Schedule, Registration, Access,
 
 ## Time and terminology
 
+For the India MVP, unscheduled Draft setup defaults to `Asia/Kolkata`, labelled `India Standard Time (IST, UTC+05:30)`. The selector offers India and the existing event's zone rather than the worldwide list. Existing international zones and aliases remain selected and unchanged. The first schedule or registration-time save includes the default zone; name-only Draft creation keeps its existing name-only API contract. Records that already have timestamps but no zone do not receive a guessed zone.
+
 Event schedule inputs use separate native date/time controls. Location labels retain the actual time-zone value. Serialization/deserialization and patch comparison live in the frontend model/service boundary. Times never silently use the browser or server zone. Changing the selected zone retains the displayed clock times and reinterprets them in the new zone, as explained beside the controls. Unchanged instants retain their exact precision. Empty optional dates clear with null; incomplete/invalid dates and daylight-saving gaps/overlaps require correction before any PATCH.
 
 One event-time formatter handles schedule, date, and time presentation. Management details, registration windows, task schedules, activity, results, certificate/batch dates, operations, and forecast times use the event zone. Secondary management routes read authorized event metadata; an unavailable zone is explained rather than substituted with browser-local time.

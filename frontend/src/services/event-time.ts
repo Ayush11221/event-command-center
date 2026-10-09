@@ -1,6 +1,8 @@
+export const DEFAULT_EVENT_TIME_ZONE = "Asia/Kolkata";
+
 const locationLabels: Record<string, string> = {
-  "Asia/Kolkata": "Mumbai / India",
-  "Asia/Calcutta": "Mumbai / India",
+  "Asia/Kolkata": "India Standard Time (IST, UTC+05:30)",
+  "Asia/Calcutta": "India Standard Time (IST, UTC+05:30)",
   "America/New_York": "New York / United States",
   "America/Los_Angeles": "Los Angeles / United States",
   "Europe/London": "London / United Kingdom",
@@ -13,18 +15,13 @@ const locationLabels: Record<string, string> = {
 
 export function timeZoneLabel(zone: string | null): string {
   if (!zone) return "Not configured";
+  if (zone === DEFAULT_EVENT_TIME_ZONE) return locationLabels[zone];
   return `${locationLabels[zone] ?? zone.split("/").reverse().join(" / ").replaceAll("_", " ")} (${zone})`;
 }
 
 export function timeZoneOptions(current = ""): string[] {
-  return [
-    ...new Set([
-      "UTC",
-      "Asia/Kolkata",
-      ...Intl.supportedValuesOf("timeZone"),
-      ...(current ? [current] : []),
-    ]),
-  ].sort((a, b) => timeZoneLabel(a).localeCompare(timeZoneLabel(b)));
+  // The India MVP keeps setup short without dropping an existing event's zone.
+  return [...new Set([DEFAULT_EVENT_TIME_ZONE, ...(current ? [current] : [])])];
 }
 
 export function formatEventTime(

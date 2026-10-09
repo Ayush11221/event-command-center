@@ -85,13 +85,6 @@ const labels = Object.fromEntries(
     group.fields.map(([field, label]) => [field, label]),
   ),
 );
-const availableZones = timeZoneOptions();
-const zoneOptions = availableZones.map((zone) => (
-  <option key={zone} value={zone}>
-    {timeZoneLabel(zone)}
-  </option>
-));
-
 interface Props {
   detail: ManagementDetail;
   owner: boolean;
@@ -324,8 +317,10 @@ export function EditEventForm({
             <legend>{group.label}</legend>
             {group.label === "Schedule" && (
               <p className="form-group-help">
-                Dates and times use the selected event time zone. Changing the
-                time zone keeps the entered clock times in the new zone.
+                New events use India Standard Time (IST, UTC+05:30). Existing
+                event time zones are retained. Changing the time zone keeps the
+                entered clock times in the new zone and changes their saved
+                timestamps.
               </p>
             )}
             {group.label === "Registration" && (
@@ -375,18 +370,18 @@ export function EditEventForm({
                       aria-describedby={describedBy}
                       onChange={(event) => update(field, event.target.value)}
                     >
-                      <option value="">Not configured</option>
+                      {(type !== "zone" || !values.time_zone) && (
+                        <option value="">Not configured</option>
+                      )}
                       {type === "zone" ? (
                         <>
-                          {zoneOptions}
-                          {values.time_zone &&
-                            !availableZones.includes(
-                              String(values.time_zone),
-                            ) && (
-                              <option value={String(values.time_zone)}>
-                                {timeZoneLabel(String(values.time_zone))}
+                          {timeZoneOptions(baseline.time_zone ?? "").map(
+                            (zone) => (
+                              <option key={zone} value={zone}>
+                                {timeZoneLabel(zone)}
                               </option>
-                            )}
+                            ),
+                          )}
                         </>
                       ) : (
                         <>

@@ -1,5 +1,9 @@
 import type { EventEdit, ManagementDetail } from "./events";
-import { eventTimeInput, serializeEventTime } from "./event-time";
+import {
+  DEFAULT_EVENT_TIME_ZONE,
+  eventTimeInput,
+  serializeEventTime,
+} from "./event-time";
 
 export const publicEventFields = [
   "name",
@@ -28,14 +32,23 @@ export type EventField = keyof EventEdit;
 export type EventFormValues = Record<EventField, string | boolean>;
 
 export function eventFormValues(detail: ManagementDetail): EventFormValues {
+  // Only an unscheduled Draft receives a default. Never reinterpret stored dates.
+  const zone =
+    detail.time_zone ??
+    (detail.state === "DRAFT" &&
+    eventTimeFields.every((field) => !detail[field])
+      ? DEFAULT_EVENT_TIME_ZONE
+      : "");
   return Object.fromEntries(
     [...publicEventFields, ...ownerFields].map((field) => [
       field,
       (eventTimeFields as readonly string[]).includes(field)
-        ? eventTimeInput(detail[field] as string | null, detail.time_zone)
+        ? eventTimeInput(detail[field] as string | null, zone)
         : field === "tags"
           ? detail.tags.join("\n")
-          : (detail[field] ?? ""),
+          : field === "time_zone"
+            ? zone
+            : (detail[field] ?? ""),
     ]),
   ) as EventFormValues;
 }
@@ -83,6 +96,13 @@ export function eventFormPatch(
   owner: boolean,
 ): EventEdit {
   const changed = new Set(changedEventFields(values, baseline, owner));
+  // Persist the default together with the first entered schedule/policy times.
+  if (
+    owner &&
+    !baseline.time_zone &&
+    eventTimeFields.some((field) => changed.has(field) && values[field])
+  )
+    changed.add("time_zone");
   // Changing the zone keeps the visible wall times and explicitly reinterprets
   // them in the chosen zone, as the form's help text explains.
   if (changed.has("time_zone"))
