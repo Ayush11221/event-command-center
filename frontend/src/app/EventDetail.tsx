@@ -1,4 +1,14 @@
-﻿import { useCallback, useEffect, useRef, useState } from "react";
+import { Celebration } from "../components/common/Celebration";
+import type { ReactNode } from "react";
+import {
+  CalendarClock,
+  Info,
+  Pencil,
+  RefreshCw,
+  Ticket,
+  type LucideIcon,
+} from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   EventApiError,
   getEventDetail,
@@ -137,9 +147,18 @@ export function EventDetail({
   useEffect(() => {
     if (state.phase === "ready") heading.current?.focus();
   }, [state.phase]);
+  // Celebrate only a confirmed Published -> Live transition seen here.
+  const lifecycleState = state.phase === "ready" ? state.detail.state : null;
+  const previousState = useRef(lifecycleState);
+  const [celebrate, setCelebrate] = useState(0);
+  useEffect(() => {
+    if (previousState.current === "PUBLISHED" && lifecycleState === "LIVE")
+      setCelebrate(Date.now());
+    if (lifecycleState) previousState.current = lifecycleState;
+  }, [lifecycleState]);
   if (state.phase === "loading")
     return (
-      <p role="status" className="notice">
+      <p role="status" className="notice is-loading">
         Loading event detail…
       </p>
     );
@@ -164,22 +183,95 @@ export function EventDetail({
     onScopeLost,
   };
   const showEditor = editing || active === "setup";
+  const fieldList: [string, ReactNode][] = [
+    ["Description", detail.description ?? "Not configured"],
+    ["Public location", detail.public_location ?? "Not configured"],
+    ["Event image", detail.image_url ?? "Not configured"],
+    ["Category", detail.category ?? "Not configured"],
+    ["Tags", detail.tags.join(", ") || "None"],
+    [
+      "Event access",
+      detail.visibility === "PUBLIC"
+        ? "Public"
+        : detail.visibility === "PRIVATE"
+          ? "Invitation"
+          : "Not configured",
+    ],
+    ["Event starts", formatEventTime(detail.start_at, detail.time_zone)],
+    ["Event ends", formatEventTime(detail.end_at, detail.time_zone)],
+    ["Registration limit", detail.registration_capacity ?? "Not configured"],
+    [
+      "Registration opens",
+      detail.registration_opens_at
+        ? formatEventTime(detail.registration_opens_at, detail.time_zone)
+        : "On publication",
+    ],
+    [
+      "Registration closes",
+      formatEventTime(
+        detail.registration_closes_at ?? detail.start_at,
+        detail.time_zone,
+      ),
+    ],
+    [
+      "Participants can cancel until",
+      formatEventTime(
+        detail.registration_cancellation_cutoff_at,
+        detail.time_zone,
+      ),
+    ],
+    ["Check-out", detail.checkout_enabled ? "Enabled" : "Disabled"],
+  ];
+  const pick = (labels: string[]) =>
+    fieldList.filter(([label]) => labels.includes(label));
+  const detailGroups: [string, LucideIcon, [string, ReactNode][]][] = [
+    [
+      "About this event",
+      Info,
+      pick([
+        "Description",
+        "Public location",
+        "Event image",
+        "Category",
+        "Tags",
+        "Event access",
+      ]),
+    ],
+    ["Schedule", CalendarClock, pick(["Event starts", "Event ends"])],
+    [
+      "Registration policy",
+      Ticket,
+      pick([
+        "Registration limit",
+        "Registration opens",
+        "Registration closes",
+        "Participants can cancel until",
+        "Check-out",
+      ]),
+    ],
+  ];
   return (
     <section
       id="event-detail"
       aria-labelledby="event-detail-heading"
       className="event-section"
     >
-      <div className="page-heading">
+      <Celebration trigger={celebrate} />
+      <div className="page-heading event-hero">
         <div>
+          <span
+            aria-hidden="true"
+            className={`state-pill state-${detail.state.toLowerCase()}`}
+            data-label={humanLabel(detail.state)}
+          />
           <h2 id="event-detail-heading" ref={heading} tabIndex={-1}>
             {detail.name}
           </h2>
-          <p>
+          <p className="event-hero-meta">
             Status: {humanLabel(detail.state)} · Role:{" "}
             {relationship === "owned" ? "Organizer" : "Event Admin"}
           </p>
-          <p>{timeZoneLabel(detail.time_zone)}</p>
+          <p className="event-hero-meta">{timeZoneLabel(detail.time_zone)}</p>
         </div>
         <button
           type="button"
@@ -187,6 +279,7 @@ export function EventDetail({
           disabled={refreshing}
           onClick={() => setAttempt((value) => value + 1)}
         >
+          <RefreshCw aria-hidden="true" className="size-4" />
           Reload detail
         </button>
       </div>
@@ -194,63 +287,26 @@ export function EventDetail({
       {refreshError && (
         <p role="alert">{refreshError} Your entered values have been kept.</p>
       )}
-      <div hidden={active !== "overview"}>
+      <div className="detail-tab" hidden={active !== "overview"}>
         <h3>Event details</h3>
-        <dl className="event-detail-fields">
-          {[
-            ["Description", detail.description ?? "Not configured"],
-            ["Public location", detail.public_location ?? "Not configured"],
-            ["Event image", detail.image_url ?? "Not configured"],
-            ["Category", detail.category ?? "Not configured"],
-            ["Tags", detail.tags.join(", ") || "None"],
-            [
-              "Event access",
-              detail.visibility === "PUBLIC"
-                ? "Public"
-                : detail.visibility === "PRIVATE"
-                  ? "Invitation"
-                  : "Not configured",
-            ],
-            [
-              "Event starts",
-              formatEventTime(detail.start_at, detail.time_zone),
-            ],
-            ["Event ends", formatEventTime(detail.end_at, detail.time_zone)],
-            [
-              "Registration limit",
-              detail.registration_capacity ?? "Not configured",
-            ],
-            [
-              "Registration opens",
-              detail.registration_opens_at
-                ? formatEventTime(
-                    detail.registration_opens_at,
-                    detail.time_zone,
-                  )
-                : "On publication",
-            ],
-            [
-              "Registration closes",
-              formatEventTime(
-                detail.registration_closes_at ?? detail.start_at,
-                detail.time_zone,
-              ),
-            ],
-            [
-              "Participants can cancel until",
-              formatEventTime(
-                detail.registration_cancellation_cutoff_at,
-                detail.time_zone,
-              ),
-            ],
-            ["Check-out", detail.checkout_enabled ? "Enabled" : "Disabled"],
-          ].map(([label, value]) => (
-            <div key={label}>
-              <dt>{label}</dt>
-              <dd>{value}</dd>
-            </div>
+        <div className="detail-groups">
+          {detailGroups.map(([title, Icon, fields]) => (
+            <section key={title} className="detail-group">
+              <h4>
+                <Icon aria-hidden="true" className="size-4" />
+                {title}
+              </h4>
+              <dl className="event-detail-fields">
+                {fields.map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
           ))}
-        </dl>
+        </div>
         <LifecyclePanel
           {...common}
           owner={relationship === "owned"}
@@ -270,11 +326,12 @@ export function EventDetail({
               onSectionChange?.("setup");
             }}
           >
+            <Pencil aria-hidden="true" className="size-4" />
             Edit event
           </button>
         )}
       </div>
-      <div hidden={active !== "setup"}>
+      <div className="detail-tab" hidden={active !== "setup"}>
         <h3>Setup</h3>
         {csrf && showEditor && (canEdit || editing) ? (
           <EditEventForm
@@ -288,7 +345,7 @@ export function EventDetail({
         )}
         <PrivateLinkPanel {...common} owner={relationship === "owned"} />
       </div>
-      <div hidden={active !== "registrations"}>
+      <div className="detail-tab" hidden={active !== "registrations"}>
         {csrf && (
           <EventRegistrations
             detail={detail}
@@ -299,10 +356,10 @@ export function EventDetail({
           />
         )}
       </div>
-      <div hidden={active !== "gates"}>
+      <div className="detail-tab" hidden={active !== "gates"}>
         <GatePanel {...common} assignments={team?.assignments} />
       </div>
-      <div hidden={active !== "team"}>
+      <div className="detail-tab" hidden={active !== "team"}>
         {csrf && (
           <TeamPanel
             key={`team:${detail.event_id}`}

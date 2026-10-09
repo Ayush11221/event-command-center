@@ -46,8 +46,42 @@ afterEach(() => {
   vi.resetAllMocks();
   vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 describe("Command center advisory forecasts", () => {
+  it.each(["available", "insufficient", "stale", "failed"])(
+    "retains synthetic provenance for a %s demo forecast",
+    async (state) => {
+      vi.stubEnv("VITE_FORECAST_DEMO", "synthetic_local");
+      const response = structuredClone(fixture);
+      if (state === "insufficient")
+        Object.assign(response.forecast, {
+          status: "INSUFFICIENT_DATA",
+          points: [],
+          evaluation: null,
+        });
+      if (state === "stale") response.forecast.freshness.state = "STALE";
+      if (state === "failed")
+        vi.mocked(getCurrentForecast).mockRejectedValue(
+          new EventApiError("DEPENDENCY_UNAVAILABLE", 503),
+        );
+      else vi.mocked(getCurrentForecast).mockResolvedValue(response);
+      render(<ForecastPanel {...props} />);
+      const notice = {
+        available: /Current demo forecast/,
+        insufficient: /Not enough accepted attendance/,
+        stale: /Stale forecast/,
+        failed: /Forecast read failed/,
+      }[state]!;
+      await screen.findByText(notice);
+      expect(
+        screen.getByLabelText("Synthetic forecast provenance"),
+      ).toHaveTextContent("Forecast computed from synthetic attendance");
+      expect(
+        screen.getByLabelText("Synthetic forecast provenance"),
+      ).toHaveTextContent("not for live operational decisions");
+    },
+  );
   it("waits for operations authority, then renders independent baseline uncertainty/evaluation", async () => {
     const view = render(
       <ForecastPanel {...props} operations={{ phase: "loading" }} />,

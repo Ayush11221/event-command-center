@@ -48,7 +48,7 @@ export function PublicEventDetail({ eventId }: { eventId: string }) {
         Back to public events
       </a>
       {state.phase === "loading" ? (
-        <p role="status" className="notice">
+        <p role="status" className="notice is-loading">
           Loading public event detail…
         </p>
       ) : state.phase === "unavailable" ? (

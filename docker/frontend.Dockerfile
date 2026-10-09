@@ -6,7 +6,9 @@ COPY frontend/package.json frontend/package.json
 RUN npm ci
 COPY frontend frontend
 ARG FRONTEND_ORIGIN=https://127.0.0.1:8443
+ARG FORECAST_DEMO_CONTEXT=""
 ENV VITE_API_ORIGIN=$FRONTEND_ORIGIN
+ENV VITE_FORECAST_DEMO=$FORECAST_DEMO_CONTEXT
 RUN npm run build --workspace frontend
 FROM caddy:2.11-alpine@sha256:881bbc60f9986d5ab8e7cfd6cf7e4ef3c9c0439fef2429d035d065577882f028
 COPY --from=build /app/frontend/dist /srv

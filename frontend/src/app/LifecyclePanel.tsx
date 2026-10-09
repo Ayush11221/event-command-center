@@ -1,3 +1,4 @@
+import { LifecycleStepper } from "../components/common/LifecycleStepper";
 import { useEffect, useRef, useState } from "react";
 import {
   EventApiError,
@@ -217,6 +218,7 @@ export function LifecyclePanel({
       <h3 id="lifecycle-panel-heading" ref={heading} tabIndex={-1}>
         Event status and registration
       </h3>
+      <LifecycleStepper state={detail.state} />
       <dl className="event-detail-fields">
         <div>
           <dt>Event status</dt>
@@ -244,7 +246,7 @@ export function LifecyclePanel({
         </div>
       </dl>
       {detail.availability.reasons.length > 0 && (
-        <ul>
+        <ul className="reason-list">
           {detail.availability.reasons.map((value) => (
             <li key={value}>{reasonLabels[value]}</li>
           ))}
@@ -272,6 +274,7 @@ export function LifecyclePanel({
         !refreshRequired &&
         (selected ? (
           <form
+            className={`confirm-panel${selected.target === "CANCELLED" ? " is-danger" : ""}`}
             aria-labelledby="lifecycle-confirmation-heading"
             onSubmit={(event) => {
               event.preventDefault();
@@ -326,7 +329,13 @@ export function LifecyclePanel({
               </label>
             )}
             <div className="lifecycle-actions">
-              <button type="submit" disabled={busy}>
+              <button
+                type="submit"
+                className={
+                  selected.target === "CANCELLED" ? "danger-button" : undefined
+                }
+                disabled={busy}
+              >
                 {busy
                   ? "Updating event status…"
                   : `Confirm ${selected.label.toLowerCase()}`}
@@ -364,6 +373,11 @@ export function LifecyclePanel({
                   <div key={control.action}>
                     <button
                       type="button"
+                      className={
+                        control.target === "CANCELLED"
+                          ? "danger-outline-button"
+                          : undefined
+                      }
                       disabled={busy || blocked}
                       onClick={() => {
                         setSelected(control);
@@ -374,7 +388,7 @@ export function LifecyclePanel({
                       {control.label}
                     </button>
                     {blocked && (
-                      <ul>
+                      <ul className="blocker-list">
                         {(control.action === "PUBLISH"
                           ? detail.readiness.publish_blockers
                           : detail.readiness.live_blockers

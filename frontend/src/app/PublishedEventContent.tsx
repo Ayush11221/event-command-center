@@ -1,3 +1,4 @@
+import { IsoScene } from "../components/common/Iso";
 import { useState, type RefObject } from "react";
 import type { PublicDetail } from "../services/discovery";
 import { publicEventTime, PublicPolicy, PublicTags } from "./PublicEventInfo";
@@ -46,13 +47,20 @@ export function PublishedEventContent({
           {refreshLabel}
         </button>
       </div>
-      {detail.image_url && (
+      {detail.image_url ? (
         <EventBanner key={detail.image_url} url={detail.image_url} />
+      ) : (
+        <IsoScene
+          className="event-scene"
+          chips={[detail.category, detail.public_location].filter(
+            (value): value is string => !!value,
+          )}
+        />
       )}
       <p className="public-description">
         {detail.description ?? "No description provided."}
       </p>
-      <dl className="event-detail-fields">
+      <dl className="event-detail-fields event-facts">
         <div>
           <dt>Starts</dt>
           <dd>{publicEventTime(detail.start_at, detail.time_zone)}</dd>
@@ -70,7 +78,7 @@ export function PublishedEventContent({
           <dd>{detail.public_location ?? "Location not provided"}</dd>
         </div>
       </dl>
-      <h2>Registration policy</h2>
+      <h2 className="event-section-title">Registration policy</h2>
       <PublicPolicy event={detail} />
       <RegistrationPanel
         key={detail.event_id}

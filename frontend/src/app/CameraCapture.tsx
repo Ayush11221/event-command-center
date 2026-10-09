@@ -1,3 +1,4 @@
+import { Camera, CameraOff } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 type Phase = "idle" | "requesting" | "running" | "stopped" | "error";
@@ -220,8 +221,14 @@ export function CameraCapture({
           </button>
         )}
       </div>
-      <div className="camera-viewport">
+      <div className="camera-viewport" data-phase={phase}>
         <video ref={video} muted playsInline aria-label="Camera QR view" />
+        <div className="camera-reticle" aria-hidden="true" />
+        {phase !== "running" && (
+          <div className="camera-idle" aria-hidden="true">
+            {phase === "error" ? <CameraOff /> : <Camera />}
+          </div>
+        )}
       </div>
     </section>
   );

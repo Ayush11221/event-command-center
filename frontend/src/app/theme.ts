@@ -18,8 +18,18 @@ export function effectiveTheme(mode: ThemeMode, darkPreferred: boolean) {
 }
 
 export function applyTheme(mode: ThemeMode, darkPreferred: boolean): void {
-  document.documentElement.dataset.themeMode = mode;
-  document.documentElement.dataset.theme = effectiveTheme(mode, darkPreferred);
+  const root = document.documentElement;
+  const next = effectiveTheme(mode, darkPreferred);
+  root.dataset.themeMode = mode;
+  if (root.dataset.theme === next) return;
+  // Swap palettes in one frame: colour transitions would otherwise render
+  // intermediate, low-contrast colours while the theme changes.
+  root.classList.add("theme-switching");
+  root.dataset.theme = next;
+  const settle = () => root.classList.remove("theme-switching");
+  if (typeof requestAnimationFrame === "function")
+    requestAnimationFrame(() => requestAnimationFrame(settle));
+  else settle();
 }
 
 export function rememberTheme(mode: ThemeMode): void {

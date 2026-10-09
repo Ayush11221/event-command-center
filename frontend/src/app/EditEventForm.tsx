@@ -283,7 +283,9 @@ export function EditEventForm({
       </p>
       {!editable && (
         <p role="alert">
-          This event can no longer be edited. Your draft is retained for review.
+          {dirty
+            ? "This event can no longer be edited. Your draft is retained for review."
+            : "This event can no longer be edited in its current status."}
         </p>
       )}
       {needsReview && (

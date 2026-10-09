@@ -1,3 +1,4 @@
+import { Accent } from "../components/common/Iso";
 import { useRef, useState } from "react";
 import { logout, type ActorState } from "../services/proof";
 import { accessMessage } from "./auth-feedback";
@@ -14,7 +15,9 @@ export function ParticipantHome({
   return (
     <main className="page-shell participant-home">
       <p className="eyebrow">YOU'RE SIGNED IN</p>
-      <h1>Find your next event</h1>
+      <h1>
+        Find your next <Accent>event</Accent>
+      </h1>
       <p>
         Your account is ready. Browse events, register, and show your entry QR
         when you arrive.

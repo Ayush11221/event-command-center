@@ -1,3 +1,6 @@
+import { GuidedTour, WORKSPACE_TOUR } from "./GuidedTour";
+import { EventCampus } from "./EventCampus";
+import { Accent, IsoBuilding } from "../components/common/Iso";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   EventApiError,
@@ -24,6 +27,24 @@ import type { WorkspaceSection } from "./EventDetail";
 import { formatEventTime, timeZoneLabel } from "../services/event-time";
 import { humanLabel } from "./event-presentation";
 import { AssignedGateContext } from "./AssignedGateContext";
+import { NavIndicator } from "../components/common/motion";
+import { CommandPalette, type Command } from "./CommandPalette";
+import {
+  Award,
+  CalendarRange,
+  Compass,
+  ChartColumn,
+  LayoutGrid,
+  Search,
+  ChevronDown,
+  History,
+  ListChecks,
+  LogOut,
+  Plus,
+  Radio,
+  RefreshCw,
+  ScanLine,
+} from "lucide-react";
 
 interface Props {
   initialActor: ActorState;
@@ -69,6 +90,38 @@ export function Workspace({
   const refreshingRead = useRef(false);
   const [navigationOpen, setNavigationOpen] = useState(false);
   const navigationButton = useRef<HTMLButtonElement>(null);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [touring, setTouring] = useState(false);
+  // The create form only renders once the event detail is closed, so the
+  // jump has to happen after that render (a plain #anchor would miss it).
+  const [createRequest, setCreateRequest] = useState(0);
+  useEffect(() => {
+    if (!createRequest) return;
+    const form = document.getElementById("create-draft");
+    form?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+    form
+      ?.querySelector<HTMLInputElement>("input")
+      ?.focus({ preventScroll: true });
+  }, [createRequest]);
+  const openCreate = () => {
+    setDetailOpen(false);
+    setCreateRequest((value) => value + 1);
+    window.history.replaceState(null, "", "#create-draft");
+  };
+  const isMac =
+    typeof navigator !== "undefined" &&
+    /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   useEffect(() => {
     setActor(initialActor);
@@ -200,6 +253,88 @@ export function Workspace({
     void reload(null);
   }, [reload]);
 
+  const commands: Command[] = [];
+  if (workspace.phase === "ready") {
+    const open = (value: WorkspaceSection) => () => {
+      setSection(value);
+      setDetailVisited(true);
+      setDetailOpen(true);
+    };
+    if (selected || actor.organizer_capable)
+      commands.push({
+        id: "my-events",
+        label: "My events",
+        group: "Sections",
+        Icon: LayoutGrid,
+        run: () => setDetailOpen(false),
+      });
+    if (selected) {
+      (
+        [
+          ["overview", "Overview"],
+          ["setup", "Setup"],
+          ["registrations", "Registrations"],
+          ["team", "Team & Staff"],
+          ["gates", "Gates"],
+        ] as const
+      ).forEach(([value, label]) =>
+        commands.push({
+          id: `section-${value}`,
+          label,
+          group: "Sections",
+          Icon: LayoutGrid,
+          run: open(value),
+        }),
+      );
+      const id = encodeURIComponent(selected.eventId);
+      (
+        [
+          ["operations", "Live Operations", Radio],
+          ["certificates", "Certificates", Award],
+          ["tasks", "Volunteer tasks", ListChecks],
+          ["results", "Results", ChartColumn],
+          ["audit", "Activity", History],
+        ] as const
+      ).forEach(([path, label, Icon]) =>
+        commands.push({
+          id: `page-${path}`,
+          label,
+          group: "Pages",
+          Icon,
+          run: () => window.location.assign(`/${path}/${id}`),
+        }),
+      );
+    }
+    if (hasGateAssignment)
+      commands.push({
+        id: "scanner",
+        label: "Gate scanner",
+        group: "Pages",
+        Icon: ScanLine,
+        run: () => window.location.assign("/scanner"),
+      });
+    if (showOwned)
+      commands.push({
+        id: "create",
+        label: "Create event",
+        group: "Actions",
+        Icon: Plus,
+        run: openCreate,
+      });
+    workspace.contexts
+      .filter(
+        (context) => !selected || contextKey(context) !== contextKey(selected),
+      )
+      .forEach((context) =>
+        commands.push({
+          id: `context-${contextKey(context)}`,
+          label: `${context.name} — ${context.relationship === "owned" ? "Organizer" : "Event Admin"}`,
+          group: "Switch event",
+          Icon: CalendarRange,
+          run: () => void reload(context),
+        }),
+      );
+  }
   return (
     <>
       <div
@@ -247,12 +382,25 @@ export function Workspace({
           ) : (
             <span className="active-context">No active event</span>
           )}
+          {workspace.phase === "ready" && commands.length > 0 && (
+            <button
+              className="secondary-button palette-trigger"
+              type="button"
+              aria-keyshortcuts="Control+K Meta+K"
+              onClick={() => setPaletteOpen(true)}
+            >
+              <Search aria-hidden="true" className="size-4" />
+              Quick actions
+              <kbd aria-hidden="true">{isMac ? "⌘K" : "Ctrl K"}</kbd>
+            </button>
+          )}
           <button
             className="text-button"
             type="button"
             disabled={signingOut}
             onClick={() => void signOut()}
           >
+            <LogOut aria-hidden="true" className="size-4" />
             {signingOut ? "Signing out…" : "Sign out"}
           </button>
         </div>
@@ -261,21 +409,39 @@ export function Workspace({
         <div className="page-heading">
           <div>
             <p className="eyebrow">EVENT MANAGEMENT</p>
-            <h1>Event workspace</h1>
+            <h1>
+              Event <Accent>workspace</Accent>
+            </h1>
             <p>
               {hasGateAssignment && !selected
                 ? "Your assigned event and gate are shown above. Open the scanner to check entries."
                 : "Manage the event and role shown above. Choose a section to continue."}
             </p>
           </div>
-          <button
-            className="secondary-button"
-            type="button"
-            disabled={workspace.phase === "loading" || refreshing}
-            onClick={() => void reload(selected ?? rememberedContext(), true)}
-          >
-            Refresh workspace
-          </button>
+          <div className="page-heading-actions">
+            {workspace.phase === "ready" && (
+              <button
+                className="text-button"
+                type="button"
+                onClick={() => setTouring(true)}
+              >
+                <Compass aria-hidden="true" className="size-4" />
+                Take the tour
+              </button>
+            )}
+            <button
+              className="secondary-button"
+              type="button"
+              disabled={workspace.phase === "loading" || refreshing}
+              onClick={() => void reload(selected ?? rememberedContext(), true)}
+            >
+              <RefreshCw
+                aria-hidden="true"
+                className={refreshing ? "size-4 animate-spin" : "size-4"}
+              />
+              Refresh workspace
+            </button>
+          </div>
         </div>
         {signOutError && (
           <p role="alert" className="notice critical">
@@ -289,7 +455,7 @@ export function Workspace({
         )}
         {refreshing && <p role="status">Updating latest information…</p>}
         {workspace.phase === "loading" ? (
-          <p role="status" className="notice">
+          <p role="status" className="notice is-loading">
             Loading workspace…
           </p>
         ) : workspace.phase === "error" ? (
@@ -306,9 +472,17 @@ export function Workspace({
           <>
             {actor.assignments.some(
               (a) => a.role === "GATE_SECURITY" && a.gate_id,
-            ) && <a href="/scanner">Scan entry QR at your assigned gate</a>}
+            ) && (
+              <a href="/scanner">
+                <ScanLine aria-hidden="true" className="size-4" />
+                Scan entry QR at your assigned gate
+              </a>
+            )}
             {actor.assignments.some((a) => a.role === "VOLUNTEER") && (
-              <a href="/volunteer">My volunteer tasks</a>
+              <a href="/volunteer">
+                <ListChecks aria-hidden="true" className="size-4" />
+                My volunteer tasks
+              </a>
             )}
             {(selected || actor.organizer_capable) && (
               <>
@@ -330,6 +504,10 @@ export function Workspace({
                         gates: "Gates",
                       }[section]
                     : "My events"}
+                  <ChevronDown
+                    aria-hidden="true"
+                    className={`size-4 transition-transform duration-200 ${navigationOpen ? "rotate-180" : ""}`}
+                  />
                 </button>
                 <nav
                   id="workspace-sections"
@@ -347,80 +525,100 @@ export function Workspace({
                     }
                   }}
                 >
-                  <button
-                    type="button"
-                    className="text-button"
-                    aria-current={!detailOpen ? "page" : undefined}
-                    onClick={() => setDetailOpen(false)}
-                  >
-                    My events
-                  </button>
-                  {selected && (
-                    <a
-                      href={`/operations/${encodeURIComponent(selected.eventId)}`}
-                    >
-                      Live Operations
-                    </a>
-                  )}
-                  {selected && (
-                    <a
-                      href={`/certificates/${encodeURIComponent(selected.eventId)}`}
-                    >
-                      Certificates
-                    </a>
-                  )}
-                  {selected && (
-                    <>
-                      <a
-                        href={`/tasks/${encodeURIComponent(selected.eventId)}`}
-                      >
-                        Volunteer tasks
-                      </a>
-                      <a
-                        href={`/results/${encodeURIComponent(selected.eventId)}`}
-                      >
-                        Results
-                      </a>
-                      <a
-                        href={`/audit/${encodeURIComponent(selected.eventId)}`}
-                      >
-                        Activity
-                      </a>
-                    </>
-                  )}
-                  {selected &&
-                    (
-                      [
-                        ["overview", "Overview"],
-                        ["setup", "Setup"],
-                        ["registrations", "Registrations"],
-                        ["team", "Team & Staff"],
-                        ["gates", "Gates"],
-                      ] as const
-                    ).map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        className="text-button"
-                        aria-current={
-                          detailOpen && section === value ? "page" : undefined
-                        }
-                        onClick={() => {
-                          setSection(value);
-                          setDetailVisited(true);
-                          setDetailOpen(true);
-                        }}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  {showOwned && (
-                    <a
-                      href="#create-draft"
+                  <div className="nav-tabs">
+                    <button
+                      type="button"
+                      className="text-button"
+                      aria-current={!detailOpen ? "page" : undefined}
                       onClick={() => setDetailOpen(false)}
                     >
-                      Create event
-                    </a>
+                      {!detailOpen && <NavIndicator id="workspace-section" />}
+                      <span className="nav-label">My events</span>
+                    </button>
+                    {selected &&
+                      (
+                        [
+                          ["overview", "Overview"],
+                          ["setup", "Setup"],
+                          ["registrations", "Registrations"],
+                          ["team", "Team & Staff"],
+                          ["gates", "Gates"],
+                        ] as const
+                      ).map(([value, label]) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className="text-button"
+                          aria-current={
+                            detailOpen && section === value ? "page" : undefined
+                          }
+                          onClick={() => {
+                            setSection(value);
+                            setDetailVisited(true);
+                            setDetailOpen(true);
+                          }}
+                        >
+                          {detailOpen && section === value && (
+                            <NavIndicator id="workspace-section" />
+                          )}
+                          <span className="nav-label">{label}</span>
+                        </button>
+                      ))}
+                  </div>
+                  {(selected || showOwned) && (
+                    <div className="nav-links">
+                      {selected && (
+                        <>
+                          <a
+                            className="nav-link-live"
+                            href={`/operations/${encodeURIComponent(selected.eventId)}`}
+                          >
+                            <Radio aria-hidden="true" className="size-4" />
+                            Live Operations
+                          </a>
+                          <a
+                            href={`/certificates/${encodeURIComponent(selected.eventId)}`}
+                          >
+                            <Award aria-hidden="true" className="size-4" />
+                            Certificates
+                          </a>
+                          <a
+                            href={`/tasks/${encodeURIComponent(selected.eventId)}`}
+                          >
+                            <ListChecks aria-hidden="true" className="size-4" />
+                            Volunteer tasks
+                          </a>
+                          <a
+                            href={`/results/${encodeURIComponent(selected.eventId)}`}
+                          >
+                            <ChartColumn
+                              aria-hidden="true"
+                              className="size-4"
+                            />
+                            Results
+                          </a>
+                          <a
+                            href={`/audit/${encodeURIComponent(selected.eventId)}`}
+                          >
+                            <History aria-hidden="true" className="size-4" />
+                            Activity
+                          </a>
+                        </>
+                      )}
+                      {showOwned && (
+                        <a
+                          className="nav-link-create"
+                          href="#create-draft"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            openCreate();
+                          }}
+                        >
+                          <Plus aria-hidden="true" className="size-4" />
+                          Create event
+                        </a>
+                      )}
+                    </div>
                   )}
                 </nav>
               </>
@@ -458,7 +656,12 @@ export function Workspace({
                           });
                         }}
                       >
-                        <span className="event-row-title">{event.name}</span>
+                        <span className="event-row-title">
+                          <IsoBuilding
+                            tone={`state-${event.state.toLowerCase()}`}
+                          />
+                          {event.name}
+                        </span>
                         <span className="event-row-date">
                           {schedule(event)}
                         </span>
@@ -478,7 +681,7 @@ export function Workspace({
               !hasGateAssignment &&
               !detailOpen && <p className="empty-state">No assigned events.</p>}
             {selected && detailVisited && (
-              <div hidden={!detailOpen}>
+              <div className="workspace-panel" hidden={!detailOpen}>
                 <EventDetail
                   key={contextKey(selected)}
                   context={selected}
@@ -556,6 +759,17 @@ export function Workspace({
                       and publish them.
                     </p>
                   </div>
+                  <EventCampus
+                    events={workspace.owned}
+                    selectedId={
+                      selected?.relationship === "owned"
+                        ? selected.eventId
+                        : null
+                    }
+                    onOpen={(eventId) =>
+                      void reload({ eventId, relationship: "owned" })
+                    }
+                  />
                   {workspace.owned.length === 0 ? (
                     <div className="empty-state">
                       <h3>No events yet</h3>
@@ -585,6 +799,9 @@ export function Workspace({
                             }
                           >
                             <span className="event-row-title">
+                              <IsoBuilding
+                                tone={`state-${event.state.toLowerCase()}`}
+                              />
                               {event.name}
                             </span>
                             <span className="event-row-date">
@@ -620,6 +837,15 @@ export function Workspace({
           </>
         )}
       </main>
+      {touring && (
+        <GuidedTour steps={WORKSPACE_TOUR} onClose={() => setTouring(false)} />
+      )}
+      {paletteOpen && commands.length > 0 && (
+        <CommandPalette
+          commands={commands}
+          onClose={() => setPaletteOpen(false)}
+        />
+      )}
     </>
   );
 }
