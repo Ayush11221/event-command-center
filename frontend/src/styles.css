@@ -86,7 +86,7 @@
   --duration-base: 240ms;
   --duration-slow: 420ms;
   --topbar-height: 56px;
-  --page-width: 1180px;
+  --page-width: 1640px;
   font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -5320,5 +5320,188 @@
   .iso-scene .iso-chip {
     transform: none;
     translate: none;
+  }
+}
+
+/* --------------------------------------------------- settings menu (P1-D) -- */
+@layer components {
+  .settings-menu {
+    position: relative;
+    flex: none;
+  }
+  .settings-trigger {
+    min-height: 40px;
+    padding: 6px 12px;
+    border: 1px solid var(--hairline);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    font-weight: 560;
+  }
+  .settings-trigger:hover:not(:disabled) {
+    background: var(--surface-inset);
+  }
+  .settings-trigger[aria-expanded="true"] {
+    border-color: var(--action);
+  }
+  .settings-panel {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    z-index: 50;
+    display: grid;
+    gap: 10px;
+    width: 248px;
+    padding: 14px;
+    border: 1px solid var(--hairline);
+    border-radius: 16px;
+    background: var(--surface-raised);
+    box-shadow: var(--elev-overlay);
+    animation: eoc-pop var(--duration-base) var(--motion-ease-out) both;
+  }
+  .settings-label {
+    margin: 0;
+    color: var(--text-muted);
+    font-family: var(--font-mono-stack);
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .settings-panel .theme-control {
+    justify-content: space-between;
+    width: 100%;
+    box-shadow: none;
+  }
+  .settings-panel .theme-option {
+    flex: 1;
+    width: auto;
+    height: 40px;
+  }
+  .settings-panel hr {
+    width: 100%;
+    margin: 2px 0;
+  }
+  .settings-signout {
+    justify-content: flex-start;
+    width: 100%;
+    border-color: color-mix(in srgb, var(--critical) 40%, transparent);
+    background: transparent;
+    color: var(--critical);
+  }
+  .settings-signout:hover:not(:disabled) {
+    background: var(--critical-surface);
+  }
+  .settings-panel [role="alert"] {
+    margin: 0;
+    color: var(--critical);
+    font-size: 13px;
+  }
+}
+@media (max-width: 520px) {
+  .settings-trigger span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .settings-menu {
+    margin-left: auto;
+  }
+}
+@media (pointer: coarse) {
+  .settings-trigger {
+    min-height: 44px;
+  }
+}
+
+/* ------------------------------- wider desktop layout + themed selects -- */
+@layer components {
+  .page-shell,
+  .workspace-bar-inner {
+    width: min(100% - 64px, var(--page-width));
+  }
+  .operations-page {
+    max-width: none;
+  }
+}
+@media (max-width: 760px) {
+  .page-shell,
+  .workspace-bar-inner {
+    width: min(100% - 32px, var(--page-width));
+  }
+}
+
+/* Customizable native <select> (progressive: Chromium 135+). The element,
+   keyboard behaviour and accessibility stay native; only the look changes. */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+  select {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-right: 12px;
+    background-image: none;
+  }
+  select::picker-icon {
+    color: var(--text-muted);
+    transition: rotate var(--duration-fast) var(--motion-ease-standard);
+  }
+  select:open::picker-icon {
+    rotate: 180deg;
+  }
+  select:open {
+    border-color: var(--focus);
+  }
+  ::picker(select) {
+    margin-block: 6px;
+    padding: 6px;
+    border: 1px solid var(--hairline);
+    border-radius: 14px;
+    background: var(--surface-raised);
+    color: var(--text);
+    box-shadow: var(--elev-overlay);
+  }
+  option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    color: var(--text);
+    font-size: 15px;
+  }
+  option:hover,
+  option:focus-visible {
+    outline: none;
+    background: var(--surface-inset);
+  }
+  option:checked {
+    background: color-mix(in srgb, var(--action) 14%, transparent);
+    font-weight: 620;
+  }
+  option::checkmark {
+    color: var(--action);
+  }
+}
+
+/* ------------------------------------------------ spacing fixes (P1-D) -- */
+@layer components {
+  .event-edit-form > button[type="submit"],
+  .event-edit-form > button:last-of-type {
+    margin-top: 18px;
+  }
+}
+@media (max-width: 1023px) {
+  .workspace-navigation-toggle {
+    margin-block: 20px 24px;
+  }
+  .workspace-nav.is-open {
+    margin-block: -12px 24px;
   }
 }

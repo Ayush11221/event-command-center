@@ -7,12 +7,7 @@ import {
   listAllEvents,
   type ManagementEvent,
 } from "../services/events";
-import {
-  currentActor,
-  logout,
-  ProofError,
-  type ActorState,
-} from "../services/proof";
+import { currentActor, ProofError, type ActorState } from "../services/proof";
 import {
   contextKey,
   contextsFromLists,
@@ -39,7 +34,6 @@ import {
   ChevronDown,
   History,
   ListChecks,
-  LogOut,
   Plus,
   Radio,
   RefreshCw,
@@ -49,7 +43,6 @@ import {
 interface Props {
   initialActor: ActorState;
   onSessionExpired: () => void;
-  onSignedOut: () => void;
 }
 
 type WorkspaceState =
@@ -69,17 +62,11 @@ function schedule(event: ManagementEvent): string {
   return `${formatEventTime(event.start_at, event.time_zone)} · ${timeZoneLabel(event.time_zone)}`;
 }
 
-export function Workspace({
-  initialActor,
-  onSessionExpired,
-  onSignedOut,
-}: Props) {
+export function Workspace({ initialActor, onSessionExpired }: Props) {
   const [actor, setActor] = useState(initialActor);
   const [workspace, setWorkspace] = useState<WorkspaceState>({
     phase: "loading",
   });
-  const [signingOut, setSigningOut] = useState(false);
-  const [signOutError, setSignOutError] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailVisited, setDetailVisited] = useState(false);
   const [section, setSection] = useState<WorkspaceSection>("overview");
@@ -220,23 +207,6 @@ export function Workspace({
     document.addEventListener("visibilitychange", onVisible);
     return () => document.removeEventListener("visibilitychange", onVisible);
   }, [reload]);
-
-  async function signOut() {
-    setSigningOut(true);
-    setSignOutError("");
-    try {
-      await logout(actor.csrf_token);
-      onSignedOut();
-    } catch (error) {
-      if (error instanceof ProofError && error.status === 401) expireSession();
-      else
-        setSignOutError(
-          "Sign out could not be confirmed. Check your connection and retry.",
-        );
-    } finally {
-      setSigningOut(false);
-    }
-  }
 
   const selected = workspace.phase === "ready" ? workspace.selected : null;
   const hasGateAssignment = actor.assignments.some(
@@ -394,15 +364,6 @@ export function Workspace({
               <kbd aria-hidden="true">{isMac ? "⌘K" : "Ctrl K"}</kbd>
             </button>
           )}
-          <button
-            className="text-button"
-            type="button"
-            disabled={signingOut}
-            onClick={() => void signOut()}
-          >
-            <LogOut aria-hidden="true" className="size-4" />
-            {signingOut ? "Signing out…" : "Sign out"}
-          </button>
         </div>
       </div>
       <main className="page-shell workspace-main">
@@ -443,11 +404,6 @@ export function Workspace({
             </button>
           </div>
         </div>
-        {signOutError && (
-          <p role="alert" className="notice critical">
-            {signOutError}
-          </p>
-        )}
         {accessError && (
           <p role="alert" className="notice critical">
             {accessError}

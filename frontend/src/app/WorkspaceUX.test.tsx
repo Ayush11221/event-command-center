@@ -91,13 +91,7 @@ afterEach(() => {
   localStorage.clear();
 });
 function workspace() {
-  render(
-    <Workspace
-      initialActor={actor}
-      onSessionExpired={vi.fn()}
-      onSignedOut={vi.fn()}
-    />,
-  );
+  render(<Workspace initialActor={actor} onSessionExpired={vi.fn()} />);
 }
 async function setup() {
   workspace();

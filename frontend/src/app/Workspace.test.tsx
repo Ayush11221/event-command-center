@@ -8,7 +8,7 @@ import {
   type ManagementEvent,
 } from "../services/events";
 import { eventDetailFixture } from "../test/event-fixture";
-import { currentActor, logout, type ActorState } from "../services/proof";
+import { currentActor, type ActorState } from "../services/proof";
 import { Workspace } from "./Workspace";
 
 vi.mock("../services/events", async (importOriginal) => {
@@ -22,7 +22,7 @@ vi.mock("../services/events", async (importOriginal) => {
 });
 vi.mock("../services/proof", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/proof")>();
-  return { ...actual, currentActor: vi.fn(), logout: vi.fn() };
+  return { ...actual, currentActor: vi.fn() };
 });
 
 const actor: ActorState = {
@@ -56,11 +56,9 @@ describe("authenticated Event workspace", () => {
   it("uses the new access verification after reauthentication while retaining draft input", async () => {
     vi.mocked(currentActor).mockResolvedValue(actor);
     vi.mocked(listAllEvents).mockResolvedValue([]);
-    vi.mocked(logout).mockResolvedValue();
     const p = {
       initialActor: actor,
       onSessionExpired: vi.fn(),
-      onSignedOut: vi.fn(),
     };
     const view = render(<Workspace {...p} />);
     const input = await screen.findByLabelText(/Event name/);
@@ -69,19 +67,13 @@ describe("authenticated Event workspace", () => {
       <Workspace {...p} initialActor={{ ...actor, csrf_token: "new-csrf" }} />,
     );
     expect(input).toHaveValue("Unsaved draft");
-    fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
-    await vi.waitFor(() => expect(logout).toHaveBeenCalledWith("new-csrf"));
+    // Sign out moved to the header Settings menu (see SettingsMenu.test).
+    expect(screen.getByLabelText(/Event name/)).toBe(input);
   });
   it("keeps the mounted draft and its unsaved value during visibility renewal and transient session-store failure", async () => {
     vi.mocked(currentActor).mockResolvedValue(actor);
     vi.mocked(listAllEvents).mockResolvedValue([]);
-    render(
-      <Workspace
-        initialActor={actor}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
-    );
+    render(<Workspace initialActor={actor} onSessionExpired={vi.fn()} />);
     const input = await screen.findByLabelText(/Event name/);
     fireEvent.change(input, { target: { value: "Unsaved event" } });
     fireEvent(document, new Event("visibilitychange"));
@@ -120,13 +112,7 @@ describe("authenticated Event workspace", () => {
       };
       vi.mocked(currentActor).mockResolvedValue(staff);
       vi.mocked(listAllEvents).mockResolvedValue([]);
-      render(
-        <Workspace
-          initialActor={staff}
-          onSessionExpired={vi.fn()}
-          onSignedOut={vi.fn()}
-        />,
-      );
+      render(<Workspace initialActor={staff} onSessionExpired={vi.fn()} />);
       if (role === "GATE_SECURITY") {
         await screen.findByText("Role: Gate / Security");
         expect(
@@ -161,11 +147,7 @@ describe("authenticated Event workspace", () => {
       vi.mocked(currentActor).mockResolvedValue(adminActor);
       vi.mocked(listAllEvents).mockResolvedValue([{ ...owned, relationship }]);
       render(
-        <Workspace
-          initialActor={adminActor}
-          onSessionExpired={vi.fn()}
-          onSignedOut={vi.fn()}
-        />,
+        <Workspace initialActor={adminActor} onSessionExpired={vi.fn()} />,
       );
       expect(
         await screen.findByRole("link", { name: "Live Operations" }),
@@ -175,13 +157,7 @@ describe("authenticated Event workspace", () => {
   it("automatically selects the sole owned context and shows no invented counts", async () => {
     vi.mocked(currentActor).mockResolvedValue(actor);
     vi.mocked(listAllEvents).mockResolvedValue([owned]);
-    render(
-      <Workspace
-        initialActor={actor}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
-    );
+    render(<Workspace initialActor={actor} onSessionExpired={vi.fn()} />);
     expect(
       await screen.findByRole("heading", { name: "My events" }),
     ).toBeVisible();
@@ -220,11 +196,7 @@ describe("authenticated Event workspace", () => {
       view === "owned" ? [owned] : [assigned],
     );
     render(
-      <Workspace
-        initialActor={withAssignment}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
+      <Workspace initialActor={withAssignment} onSessionExpired={vi.fn()} />,
     );
     const switcher = await screen.findByLabelText("Event and role");
     expect(switcher).toHaveValue("assigned:one");
@@ -254,13 +226,7 @@ describe("authenticated Event workspace", () => {
     vi.mocked(listAllEvents)
       .mockRejectedValueOnce(new Error("db"))
       .mockResolvedValueOnce([]);
-    render(
-      <Workspace
-        initialActor={actor}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
-    );
+    render(<Workspace initialActor={actor} onSessionExpired={vi.fn()} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "could not be loaded",
     );
@@ -278,13 +244,7 @@ describe("authenticated Event workspace", () => {
     };
     vi.mocked(currentActor).mockResolvedValue(admin);
     vi.mocked(listAllEvents).mockResolvedValue([assigned]);
-    render(
-      <Workspace
-        initialActor={admin}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
-    );
+    render(<Workspace initialActor={admin} onSessionExpired={vi.fn()} />);
     expect(
       await screen.findByRole("heading", { name: "Assigned events" }),
     ).toBeVisible();
@@ -334,13 +294,7 @@ describe("authenticated Event workspace", () => {
     vi.mocked(listAllEvents)
       .mockRejectedValueOnce(new EventApiError("DEPENDENCY_UNAVAILABLE", 503))
       .mockResolvedValueOnce([]);
-    render(
-      <Workspace
-        initialActor={admin}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
-    );
+    render(<Workspace initialActor={admin} onSessionExpired={vi.fn()} />);
     expect(screen.getByRole("status")).toHaveTextContent("Loading workspace");
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "could not be loaded",
@@ -368,13 +322,7 @@ describe("authenticated Event workspace", () => {
     vi.mocked(getEventDetail).mockRejectedValue(
       new EventApiError("EVENT_NOT_FOUND", 404),
     );
-    render(
-      <Workspace
-        initialActor={admin}
-        onSessionExpired={vi.fn()}
-        onSignedOut={vi.fn()}
-      />,
-    );
+    render(<Workspace initialActor={admin} onSessionExpired={vi.fn()} />);
     expect(
       await screen.findByRole("heading", { name: "Assigned events" }),
     ).toBeVisible();
