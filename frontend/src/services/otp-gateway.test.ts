@@ -1,10 +1,20 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import type { Request as ExpressRequest } from "express";
+import { convertCompilerOptionsFromJson, transpileModule } from "typescript";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import gateway from "../../api/v1/auth/[purpose]/challenge";
-import accountChallenge from "../../api/v1/auth/account/challenge";
-import guestChallenge from "../../api/v1/auth/guest/challenge";
+import gateway from "../../api/v1/auth/[purpose]/challenge.js";
+import accountChallenge from "../../api/v1/auth/account/challenge.js";
+import guestChallenge from "../../api/v1/auth/guest/challenge.js";
 import {
   captureOtpBody,
   canonicalOtpIp,
@@ -55,6 +65,70 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Vercel Node OTP gateway", () => {
+  it("loads the emitted shared gateway and both static entrypoints in native Node ESM", () => {
+    const temporaryRoot = resolve(tmpdir());
+    const outputDirectory = mkdtempSync(join(temporaryRoot, "eoc-otp-esm-"));
+    try {
+      const configuration = JSON.parse(readFileSync("tsconfig.json", "utf8"));
+      const { options, errors } = convertCompilerOptionsFromJson(
+        configuration.compilerOptions,
+        process.cwd(),
+      );
+      expect(errors).toEqual([]);
+      writeFileSync(
+        join(outputDirectory, "package.json"),
+        readFileSync("package.json"),
+      );
+      for (const purpose of ["[purpose]", "account", "guest"]) {
+        const sourcePath = `api/v1/auth/${purpose}/challenge.ts`;
+        const outputPath = join(
+          outputDirectory,
+          sourcePath.replace(/\.ts$/, ".js"),
+        );
+        mkdirSync(dirname(outputPath), { recursive: true });
+        writeFileSync(
+          outputPath,
+          transpileModule(readFileSync(sourcePath, "utf8"), {
+            fileName: sourcePath,
+            compilerOptions: { ...options, noEmit: false },
+          }).outputText,
+        );
+      }
+      // Vitest resolves extensionless TS imports; the deployed Node ESM loader does not.
+      const result = execFileSync(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `
+            import assert from "node:assert/strict";
+            globalThis.fetch = () => { throw new Error("Unexpected upstream request"); };
+            for (const name of ["[purpose]", "account", "guest"]) {
+              const { default: gateway } = await import("./api/v1/auth/" + name + "/challenge.js");
+              const purpose = name === "[purpose]" ? "account" : name;
+              const url = "https://app.example.test/api/v1/auth/" + purpose + "/challenge";
+              for (const [search, status, code] of [
+                ["", 405, "METHOD_NOT_ALLOWED"],
+                ["?purpose=" + purpose, 404, "NOT_FOUND"],
+              ]) {
+                const response = await gateway.fetch(new Request(url + search));
+                assert.equal(response.status, status);
+                assert.equal((await response.json()).code, code);
+                assert.equal(response.headers.get("Cache-Control"), "no-store");
+              }
+            }
+            console.log("loaded");
+          `,
+        ],
+        { cwd: outputDirectory, encoding: "utf8", timeout: 10_000 },
+      );
+      expect(result.trim()).toBe("loaded");
+    } finally {
+      if (dirname(outputDirectory) !== temporaryRoot)
+        throw new Error("Unsafe temporary output directory");
+      rmSync(outputDirectory, { recursive: true, force: true });
+    }
+  });
   it.each(staticRoutes)(
     "forwards static %s raw bytes with an API-verifiable assertion without a purpose query",
     async (purpose, entrypoint) => {
