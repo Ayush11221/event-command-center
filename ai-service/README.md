@@ -15,11 +15,31 @@ Node also needs `FORECAST_SERVICE_URL`. For local execution from `ai-service`:
 & '.\.venv\Scripts\python.exe' -m pytest -q
 ```
 
-Keep the listener internal. Node permits loopback HTTP or remote HTTPS, rejects
+Keep the listener internal. By default Node permits loopback HTTP or remote HTTPS, rejects
 redirects, and bounds one request including its body to 2,000 ms and 64 KiB.
 Missing configuration, outages and timeouts yield new persisted
 `MODEL_UNAVAILABLE` attempts; incompatible results yield `INVALID_INPUT`.
 Neither case substitutes an older successful forecast. History never calls Python.
+
+Railway private HTTP requires `FORECAST_SERVICE_TRANSPORT=railway_private_http`
+on both services, API `FORECAST_SERVICE_URL=http://forecast.railway.internal:8000`
+(an optional trailing `/` is accepted), and the same independent bearer key.
+Both startup validators require Railway's documented `RAILWAY_PROJECT_ID` and
+`RAILWAY_ENVIRONMENT_ID`; the Python wrapper additionally requires its own
+`RAILWAY_PRIVATE_DOMAIN=forecast.railway.internal`. These are platform-provided
+inputs, not values to invent locally for deployment. Set forecast `UVICORN_HOST=0.0.0.0`
+and `UVICORN_PORT=8000`, remove both `UVICORN_SSL_*FILE` variables, and use
+`python forecast-entry.py` from the service root. This mode rejects TLS settings,
+other binds/ports, other URLs and unknown transport values. Leaving the mode
+absent preserves loopback HTTP and the existing off-loopback TLS requirement.
+It never falls back from HTTPS to HTTP.
+
+The bearer and forecast data rely on Railway's isolated encrypted private network
+in this mode. Runtime metadata cannot attest the destination's project/environment,
+DNS resolution or all public routes. Operators must confirm both services are in
+the same project/environment, the actual private domain matches, private DNS has
+IPv4 reachability, and forecast has no public domain or TCP proxy. See the
+[Railway settings and verification boundary](../docs/implementation/RAILWAY_DEPLOYMENT.md#explicit-railway-private-http).
 
 The initial method is deliberately the persistence baseline: carry forward the
 last authoritative occupancy at 30 and 60 minutes without capacity clipping.

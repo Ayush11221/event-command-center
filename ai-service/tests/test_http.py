@@ -1,4 +1,5 @@
 import json
+import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from test_forecast import series
@@ -6,8 +7,16 @@ from test_forecast import series
 client = TestClient(app)
 KEY = "a" * 64
 
-def test_internal_auth_and_no_browser_surface(monkeypatch):
+@pytest.mark.parametrize("transport", [None, "railway_private_http"])
+def test_internal_auth_and_no_browser_surface(monkeypatch, transport):
+    if transport is None:
+        monkeypatch.delenv("FORECAST_SERVICE_TRANSPORT", raising=False)
+    else:
+        monkeypatch.setenv("FORECAST_SERVICE_TRANSPORT", transport)
     monkeypatch.setenv("FORECAST_SERVICE_KEY", KEY)
+    assert client.get("/internal/health").status_code == 401
+    assert client.get("/internal/health", headers={"Authorization": "Bearer wrong"}).status_code == 401
+    assert client.get("/internal/health", headers={"Authorization": "Bearer " + KEY}).status_code == 200
     assert client.post("/internal/v1/forecasts", json=series()).status_code == 401
     assert client.post("/internal/v1/forecasts", headers={"Authorization": "Bearer wrong"}, json=series()).status_code == 401
     for path in ["/docs", "/openapi.json", "/api/v1/events/x/forecasts/current"]:
@@ -15,7 +24,12 @@ def test_internal_auth_and_no_browser_surface(monkeypatch):
     response = client.options("/internal/v1/forecasts", headers={"Origin": "https://browser.test", "Access-Control-Request-Method": "POST"})
     assert "access-control-allow-origin" not in response.headers
 
-def test_safe_bounded_malformed_and_unconfigured(monkeypatch):
+@pytest.mark.parametrize("transport", [None, "railway_private_http"])
+def test_safe_bounded_malformed_and_unconfigured(monkeypatch, transport):
+    if transport is None:
+        monkeypatch.delenv("FORECAST_SERVICE_TRANSPORT", raising=False)
+    else:
+        monkeypatch.setenv("FORECAST_SERVICE_TRANSPORT", transport)
     monkeypatch.delenv("FORECAST_SERVICE_KEY", raising=False)
     assert client.post("/internal/v1/forecasts").status_code == 503
     monkeypatch.setenv("FORECAST_SERVICE_KEY", "z" * 64)

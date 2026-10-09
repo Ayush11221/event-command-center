@@ -1,7 +1,10 @@
+import { createServer, type Server } from "node:http";
+import { once } from "node:events";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { callForecast } from "./client.js";
 import { fallback, type ForecastRequest } from "./contract.js";
 import type { FoundationConfig } from "../../config/foundation.js";
+import { parseFoundationConfig } from "../../config/foundation.js";
 const request: ForecastRequest = {
   contract_version: 1,
   event_id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
@@ -24,11 +27,26 @@ const config: FoundationConfig = {
   forecastServiceUrl: "http://127.0.0.1:8000",
   forecastServiceKey: "a".repeat(64),
 };
+const privateConfig = parseFoundationConfig({
+  DATABASE_URL: "postgresql://localhost/test",
+  JWT_SECRET: "b".repeat(64),
+  CONTACT_KEY: "c".repeat(64),
+  OTP_KEY: "d".repeat(64),
+  FORECAST_SERVICE_KEY: config.forecastServiceKey,
+  FORECAST_SERVICE_URL: "http://forecast.railway.internal:8000",
+  FORECAST_SERVICE_TRANSPORT: "railway_private_http",
+  RAILWAY_PROJECT_ID: "synthetic-project",
+  RAILWAY_ENVIRONMENT_ID: "synthetic-environment",
+});
 afterEach(() => {
   vi.unstubAllGlobals();
   vi.useRealTimers();
 });
-describe("Private forecast transport", () => {
+describe.each([
+  { ...config, forecastServiceUrl: "https://forecast.railway.internal:8000" },
+  config,
+  privateConfig,
+])("Private forecast transport $forecastServiceUrl", (config) => {
   it("does not call an unconfigured service", async () => {
     const fetch = vi.fn();
     vi.stubGlobal("fetch", fetch);
@@ -57,6 +75,9 @@ describe("Private forecast transport", () => {
       redirect: "error",
       headers: { Authorization: "Bearer " + config.forecastServiceKey },
     });
+    expect(String(fetch.mock.calls[0][0])).toBe(
+      new URL("/internal/v1/forecasts", config.forecastServiceUrl).href,
+    );
     expect(fetch.mock.calls[0][1].body).not.toContain("contact");
   });
   it.each([400, 401, 500, 503])(
@@ -73,6 +94,41 @@ describe("Private forecast transport", () => {
         status === 400 ? "INVALID_INPUT" : "MODEL_UNAVAILABLE",
       );
       expect(JSON.stringify(result)).not.toContain("secret");
+    },
+  );
+  it("redacts network and TLS failures", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValue(new Error("secret TLS/key diagnostic")),
+    );
+    const result = await callForecast(config, request);
+    expect(result.status).toBe("MODEL_UNAVAILABLE");
+    expect(JSON.stringify(result)).not.toContain("secret");
+  });
+  it.each([65536, 65537])(
+    "bounds a chunked response at exactly 65,536 bytes (%s)",
+    async (size) => {
+      const expected = fallback(request, "INSUFFICIENT_DATA");
+      const payload = Buffer.from(JSON.stringify(expected).padEnd(size, " "));
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockResolvedValue(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                for (let i = 0; i < payload.length; i += 16384)
+                  controller.enqueue(payload.subarray(i, i + 16384));
+                controller.close();
+              },
+            }),
+          ),
+        ),
+      );
+      const result = await callForecast(config, request);
+      expect(result.status).toBe(
+        size === 65536 ? "INSUFFICIENT_DATA" : "INVALID_INPUT",
+      );
+      if (size === 65536) expect(result).toEqual(expected);
     },
   );
   it.each(["malformed", "extra", "foreign", "context", "future", "oversize"])(
@@ -131,3 +187,56 @@ describe("Private forecast transport", () => {
     },
   );
 });
+
+async function listen(server: Server): Promise<string> {
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const address = server.address();
+  if (!address || typeof address === "string")
+    throw new Error("Missing test listener");
+  return `http://127.0.0.1:${address.port}`;
+}
+async function close(server: Server) {
+  server.closeAllConnections();
+  await new Promise<void>((resolve, reject) =>
+    server.close((error) => (error ? reject(error) : resolve())),
+  );
+}
+it.each([301, 302, 303, 307, 308])(
+  "rejects a real HTTP %s redirect before any request reaches its destination",
+  async (status) => {
+    let destinationRequests = 0,
+      sourceRequests = 0;
+    let authorization: string | undefined;
+    const destination = createServer((_req, res) => {
+      destinationRequests++;
+      res.end(JSON.stringify(fallback(request, "INSUFFICIENT_DATA")));
+    });
+    const destinationUrl = await listen(destination);
+    const source = createServer((req, res) => {
+      sourceRequests++;
+      authorization = req.headers.authorization;
+      req.resume();
+      res.writeHead(status, {
+        Location: destinationUrl + "/secret-destination",
+      });
+      res.end();
+    });
+    try {
+      const sourceUrl = await listen(source);
+      const result = await callForecast(
+        { ...config, forecastServiceUrl: sourceUrl },
+        request,
+      );
+      expect(sourceRequests).toBe(1);
+      expect(authorization).toBe("Bearer " + config.forecastServiceKey);
+      expect(result.status).toBe("MODEL_UNAVAILABLE");
+      expect(destinationRequests).toBe(0);
+      expect(JSON.stringify(result)).not.toContain("secret-destination");
+      expect(JSON.stringify(result)).not.toContain(config.forecastServiceKey);
+    } finally {
+      await close(source);
+      await close(destination);
+    }
+  },
+);

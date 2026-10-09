@@ -15,6 +15,7 @@ export interface FoundationConfig {
   smsGatewayModule?: string;
   forecastServiceUrl?: string;
   forecastServiceKey?: string;
+  forecastServiceTransport?: "railway_private_http";
   otpAbuse?: OtpAbuseConfig;
 }
 
@@ -87,7 +88,32 @@ export function parseFoundationConfig(
         "SMTP_FROM must be the verified platform email address for Brevo",
       );
   }
-  if (env.FORECAST_SERVICE_URL || env.FORECAST_SERVICE_KEY) {
+  const forecastServiceTransport = env.FORECAST_SERVICE_TRANSPORT;
+  if (
+    forecastServiceTransport !== undefined &&
+    forecastServiceTransport !== "railway_private_http"
+  )
+    throw new Error("Invalid forecast service transport");
+  if (forecastServiceTransport === "railway_private_http") {
+    if (!env.RAILWAY_PROJECT_ID?.trim() || !env.RAILWAY_ENVIRONMENT_ID?.trim())
+      throw new Error(
+        "Private forecast HTTP requires Railway project and environment context",
+      );
+    // Compare the raw value as well: URL parsing normalizes dot paths, empty
+    // credentials, delimiters and whitespace that this opt-in must reject.
+    if (
+      env.FORECAST_SERVICE_URL !== "http://forecast.railway.internal:8000" &&
+      env.FORECAST_SERVICE_URL !== "http://forecast.railway.internal:8000/"
+    )
+      throw new Error(
+        "Private forecast HTTP requires http://forecast.railway.internal:8000",
+      );
+  }
+  if (
+    env.FORECAST_SERVICE_URL ||
+    env.FORECAST_SERVICE_KEY ||
+    forecastServiceTransport
+  ) {
     if (
       !env.FORECAST_SERVICE_URL ||
       !env.FORECAST_SERVICE_KEY ||
@@ -119,7 +145,8 @@ export function parseFoundationConfig(
       (endpoint.protocol !== "https:" &&
         !(
           endpoint.protocol === "http:" &&
-          ["127.0.0.1", "localhost", "[::1]"].includes(endpoint.hostname)
+          (["127.0.0.1", "localhost", "[::1]"].includes(endpoint.hostname) ||
+            forecastServiceTransport === "railway_private_http")
         ))
     )
       throw new Error(
@@ -140,6 +167,7 @@ export function parseFoundationConfig(
     smsGatewayModule: env.SMS_GATEWAY_MODULE,
     forecastServiceUrl: env.FORECAST_SERVICE_URL,
     forecastServiceKey: env.FORECAST_SERVICE_KEY,
+    forecastServiceTransport,
     otpAbuse,
   };
 }

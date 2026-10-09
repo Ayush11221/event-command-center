@@ -1,4 +1,4 @@
-"""Loopback HTTP locally; verified private TLS when bound off loopback."""
+"""Loopback HTTP, verified TLS, or explicitly enabled Railway private HTTP."""
 import os
 import re
 import sys
@@ -6,6 +6,14 @@ from pathlib import Path
 
 
 def configure(env):
+    transport = env.get("FORECAST_SERVICE_TRANSPORT")
+    if transport is not None and transport != "railway_private_http":
+        raise ValueError("Invalid forecast service transport")
+    if transport == "railway_private_http":
+        if not env.get("RAILWAY_PROJECT_ID", "").strip() or not env.get("RAILWAY_ENVIRONMENT_ID", "").strip():
+            raise ValueError("Private forecast HTTP requires Railway project and environment context")
+        if env.get("RAILWAY_PRIVATE_DOMAIN") != "forecast.railway.internal":
+            raise ValueError("Private forecast HTTP requires the forecast private domain")
     key = env.get("FORECAST_SERVICE_KEY")
     file = env.get("FORECAST_SERVICE_KEY_FILE")
     if key is not None and file:
@@ -25,7 +33,10 @@ def configure(env):
         raise ValueError("Invalid forecast port")
     cert = env.get("UVICORN_SSL_CERTFILE")
     private_key = env.get("UVICORN_SSL_KEYFILE")
-    if bool(cert) != bool(private_key) or (host != "127.0.0.1" and not cert):
+    if transport == "railway_private_http":
+        if host != "0.0.0.0" or port != "8000" or cert or private_key:
+            raise ValueError("Private forecast HTTP requires 0.0.0.0:8000 without TLS files")
+    elif bool(cert) != bool(private_key) or (host != "127.0.0.1" and not cert):
         raise ValueError("Private forecast networking requires a TLS certificate and key")
     args = ["uvicorn", "app.main:app", "--host", host, "--port", port, "--no-access-log"]
     if cert:
@@ -42,5 +53,5 @@ if __name__ == "__main__":
         os.execvp("uvicorn", args)
     except (ValueError, OSError):
         # No key values, environment dumps or private file paths in diagnostics.
-        sys.stderr.write("Forecast startup failed; verify key and private TLS configuration\n")
+        sys.stderr.write("Forecast startup failed; verify key and transport configuration\n")
         sys.exit(1)
