@@ -80,6 +80,17 @@ const groups = [
     fields: [["checkout_enabled", "Enable check-out", "checkbox"]],
   },
 ] as const;
+const advancedFields = new Set<string>([
+  "description",
+  "image_url",
+  "category",
+  "tags",
+  "registration_opens_at",
+  "registration_closes_at",
+  "registration_cancellation_cutoff_at",
+  "registration_manually_closed",
+  "checkout_enabled",
+]);
 const labels = Object.fromEntries(
   groups.flatMap((group) =>
     group.fields.map(([field, label]) => [field, label]),
@@ -110,6 +121,10 @@ export function EditEventForm({
   const [reconcile, setReconcile] = useState(false);
   const [message, setMessage] = useState("");
   const [fieldError, setFieldError] = useState("");
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  useEffect(() => {
+    if (advancedFields.has(fieldError)) setOptionsOpen(true);
+  }, [fieldError]);
   const controller = useRef<AbortController | null>(null);
   const pending = useRef<EventEdit>({});
   const changed = changedEventFields(values, baseline, owner);
@@ -262,6 +277,142 @@ export function EditEventForm({
     setFieldError("");
     setMessage("");
   }
+  function renderGroups(advanced: boolean) {
+    return groups
+      .map((group) => ({
+        ...group,
+        fields: group.fields.filter(
+          ([field]) => advancedFields.has(field) === advanced,
+        ),
+      }))
+      .filter((group) => group.fields.length > 0)
+      .filter((group) => owner || !group.owner)
+      .map((group) => (
+        <fieldset key={group.label} disabled={disabled}>
+          <legend>
+            {advanced ? `Optional ${group.label.toLowerCase()}` : group.label}
+          </legend>
+          {group.label === "Schedule" && (
+            <p className="form-group-help">
+              Start and end times are required before publishing. New events use
+              India Standard Time (IST, UTC+05:30). Existing event time zones
+              are retained. Changing the time zone keeps the entered clock times
+              in the new zone and changes their saved timestamps.
+            </p>
+          )}
+          {group.label === "Registration" && advanced && (
+            <p className="form-group-help">
+              Set the maximum number of registrations. The opening, closing and
+              cancellation times are optional. If no opening time is set,
+              registration opens on publication. If no closing time is set, it
+              closes when the event starts. Registration also closes when the
+              event becomes live.
+            </p>
+          )}
+          {group.label === "Registration" && !advanced && (
+            <p className="form-group-help">
+              Set the maximum number of registrations. By default, registration
+              opens when you publish and closes at the event start or when you
+              Start live event. Change these times in More options.
+            </p>
+          )}
+          {group.label === "Operations" && (
+            <p className="form-group-help">
+              Configure gates in the Gates section.
+            </p>
+          )}
+          {group.label === "Access" && (
+            <p className="form-group-help">
+              Public events appear in Public events, including while live.
+              Private events require an organizer's invitation link.
+            </p>
+          )}
+          {group.fields.map(([field, label, type]) => {
+            const id = `edit-${field}`,
+              invalid = fieldError === field,
+              describedBy = invalid ? "edit-feedback" : undefined;
+            if (type === "date")
+              return (
+                <EventDateTimeControls
+                  key={field}
+                  id={id}
+                  label={label}
+                  value={String(values[field])}
+                  onChange={(value) => update(field, value)}
+                  invalid={invalid}
+                  describedBy={describedBy}
+                />
+              );
+            return (
+              <div key={field} className="event-form-field">
+                <label htmlFor={id}>{label}</label>
+                {type === "textarea" ? (
+                  <textarea
+                    id={id}
+                    value={String(values[field])}
+                    aria-invalid={invalid}
+                    aria-describedby={describedBy}
+                    onChange={(event) => update(field, event.target.value)}
+                  />
+                ) : type === "zone" || type === "access" ? (
+                  <select
+                    id={id}
+                    value={String(values[field])}
+                    aria-invalid={invalid}
+                    aria-describedby={describedBy}
+                    onChange={(event) => update(field, event.target.value)}
+                  >
+                    {(type !== "zone" || !values.time_zone) && (
+                      <option value="">Not configured</option>
+                    )}
+                    {type === "zone" ? (
+                      <>
+                        {timeZoneOptions(baseline.time_zone ?? "").map(
+                          (zone) => (
+                            <option key={zone} value={zone}>
+                              {timeZoneLabel(zone)}
+                            </option>
+                          ),
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <option value="PUBLIC">Public</option>
+                        <option value="PRIVATE">Invitation</option>
+                      </>
+                    )}
+                  </select>
+                ) : (
+                  <input
+                    id={id}
+                    type={type}
+                    required={field === "name"}
+                    min={type === "number" ? 1 : undefined}
+                    max={type === "number" ? 2147483647 : undefined}
+                    checked={
+                      type === "checkbox" ? Boolean(values[field]) : undefined
+                    }
+                    value={
+                      type === "checkbox" ? undefined : String(values[field])
+                    }
+                    aria-invalid={invalid}
+                    aria-describedby={describedBy}
+                    onChange={(event) =>
+                      update(
+                        field,
+                        type === "checkbox"
+                          ? event.target.checked
+                          : event.target.value,
+                      )
+                    }
+                  />
+                )}
+              </div>
+            );
+          })}
+        </fieldset>
+      ));
+  }
   return (
     <form
       className="event-edit-form"
@@ -310,124 +461,17 @@ export function EditEventForm({
           )}
         </div>
       )}
-      {groups
-        .filter((group) => owner || !group.owner)
-        .map((group) => (
-          <fieldset key={group.label} disabled={disabled}>
-            <legend>{group.label}</legend>
-            {group.label === "Schedule" && (
-              <p className="form-group-help">
-                Start and end times are required before publishing. New events
-                use India Standard Time (IST, UTC+05:30). Existing event time
-                zones are retained. Changing the time zone keeps the entered
-                clock times in the new zone and changes their saved timestamps.
-              </p>
-            )}
-            {group.label === "Registration" && (
-              <p className="form-group-help">
-                Set the maximum number of registrations. The opening, closing
-                and cancellation times are optional. If no opening time is set,
-                registration opens on publication. If no closing time is set, it
-                closes when the event starts. Registration also closes when the
-                event becomes live.
-              </p>
-            )}
-            {group.label === "Operations" && (
-              <p className="form-group-help">
-                Configure gates in the Gates section.
-              </p>
-            )}
-            {group.label === "Access" && (
-              <p className="form-group-help">
-                Public events appear in Public events, including while live.
-                Private events require an organizer's invitation link.
-              </p>
-            )}
-            {group.fields.map(([field, label, type]) => {
-              const id = `edit-${field}`,
-                invalid = fieldError === field,
-                describedBy = invalid ? "edit-feedback" : undefined;
-              if (type === "date")
-                return (
-                  <EventDateTimeControls
-                    key={field}
-                    id={id}
-                    label={label}
-                    value={String(values[field])}
-                    onChange={(value) => update(field, value)}
-                    invalid={invalid}
-                    describedBy={describedBy}
-                  />
-                );
-              return (
-                <div key={field} className="event-form-field">
-                  <label htmlFor={id}>{label}</label>
-                  {type === "textarea" ? (
-                    <textarea
-                      id={id}
-                      value={String(values[field])}
-                      aria-invalid={invalid}
-                      aria-describedby={describedBy}
-                      onChange={(event) => update(field, event.target.value)}
-                    />
-                  ) : type === "zone" || type === "access" ? (
-                    <select
-                      id={id}
-                      value={String(values[field])}
-                      aria-invalid={invalid}
-                      aria-describedby={describedBy}
-                      onChange={(event) => update(field, event.target.value)}
-                    >
-                      {(type !== "zone" || !values.time_zone) && (
-                        <option value="">Not configured</option>
-                      )}
-                      {type === "zone" ? (
-                        <>
-                          {timeZoneOptions(baseline.time_zone ?? "").map(
-                            (zone) => (
-                              <option key={zone} value={zone}>
-                                {timeZoneLabel(zone)}
-                              </option>
-                            ),
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <option value="PUBLIC">Public</option>
-                          <option value="PRIVATE">Invitation</option>
-                        </>
-                      )}
-                    </select>
-                  ) : (
-                    <input
-                      id={id}
-                      type={type}
-                      required={field === "name"}
-                      min={type === "number" ? 1 : undefined}
-                      max={type === "number" ? 2147483647 : undefined}
-                      checked={
-                        type === "checkbox" ? Boolean(values[field]) : undefined
-                      }
-                      value={
-                        type === "checkbox" ? undefined : String(values[field])
-                      }
-                      aria-invalid={invalid}
-                      aria-describedby={describedBy}
-                      onChange={(event) =>
-                        update(
-                          field,
-                          type === "checkbox"
-                            ? event.target.checked
-                            : event.target.value,
-                        )
-                      }
-                    />
-                  )}
-                </div>
-              );
-            })}
-          </fieldset>
-        ))}
+      {renderGroups(false)}
+      <details
+        className="advanced-details"
+        open={optionsOpen}
+        onToggle={(event) => setOptionsOpen(event.currentTarget.open)}
+      >
+        <summary>
+          More options — description, registration timing and check-out
+        </summary>
+        {renderGroups(true)}
+      </details>
       <button type="submit" disabled={disabled || changedElsewhere}>
         {busy ? "Saving…" : "Save changes"}
       </button>

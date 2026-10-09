@@ -55,6 +55,26 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Slice 9 certificate UI", () => {
+  it("rejects entry credentials as certificate references without submitting them", async () => {
+    vi.mocked(currentActor).mockResolvedValue({
+      csrf_token: "staff-csrf",
+    } as Awaited<ReturnType<typeof currentActor>>);
+    vi.mocked(certificateRequest).mockResolvedValue({
+      templates: [{ template_id: "classic", template_version: 1 }],
+      fonts: [{ font_id: "sans" }],
+    });
+    render(<CertificatesPage eventId="event" />);
+    fireEvent.change(
+      await screen.findByLabelText("Participant registration link or ID"),
+      { target: { value: "qr1.synthetic-invalid-entry-token" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Check eligibility" }));
+    await screen.findByText(
+      /Paste a registration page link or registration ID\./,
+      { selector: ".notice" },
+    );
+    expect(certificateRequest).toHaveBeenCalledTimes(1);
+  });
   it("captures own name in a separate command without a registration-create change", async () => {
     vi.mocked(certificateRequest).mockResolvedValue(base);
     render(
@@ -199,6 +219,7 @@ describe("Slice 9 certificate UI", () => {
     } as Awaited<ReturnType<typeof currentActor>>);
     const status: StaffCertificateStatus = {
       ...base,
+      registration_id: "11111111-1111-4111-8111-111111111111",
       recipient_name_set: true,
       issue_work: null,
     };
@@ -211,19 +232,24 @@ describe("Slice 9 certificate UI", () => {
         : status,
     );
     render(<CertificatesPage eventId="event" />);
-    fireEvent.change(await screen.findByLabelText("Registration reference"), {
-      target: { value: "registration" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Read certificate status" }),
+    fireEvent.change(
+      await screen.findByLabelText("Participant registration link or ID"),
+      {
+        target: {
+          value:
+            window.location.origin +
+            "/registrations/11111111-1111-4111-8111-111111111111",
+        },
+      },
     );
+    fireEvent.click(screen.getByRole("button", { name: "Check eligibility" }));
     await screen.findByText("Recipient name: Set by owner");
     expect(screen.queryByLabelText("Certificate recipient name")).toBeNull();
     expect(screen.queryByText("Download my certificate PDF")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Issue certificate" }));
     await waitFor(() =>
       expect(certificateRequest).toHaveBeenCalledWith(
-        "/events/event/registrations/registration/certificate",
+        "/events/event/registrations/11111111-1111-4111-8111-111111111111/certificate",
         expect.anything(),
         expect.objectContaining({
           body: {

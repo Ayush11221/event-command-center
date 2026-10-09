@@ -13,6 +13,10 @@ import {
 } from "../services/certificate-delivery";
 import { formatEventTime } from "../services/event-time";
 import { humanLabel } from "./event-presentation";
+import {
+  parseRegistrationSelection,
+  registrationReferenceHelp,
+} from "../services/registration-reference";
 export function CertificateBatchPanel({
   eventId,
   csrf,
@@ -61,7 +65,14 @@ export function CertificateBatchPanel({
       window.removeEventListener("pagehide", clear);
     };
   }, [eventId, csrf]);
-  const selection = ids.split(/[\s,]+/).filter(Boolean);
+  let selection: string[] = [];
+  let selectionError = "";
+  try {
+    selection = parseRegistrationSelection(ids, window.location.origin);
+  } catch (error) {
+    selectionError =
+      error instanceof Error ? error.message : registrationReferenceHelp;
+  }
   async function load(id: string, page: string | null = null) {
     const signal = active.current?.signal;
     if (!signal || signal.aborted) return;
@@ -140,34 +151,43 @@ export function CertificateBatchPanel({
       className="certificate-panel"
       aria-labelledby="certificate-batch-heading"
     >
-      <h2 id="certificate-batch-heading">Batch certificate issuance</h2>
+      <h2 id="certificate-batch-heading">Issue several certificates</h2>
       <p>
-        The current service uses registration references for explicit selection.
-        Open Advanced details to select registrations or look up a batch.
+        Paste the registration links for the participants you want to select.
+        Only eligible registrations can receive certificates.
       </p>
       {message && <p role="status">{message}</p>}
       {busy && <p role="status">Checking batch…</p>}
-      <details className="advanced-details">
-        <summary>Advanced details — batch selection and lookup</summary>
-        <form
-          className="certificate-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (confirm || pending.current) void create();
-            else setConfirm(true);
-          }}
-        >
-          <fieldset disabled={busy || confirm || pending.current !== null}>
-            <legend>Explicit selection</legend>
-            <label htmlFor="batch-registration-ids">
-              Registration references (1–100, separated by spaces or commas)
-            </label>
-            <textarea
-              id="batch-registration-ids"
-              value={ids}
-              rows={4}
-              onChange={(event) => setIds(event.target.value)}
-            />
+      <form
+        className="certificate-form"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (selectionError && !pending.current) {
+            setMessage(selectionError);
+            return;
+          }
+          if (confirm || pending.current) void create();
+          else setConfirm(true);
+        }}
+      >
+        <fieldset disabled={busy || confirm || pending.current !== null}>
+          <legend>Select participants</legend>
+          <label htmlFor="batch-registration-ids">
+            Registration links or IDs (1–100)
+          </label>
+          <textarea
+            id="batch-registration-ids"
+            value={ids}
+            rows={4}
+            onChange={(event) => setIds(event.target.value)}
+            aria-describedby="batch-reference-help"
+          />
+          <p id="batch-reference-help" className="field-help">
+            One per line, or separate with spaces or commas.{" "}
+            {registrationReferenceHelp}
+          </p>
+          <details className="advanced-details">
+            <summary>Certificate appearance (optional)</summary>
             <label htmlFor="batch-template">Batch template</label>
             <select
               id="batch-template"
@@ -176,7 +196,7 @@ export function CertificateBatchPanel({
             >
               {catalogue.templates.map((row) => (
                 <option key={row.template_id} value={row.template_id}>
-                  {row.template_id} v{row.template_version}
+                  {humanLabel(row.template_id)}
                 </option>
               ))}
             </select>
@@ -188,42 +208,45 @@ export function CertificateBatchPanel({
             >
               {catalogue.fonts.map((row) => (
                 <option key={row.font_id} value={row.font_id}>
-                  {row.font_id}
+                  {humanLabel(row.font_id)}
                 </option>
               ))}
             </select>
-          </fieldset>
-          {confirm && (
-            <p>
-              Confirm issuance for {selection.length} selected registrations.
-              Existing certificates are reused; individual failures do not stop
-              the batch.
-            </p>
-          )}
+          </details>
+        </fieldset>
+        {confirm && (
+          <p>
+            Confirm issuance for {selection.length} selected registrations.
+            Existing certificates are reused; individual failures do not stop
+            the batch.
+          </p>
+        )}
+        <button
+          disabled={busy || (!pending.current && !ids.trim())}
+          type="submit"
+        >
+          {pending.current
+            ? "Retry same batch command"
+            : confirm
+              ? "Confirm batch issuance"
+              : "Review batch selection"}
+        </button>
+        {confirm && !pending.current && (
           <button
-            disabled={
-              busy ||
-              (!pending.current &&
-                (selection.length < 1 || selection.length > 100))
-            }
-            type="submit"
+            type="button"
+            disabled={busy}
+            onClick={() => setConfirm(false)}
           >
-            {pending.current
-              ? "Retry same batch command"
-              : confirm
-                ? "Confirm batch issuance"
-                : "Review batch selection"}
+            Edit selection
           </button>
-          {confirm && !pending.current && (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setConfirm(false)}
-            >
-              Edit selection
-            </button>
-          )}
-        </form>
+        )}
+      </form>
+      <details className="advanced-details">
+        <summary>Find an earlier batch</summary>
+        <p>
+          Use the batch reference shown after issuing several certificates. This
+          is different from a registration ID.
+        </p>
         <form
           className="certificate-form"
           onSubmit={(event) => {

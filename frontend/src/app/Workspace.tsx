@@ -17,6 +17,7 @@ import {
   type EventContext,
 } from "./contexts";
 import { CreateDraftForm } from "./CreateDraftForm";
+import { CompletedEvents } from "./CompletedEvents";
 import { EventDetail } from "./EventDetail";
 import type { WorkspaceSection } from "./EventDetail";
 import { formatEventTime, timeZoneLabel } from "../services/event-time";
@@ -598,38 +599,51 @@ export function Workspace({ initialActor, onSessionExpired }: Props) {
                   Events you are currently authorized to manage as Event Admin.
                 </p>
                 <ul className="event-list">
-                  {workspace.assigned.map((event) => (
-                    <li key={event.event_id}>
-                      <button
-                        type="button"
-                        className="event-row"
-                        onClick={() => {
-                          setDetailOpen(true);
-                          setDetailVisited(true);
-                          void reload({
-                            eventId: event.event_id,
-                            relationship: "assigned",
-                          });
-                        }}
-                      >
-                        <span className="event-row-title">
-                          <IsoBuilding
-                            tone={`state-${event.state.toLowerCase()}`}
-                          />
-                          {event.name}
-                        </span>
-                        <span className="event-row-date">
-                          {schedule(event)}
-                        </span>
-                        <span
-                          className={`state-pill state-${event.state.toLowerCase()}`}
+                  {workspace.assigned
+                    .filter((event) => event.state !== "COMPLETED")
+                    .map((event) => (
+                      <li key={event.event_id}>
+                        <button
+                          type="button"
+                          className="event-row"
+                          onClick={() => {
+                            setDetailOpen(true);
+                            setDetailVisited(true);
+                            void reload({
+                              eventId: event.event_id,
+                              relationship: "assigned",
+                            });
+                          }}
                         >
-                          {humanLabel(event.state)}
-                        </span>
-                      </button>
-                    </li>
-                  ))}
+                          <span className="event-row-title">
+                            <IsoBuilding
+                              tone={`state-${event.state.toLowerCase()}`}
+                            />
+                            {event.name}
+                          </span>
+                          <span className="event-row-date">
+                            {schedule(event)}
+                          </span>
+                          <span
+                            className={`state-pill state-${event.state.toLowerCase()}`}
+                          >
+                            {humanLabel(event.state)}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
                 </ul>
+                <CompletedEvents
+                  key={actor.user_id}
+                  userId={actor.user_id}
+                  events={workspace.assigned}
+                  schedule={schedule}
+                  onOpen={(eventId) => {
+                    setDetailOpen(true);
+                    setDetailVisited(true);
+                    void reload({ eventId, relationship: "assigned" });
+                  }}
+                />
               </section>
             )}
             {workspace.assigned.length === 0 &&
@@ -716,7 +730,9 @@ export function Workspace({ initialActor, onSessionExpired }: Props) {
                     </p>
                   </div>
                   <EventCampus
-                    events={workspace.owned}
+                    events={workspace.owned.filter(
+                      (event) => event.state !== "COMPLETED",
+                    )}
                     selectedId={
                       selected?.relationship === "owned"
                         ? selected.eventId
@@ -726,9 +742,15 @@ export function Workspace({ initialActor, onSessionExpired }: Props) {
                       void reload({ eventId, relationship: "owned" })
                     }
                   />
-                  {workspace.owned.length === 0 ? (
+                  {workspace.owned.every(
+                    (event) => event.state === "COMPLETED",
+                  ) ? (
                     <div className="empty-state">
-                      <h3>No events yet</h3>
+                      <h3>
+                        {workspace.owned.length === 0
+                          ? "No events yet"
+                          : "No active events"}
+                      </h3>
                       <p>
                         Create a Draft to start an event. Only you can manage
                         events you own.
@@ -736,53 +758,68 @@ export function Workspace({ initialActor, onSessionExpired }: Props) {
                     </div>
                   ) : (
                     <ul className="event-list">
-                      {workspace.owned.map((event) => (
-                        <li key={event.event_id}>
-                          <button
-                            type="button"
-                            className="event-row"
-                            aria-current={
-                              selected?.eventId === event.event_id &&
-                              selected.relationship === "owned"
-                                ? "true"
-                                : undefined
-                            }
-                            onClick={() =>
-                              void reload({
-                                eventId: event.event_id,
-                                relationship: "owned",
-                              })
-                            }
-                          >
-                            <span className="event-row-title">
-                              <IsoBuilding
-                                tone={`state-${event.state.toLowerCase()}`}
-                              />
-                              {event.name}
-                            </span>
-                            <span className="event-row-date">
-                              {schedule(event)}
-                            </span>
-                            <span
-                              className={`state-pill state-${event.state.toLowerCase()}`}
+                      {workspace.owned
+                        .filter((event) => event.state !== "COMPLETED")
+                        .map((event) => (
+                          <li key={event.event_id}>
+                            <button
+                              type="button"
+                              className="event-row"
+                              aria-current={
+                                selected?.eventId === event.event_id &&
+                                selected.relationship === "owned"
+                                  ? "true"
+                                  : undefined
+                              }
+                              onClick={() =>
+                                void reload({
+                                  eventId: event.event_id,
+                                  relationship: "owned",
+                                })
+                              }
                             >
-                              {humanLabel(event.state)}
-                            </span>
-                          </button>
-                        </li>
-                      ))}
+                              <span className="event-row-title">
+                                <IsoBuilding
+                                  tone={`state-${event.state.toLowerCase()}`}
+                                />
+                                {event.name}
+                              </span>
+                              <span className="event-row-date">
+                                {schedule(event)}
+                              </span>
+                              <span
+                                className={`state-pill state-${event.state.toLowerCase()}`}
+                              >
+                                {humanLabel(event.state)}
+                              </span>
+                            </button>
+                          </li>
+                        ))}
                     </ul>
                   )}
                   <p className="freshness">
                     Access checked {new Date(workspace.asOf).toLocaleString()}.
                   </p>
                 </section>
+                <CompletedEvents
+                  key={actor.user_id}
+                  userId={actor.user_id}
+                  events={workspace.owned}
+                  schedule={schedule}
+                  onOpen={(eventId) => {
+                    setDetailVisited(true);
+                    setDetailOpen(true);
+                    setSection("overview");
+                    void reload({ eventId, relationship: "owned" });
+                  }}
+                />
                 <CreateDraftForm
+                  key={`create:${actor.user_id}`}
                   csrf={actor.csrf_token}
                   onCreated={(eventId) => {
                     setDetailVisited(true);
                     setDetailOpen(true);
-                    setSection("setup");
+                    setSection("overview");
                     void reload({ eventId, relationship: "owned" });
                   }}
                   onSessionExpired={onSessionExpired}

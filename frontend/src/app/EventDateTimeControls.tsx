@@ -5,6 +5,7 @@ export function EventDateTimeControls({
   onChange,
   invalid = false,
   describedBy,
+  step = 0.001,
 }: {
   id: string;
   label: string;
@@ -12,6 +13,7 @@ export function EventDateTimeControls({
   onChange: (value: string) => void;
   invalid?: boolean;
   describedBy?: string;
+  step?: number;
 }) {
   const [date = "", time = ""] = value.split("T");
   const update = (nextDate: string, nextTime: string) =>
@@ -37,7 +39,7 @@ export function EventDateTimeControls({
           id={`${id}-time`}
           aria-label={`${label} time`}
           type="time"
-          step="0.001"
+          step={step}
           value={time}
           aria-invalid={invalid}
           aria-describedby={describedBy}

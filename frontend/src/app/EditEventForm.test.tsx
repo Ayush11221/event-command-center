@@ -182,6 +182,8 @@ describe("V4 role-scoped event editing", () => {
   });
   it("shows the complete Organizer form and saves only changed configuration", async () => {
     const props = form();
+    expect(screen.getByLabelText("Registration opens date")).not.toBeVisible();
+    fireEvent.click(screen.getByText(/More options —/));
     expect(screen.getByLabelText("Registration opens date")).toBeVisible();
     expect(screen.getByLabelText("Registration closes date")).toBeVisible();
     expect(screen.getByLabelText("Close registration manually")).toBeVisible();

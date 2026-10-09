@@ -518,9 +518,34 @@ export function RegistrationPanel({
             </figure>
           )}
           {row && (
-            <a href={`/registrations/${row.registration_id}`}>
-              View registration
-            </a>
+            <div className="registration-links">
+              <a href={`/registrations/${row.registration_id}`}>
+                View registration
+              </a>
+              <button
+                type="button"
+                className="secondary-button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(
+                      new URL(
+                        `/registrations/${row.registration_id}`,
+                        window.location.origin,
+                      ).href,
+                    );
+                    setMessage(
+                      "Registration link copied. Share it with the organizer for certificate lookup.",
+                    );
+                  } catch {
+                    setMessage(
+                      "Open View registration and copy the page address from your browser.",
+                    );
+                  }
+                }}
+              >
+                Copy registration link
+              </button>
+            </div>
           )}
           {row?.relationship === "own" && session && (
             <OwnerCertificatePanel

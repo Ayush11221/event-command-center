@@ -16,6 +16,10 @@ import { humanLabel } from "./event-presentation";
 import { formatEventTime } from "../services/event-time";
 import { useEventInformation } from "./useEventInformation";
 import { EventInformation } from "./EventInformation";
+import {
+  parseRegistrationReference,
+  registrationReferenceHelp,
+} from "../services/registration-reference";
 
 export function CertificatesPage({ eventId }: { eventId: string }) {
   const information = useEventInformation(eventId);
@@ -108,7 +112,10 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
     if (!registrationId || signal.aborted) return;
     try {
       const next = await certificateRequest<StaffCertificateStatus>(
-        staffCertificatePath(eventId, registrationId),
+        staffCertificatePath(
+          eventId,
+          parseRegistrationReference(registrationId, window.location.origin),
+        ),
         signal,
       );
       if (!signal.aborted && version === scope.current) {
@@ -118,7 +125,9 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
     } catch (error) {
       if (!signal.aborted && version === scope.current) {
         setStatus(null);
-        fail(error);
+        if (error instanceof Error && !(error instanceof ProofError))
+          setMessage(registrationReferenceHelp);
+        else fail(error);
       }
     }
   }
@@ -204,8 +213,10 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
       <h1>Certificates</h1>
       <EventInformation information={information} />
       <p>
-        Preview and explicitly issue one eligible registration. Only its owner
-        can supply the recipient name or download the issued PDF.
+        Issue certificates after accepted check-in, while the event is Live or
+        Completed. Ask each participant to set their certificate name on their
+        registration page. They can download their certificate there after it is
+        issued.
       </p>
       {message && (
         <p role="status" className="notice">
@@ -222,32 +233,39 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
           className="certificate-panel"
           aria-label="Single certificate operations"
         >
-          <details className="advanced-details">
-            <summary>Advanced details — registration lookup</summary>
-            <form
-              className="certificate-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                setBusy(true);
-                void read().finally(() => setBusy(false));
-              }}
-            >
-              <label htmlFor="certificate-registration-id">
-                Registration reference
-              </label>
-              <input
-                id="certificate-registration-id"
-                value={registrationId}
-                disabled={busy}
-                required
-                onChange={(event) => changeScope(event.target.value)}
-                autoComplete="off"
-              />
-              <button disabled={busy} type="submit">
-                Read certificate status
-              </button>
-            </form>
-          </details>
+          <h2>Issue one certificate</h2>
+          <p>
+            Ask the participant to open their registration and choose Copy
+            registration link.
+          </p>
+          <form
+            className="certificate-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              setBusy(true);
+              void read().finally(() => setBusy(false));
+            }}
+          >
+            <label htmlFor="certificate-registration-id">
+              Participant registration link or ID
+            </label>
+            <input
+              id="certificate-registration-id"
+              value={registrationId}
+              disabled={busy}
+              required
+              onChange={(event) => changeScope(event.target.value)}
+              autoComplete="off"
+              aria-describedby="certificate-reference-help"
+              placeholder="Paste the participant’s registration page link"
+            />
+            <p id="certificate-reference-help" className="field-help">
+              {registrationReferenceHelp}
+            </p>
+            <button disabled={busy} type="submit">
+              Check eligibility
+            </button>
+          </form>
           {status && (
             <>
               <h2>Certificate status: {humanLabel(status.state)}</h2>
@@ -323,37 +341,40 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
                 className="certificate-form"
                 disabled={busy || uncertain || generationPending}
               >
-                <legend>Built-in preview and issue</legend>
-                <label htmlFor="certificate-template">Template</label>
-                <select
-                  id="certificate-template"
-                  value={template}
-                  onChange={(event) => {
-                    clearPreview();
-                    setTemplate(event.target.value);
-                  }}
-                >
-                  {catalogue.templates.map((item) => (
-                    <option key={item.template_id} value={item.template_id}>
-                      {item.template_id} v{item.template_version}
-                    </option>
-                  ))}
-                </select>
-                <label htmlFor="certificate-font">Font</label>
-                <select
-                  id="certificate-font"
-                  value={font}
-                  onChange={(event) => {
-                    clearPreview();
-                    setFont(event.target.value);
-                  }}
-                >
-                  {catalogue.fonts.map((item) => (
-                    <option key={item.font_id} value={item.font_id}>
-                      {item.font_id}
-                    </option>
-                  ))}
-                </select>
+                <legend>Preview and issue</legend>
+                <details className="advanced-details">
+                  <summary>Certificate appearance (optional)</summary>
+                  <label htmlFor="certificate-template">Template</label>
+                  <select
+                    id="certificate-template"
+                    value={template}
+                    onChange={(event) => {
+                      clearPreview();
+                      setTemplate(event.target.value);
+                    }}
+                  >
+                    {catalogue.templates.map((item) => (
+                      <option key={item.template_id} value={item.template_id}>
+                        {humanLabel(item.template_id)}
+                      </option>
+                    ))}
+                  </select>
+                  <label htmlFor="certificate-font">Font</label>
+                  <select
+                    id="certificate-font"
+                    value={font}
+                    onChange={(event) => {
+                      clearPreview();
+                      setFont(event.target.value);
+                    }}
+                  >
+                    {catalogue.fonts.map((item) => (
+                      <option key={item.font_id} value={item.font_id}>
+                        {humanLabel(item.font_id)}
+                      </option>
+                    ))}
+                  </select>
+                </details>
                 <button
                   type="button"
                   disabled={!status.recipient_name_set}
@@ -437,14 +458,17 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
         </section>
       )}
       {csrf && catalogue && (
-        <CertificateBatchPanel
-          key={eventId}
-          eventId={eventId}
-          csrf={csrf}
-          catalogue={catalogue}
-          timeZone={information.detail?.time_zone ?? null}
-          onFailure={fail}
-        />
+        <details className="certificate-panel">
+          <summary>Issue several certificates</summary>
+          <CertificateBatchPanel
+            key={eventId}
+            eventId={eventId}
+            csrf={csrf}
+            catalogue={catalogue}
+            timeZone={information.detail?.time_zone ?? null}
+            onFailure={fail}
+          />
+        </details>
       )}
     </main>
   );

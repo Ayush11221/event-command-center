@@ -112,7 +112,7 @@ describe("P1-B workspace workflows", () => {
       screen.getByText(/Start and end times are required before publishing/),
     ).toBeVisible();
     expect(
-      screen.getByText(/opening, closing and cancellation times are optional/),
+      screen.getByText(/By default, registration opens when you publish/),
     ).toBeVisible();
   });
   it("makes the selected event and role explicit and provides actual workflow sections", async () => {
@@ -161,14 +161,13 @@ describe("P1-B workspace workflows", () => {
         name: "India Standard Time (IST, UTC+05:30)",
       }),
     ).toBeInTheDocument();
-    for (const name of [
-      "Basic details",
-      "Schedule",
-      "Registration",
-      "Access",
-      "Operations",
-    ])
+    for (const name of ["Basic details", "Schedule", "Registration", "Access"])
       expect(screen.getByRole("group", { name })).toBeVisible();
+    expect(screen.getByLabelText("Enable check-out")).not.toBeVisible();
+    fireEvent.click(screen.getByText(/More options —/));
+    expect(
+      screen.getByRole("group", { name: "Optional operations" }),
+    ).toBeVisible();
     const inputs = [
       ...document.querySelectorAll<HTMLInputElement>(".event-edit-form input"),
     ];

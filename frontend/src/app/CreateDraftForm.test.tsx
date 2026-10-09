@@ -6,15 +6,48 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { createDraft, EventApiError } from "../services/events";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  createDraft,
+  editEvent,
+  createGate,
+  getEventDetail,
+  EventApiError,
+} from "../services/events";
 import { CreateDraftForm } from "./CreateDraftForm";
+import { eventDetailFixture } from "../test/event-fixture";
 
 vi.mock("../services/events", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/events")>();
-  return { ...actual, createDraft: vi.fn() };
+  return {
+    ...actual,
+    createDraft: vi.fn(),
+    editEvent: vi.fn(),
+    getEventDetail: vi.fn(),
+    createGate: vi.fn(),
+  };
 });
 
+beforeEach(() => {
+  vi.mocked(getEventDetail).mockResolvedValue(
+    eventDetailFixture({ event_id: "new-id", revision: 1 }),
+  );
+  vi.mocked(editEvent).mockImplementation(async (_id, _revision, patch) =>
+    eventDetailFixture({ ...patch, event_id: "new-id", revision: 2 }),
+  );
+  vi.mocked(createGate).mockResolvedValue({
+    gate_id: "gate",
+    event_id: "new-id",
+    revision: 3,
+    readiness: {
+      configured_gate_present: true,
+      publish_blockers: [],
+      live_blockers: [],
+    },
+    as_of: "now",
+    correlation_id: "c",
+  });
+});
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
@@ -30,11 +63,60 @@ function form() {
       onForbidden={vi.fn()}
     />,
   );
+  fireEvent.change(screen.getByLabelText("Event starts date"), {
+    target: { value: "2030-01-20" },
+  });
+  fireEvent.change(screen.getByLabelText("Event starts time"), {
+    target: { value: "09:00" },
+  });
+  fireEvent.change(screen.getByLabelText("Event ends date"), {
+    target: { value: "2030-01-20" },
+  });
+  fireEvent.change(screen.getByLabelText("Event ends time"), {
+    target: { value: "17:00" },
+  });
   return onCreated;
 }
 
 describe("Draft creation", () => {
-  it("sends only the name, retains revision-one success and clears the form", async () => {
+  it("validates the complete schedule before creating any draft", () => {
+    form();
+    fireEvent.change(screen.getByLabelText(/Event name/), {
+      target: { value: "Synthetic event" },
+    });
+    fireEvent.change(screen.getByLabelText("Event ends time"), {
+      target: { value: "08:00" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "must end after it starts",
+    );
+    expect(createDraft).not.toHaveBeenCalled();
+  });
+  it("retains a partially saved draft and offers review when configuration fails", async () => {
+    const onCreated = form();
+    vi.mocked(createDraft).mockResolvedValue({
+      event_id: "new-id",
+      name: "Partial",
+      state: "DRAFT",
+      revision: 1,
+      as_of: "now",
+      correlation_id: "c",
+    });
+    vi.mocked(editEvent).mockRejectedValue(
+      new EventApiError("VALIDATION", 400),
+    );
+    fireEvent.change(screen.getByLabelText(/Event name/), {
+      target: { value: "Partial" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create event" }));
+    await screen.findByText(/Your draft was saved/);
+    fireEvent.click(screen.getByRole("button", { name: "Open saved draft" }));
+    expect(onCreated).toHaveBeenCalledWith("new-id");
+    expect(createDraft).toHaveBeenCalledTimes(1);
+    expect(createGate).not.toHaveBeenCalled();
+  });
+  it("saves the essential event settings in IST, adds Gate 1 and keeps the event a draft", async () => {
     const onCreated = form();
     vi.mocked(createDraft).mockResolvedValue({
       event_id: "new-id",
@@ -55,6 +137,25 @@ describe("Draft creation", () => {
     expect(vi.mocked(createDraft).mock.calls[0]?.[1]).toBe("csrf");
     expect(vi.mocked(createDraft).mock.calls[0]?.[2]).toMatch(
       /^[0-9a-f-]{36}$/,
+    );
+    expect(editEvent).toHaveBeenCalledWith(
+      "new-id",
+      1,
+      {
+        start_at: "2030-01-20T03:30:00.000Z",
+        end_at: "2030-01-20T11:30:00.000Z",
+        time_zone: "Asia/Kolkata",
+        registration_capacity: 100,
+        visibility: "PUBLIC",
+        public_location: null,
+      },
+      "csrf",
+    );
+    expect(createGate).toHaveBeenCalledWith(
+      "new-id",
+      2,
+      "csrf",
+      expect.any(String),
     );
     expect(onCreated).toHaveBeenCalledWith("new-id");
     expect(screen.getByLabelText(/Event name/)).toHaveValue("");

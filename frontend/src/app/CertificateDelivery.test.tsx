@@ -79,8 +79,11 @@ it("confirms explicit selection and submits the finalized closed request", async
       : ({ batch } as never),
   );
   setupBatch();
-  fireEvent.change(screen.getByLabelText(/Registration references/), {
-    target: { value: "first, second" },
+  fireEvent.change(screen.getByLabelText(/Registration links or IDs/), {
+    target: {
+      value:
+        "11111111-1111-4111-8111-111111111111, /registrations/22222222-2222-4222-8222-222222222222",
+    },
   });
   fireEvent.click(
     screen.getByRole("button", { name: "Review batch selection" }),
@@ -98,7 +101,10 @@ it("confirms explicit selection and submits the finalized closed request", async
       csrf: "csrf",
       key: expect.any(String),
       body: {
-        registration_ids: ["first", "second"],
+        registration_ids: [
+          "11111111-1111-4111-8111-111111111111",
+          "22222222-2222-4222-8222-222222222222",
+        ],
         template_id: "classic",
         template_version: 1,
         font_id: "sans",
@@ -140,8 +146,8 @@ it("reads saved batch progress and paginates outcomes without losing context", a
 it("retains the same batch key/body for an uncertain request and reports validation errors", async () => {
   vi.mocked(certificateRequest).mockRejectedValue(new ProofError("NETWORK", 0));
   setupBatch();
-  fireEvent.change(screen.getByLabelText(/Registration references/), {
-    target: { value: "first" },
+  fireEvent.change(screen.getByLabelText(/Registration links or IDs/), {
+    target: { value: "11111111-1111-4111-8111-111111111111" },
   });
   fireEvent.click(
     screen.getByRole("button", { name: "Review batch selection" }),
