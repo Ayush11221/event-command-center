@@ -529,8 +529,9 @@ function ScannerPanel({
             <form onSubmit={submit} className="scanner-form" aria-busy={busy}>
               <label htmlFor="scan-token">Entry QR code</label>
               <p id="scan-help">
-                Paste the entry QR value if the camera is unavailable. Do not
-                enter attendee contact information.
+                Ask the participant to choose Show entry code beside their QR,
+                then paste that code here. A registration link or ID cannot be
+                used for check-in. Do not enter attendee contact information.
               </p>
               <input
                 ref={manualInput}

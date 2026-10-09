@@ -55,6 +55,38 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 describe("Slice 9 certificate UI", () => {
+  it.each([
+    ["NOT_ELIGIBLE", false, /Check in at the entry gate/],
+    ["ELIGIBLE", false, /Save the name you want/],
+    ["ELIGIBLE", true, /Ask the organizer to issue/],
+    ["ISSUED", true, /Your certificate PDF is ready/],
+  ] as const)(
+    "explains the next step for %s with saved name %s",
+    async (state, saved, guidance) => {
+      vi.mocked(certificateRequest).mockResolvedValue({
+        ...base,
+        state,
+        recipient_name_set: saved,
+        recipient_name: saved ? "Synthetic Attendee" : null,
+        recipient_name_locked: state === "ISSUED",
+        certificate: state === "ISSUED" ? cert : null,
+      });
+      render(
+        <OwnerCertificatePanel
+          registrationId="registration"
+          registrationState="REGISTERED"
+          csrf="csrf"
+          onOwnershipLost={vi.fn()}
+        />,
+      );
+      expect(await screen.findByText(guidance)).toBeVisible();
+      expect(
+        vi
+          .mocked(certificateRequest)
+          .mock.calls.every((call) => call[2] === undefined),
+      ).toBe(true);
+    },
+  );
   it("rejects entry credentials as certificate references without submitting them", async () => {
     vi.mocked(currentActor).mockResolvedValue({
       csrf_token: "staff-csrf",

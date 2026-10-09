@@ -399,6 +399,7 @@ export async function credential(
         status: "ACTIVE",
         expires_at: current.expiresAt?.toISOString() ?? null,
         qr_svg: qrSvg,
+        entry_code: token,
       };
     },
     { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },

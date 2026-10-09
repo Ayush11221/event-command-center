@@ -17,6 +17,8 @@ export interface Credential {
   status: "ACTIVE";
   expires_at: string | null;
   qr_svg: string;
+  // Optional while an older API deployment still returns only the QR image.
+  entry_code?: string;
 }
 export async function participantSession() {
   try {

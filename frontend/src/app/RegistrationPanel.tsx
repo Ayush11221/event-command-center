@@ -14,6 +14,7 @@ import {
 } from "../services/registrations";
 import { ParticipantProof } from "./ParticipantProof";
 import { OwnerCertificatePanel } from "./OwnerCertificatePanel";
+import { EntryCode } from "./EntryCode";
 
 const messages: Record<string, string> = {
   CAPACITY_FULL:
@@ -482,40 +483,49 @@ export function RegistrationPanel({
               </>
             )}
           {qr && (
-            <figure
-              className="entry-pass"
-              data-event={details?.name ?? ""}
-              onPointerMove={(event) => {
-                if (event.pointerType === "touch") return;
-                const box = event.currentTarget.getBoundingClientRect();
-                const x = (event.clientX - box.left) / box.width - 0.5;
-                const y = (event.clientY - box.top) / box.height - 0.5;
-                event.currentTarget.style.setProperty("--ry", `${x * 14}deg`);
-                event.currentTarget.style.setProperty("--rx", `${-y * 12}deg`);
-                event.currentTarget.style.setProperty(
-                  "--sx",
-                  `${(x + 0.5) * 100}%`,
-                );
-              }}
-              onPointerLeave={(event) => {
-                event.currentTarget.style.setProperty("--ry", "0deg");
-                event.currentTarget.style.setProperty("--rx", "0deg");
-              }}
-            >
-              <IsoBuilding className="pass-art" />
-              <span className="pass-sheen" aria-hidden="true" />
-              <img
-                className="participant-qr"
-                src={`data:image/svg+xml,${encodeURIComponent(qr.qr_svg)}`}
-                alt="Your entry QR"
-              />
-              <figcaption>
-                Show this QR at the event entrance. Keep it private.
-              </figcaption>
-              <button className="secondary-button" onClick={() => setQr(null)}>
-                Hide entry QR
-              </button>
-            </figure>
+            <>
+              <figure
+                className="entry-pass"
+                data-event={details?.name ?? ""}
+                onPointerMove={(event) => {
+                  if (event.pointerType === "touch") return;
+                  const box = event.currentTarget.getBoundingClientRect();
+                  const x = (event.clientX - box.left) / box.width - 0.5;
+                  const y = (event.clientY - box.top) / box.height - 0.5;
+                  event.currentTarget.style.setProperty("--ry", `${x * 14}deg`);
+                  event.currentTarget.style.setProperty(
+                    "--rx",
+                    `${-y * 12}deg`,
+                  );
+                  event.currentTarget.style.setProperty(
+                    "--sx",
+                    `${(x + 0.5) * 100}%`,
+                  );
+                }}
+                onPointerLeave={(event) => {
+                  event.currentTarget.style.setProperty("--ry", "0deg");
+                  event.currentTarget.style.setProperty("--rx", "0deg");
+                }}
+              >
+                <IsoBuilding className="pass-art" />
+                <span className="pass-sheen" aria-hidden="true" />
+                <img
+                  className="participant-qr"
+                  src={`data:image/svg+xml,${encodeURIComponent(qr.qr_svg)}`}
+                  alt="Your entry QR"
+                />
+                <figcaption>
+                  Show this QR at the event entrance. Keep it private.
+                </figcaption>
+                <button
+                  className="secondary-button"
+                  onClick={() => setQr(null)}
+                >
+                  Hide entry QR
+                </button>
+              </figure>
+              <EntryCode key={qr.credential_id} code={qr.entry_code} />
+            </>
           )}
           {row && (
             <div className="registration-links">

@@ -140,6 +140,8 @@ describe.skipIf(!databaseUrl)("Slice 4 registration API", () => {
     const qr = await get(`/registrations/${id}/credential`, user);
     expect(qr.status).toBe(200);
     expect(qr.body.qr_svg).toContain("<svg");
+    expect(qr.body.entry_code === token).toBe(true);
+    expect(/^qr1\.[A-Za-z0-9_-]{43}$/.test(qr.body.entry_code)).toBe(true);
     expect(qr.headers["cache-control"]).toContain("no-store");
     const replay = await post(`/events/${e.row.id}/registrations`, user, key);
     expect(replay.body.registration).toEqual(first.body.registration);
@@ -371,9 +373,10 @@ describe.skipIf(!databaseUrl)("Slice 4 registration API", () => {
         expect((await get(`/registrations/${e.id}`, who)).body.code).toBe(
           "REGISTRATION_NOT_FOUND",
         );
-        expect(
-          (await get(`/registrations/${e.id}/credential`, who)).status,
-        ).toBe(404);
+        const denied = await get(`/registrations/${e.id}/credential`, who);
+        expect(denied.status).toBe(404);
+        expect(denied.body).not.toHaveProperty("entry_code");
+        expect(denied.body).not.toHaveProperty("qr_svg");
         expect((await post(`/registrations/${e.id}/cancel`, who)).status).toBe(
           404,
         );

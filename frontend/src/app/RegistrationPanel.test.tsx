@@ -83,10 +83,18 @@ describe("participant registration flow", () => {
     const show = await screen.findByRole("button", { name: "Show entry QR" });
     mock.mockResolvedValueOnce({
       qr_svg: "<svg></svg>",
+      entry_code: "qr1." + "A".repeat(43),
       expires_at: new Date(Date.now() + 60000).toISOString(),
     });
     fireEvent.click(show);
     expect(await screen.findByAltText("Your entry QR")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Show entry code" }));
+    expect(screen.getByLabelText("Entry code")).toHaveValue(
+      "qr1." + "A".repeat(43),
+    );
+    fireEvent(window, new Event("pagehide"));
+    expect(screen.queryByLabelText("Entry code")).not.toBeInTheDocument();
+    expect(screen.queryByAltText("Your entry QR")).not.toBeInTheDocument();
     expect(mock.mock.calls.every((call) => call[2] === undefined)).toBe(true);
   });
   it.each([

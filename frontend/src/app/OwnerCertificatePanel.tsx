@@ -154,8 +154,15 @@ export function OwnerCertificatePanel({
             Certificate status: <strong>{status.state}</strong>
           </p>
           <p>
-            Eligibility requires an accepted check-in. A staff member must
-            explicitly issue the certificate.
+            {status.state === "NOT_ELIGIBLE"
+              ? "Check in at the entry gate to become eligible for a certificate."
+              : status.state === "ELIGIBLE"
+                ? status.recipient_name_set
+                  ? "Your name is saved. Ask the organizer to issue your certificate, then refresh certificate status here. No exit scan is required."
+                  : "Save the name you want on your certificate, then ask the organizer to issue it. No exit scan is required."
+                : status.state === "ISSUED"
+                  ? "Your certificate PDF is ready. Prepare the download below, then tap Download my certificate PDF. Email delivery is tracked separately."
+                  : "Ask the organizer about this revoked certificate."}
           </p>
           <form
             className="certificate-form"
@@ -182,8 +189,9 @@ export function OwnerCertificatePanel({
               autoComplete="name"
             />
             <p id="certificate-name-help">
-              2–100 characters. Supported Latin letters, spaces, apostrophes,
-              hyphens and periods. Locked permanently once issued.
+              Enter your name exactly as it should appear on the PDF. Use 2–100
+              characters: Latin letters, spaces, apostrophes, hyphens or
+              periods. The name is locked once issued.
             </p>
             {!status.recipient_name_locked &&
               registrationState !== "CANCELLED" && (

@@ -565,6 +565,39 @@ try {
     "INSIDE",
   );
   assert.equal(new Set(commands.map((c) => c.scan_id)).size, cases.length);
+  stage = "owner entry code and manual duplicate";
+  await attendee
+    .getByRole("button", { name: "Show entry code", exact: true })
+    .click();
+  assert.equal(
+    (await attendee.getByLabel("Entry code", { exact: true }).inputValue()) ===
+      fixture.valid.token,
+    true,
+    "The owner's text code must match the credential encoded by the actual entry QR",
+  );
+  await attendee
+    .getByRole("button", { name: "Hide entry code", exact: true })
+    .click();
+  await expect(attendee.getByLabel("Entry code", { exact: true })).toHaveCount(
+    0,
+  );
+  await scanner
+    .getByRole("button", { name: "Scan next person", exact: true })
+    .click();
+  await scanner.locator(".scanner-manual summary").click();
+  expected = fixture.valid.token;
+  const manualResponse = scanner.waitForResponse(
+    (r) =>
+      new URL(r.url()).pathname === "/api/v1/scan-decisions" &&
+      r.request().method() === "POST",
+  );
+  await scanner
+    .getByLabel("Entry QR code", { exact: true })
+    .fill(fixture.valid.token);
+  await scanner.getByRole("button", { name: "Check in", exact: true }).click();
+  const manual = await manualResponse;
+  assert.equal(manual.status(), 200);
+  assert.equal((await manual.json()).reason, "ALREADY_CHECKED_IN");
   const persisted = await worker(
     state,
     `const eventId=${JSON.stringify(fixture.a.eventId)},otherId=${JSON.stringify(fixture.b.eventId)},registrationId=${JSON.stringify(fixture.valid.id)};const transitions=await db.attendanceTransition.count({where:{eventId}});const wrongEventAttendance=await db.attendanceTransition.count({where:{eventId:otherId}});const reg=await db.registration.findUniqueOrThrow({where:{id:registrationId}});assert.equal(transitions,1);assert.equal(wrongEventAttendance,0);assert(reg.firstAcceptedCheckInAt);process.stdout.write(JSON.stringify({attendance_transitions:transitions,wrong_event_attendance:wrongEventAttendance,registration_status:reg.state,event_state:(await db.event.findUniqueOrThrow({where:{id:eventId}})).state}));`,
@@ -579,6 +612,8 @@ try {
     actual_api: true,
     synthetic_camera: true,
     physical_camera: false,
+    manual_code_matches_qr: true,
+    manual_duplicate_rejected: true,
     production_records_changed: false,
     cases,
     ...persisted,

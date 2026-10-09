@@ -1097,6 +1097,7 @@
           "status",
           "expires_at",
           "qr_svg",
+          "entry_code",
           "correlation_id"
         ],
         "properties": {
@@ -1119,6 +1120,12 @@
           "qr_svg": {
             "type": "string",
             "description": "Server-generated SVG QR encoding only a random opaque token; owner-only, no-store. No admission authorization."
+          },
+          "entry_code": {
+            "type": "string",
+            "pattern": "^qr1\\.[A-Za-z0-9_-]{43}$",
+            "readOnly": true,
+            "description": "The same opaque credential encoded in qr_svg, for the scanner's manual entry fallback. Owner-only, no-store; not a registration reference or admission authorization. Never log, persist in client storage, or include in URLs."
           },
           "correlation_id": {
             "type": "string"
