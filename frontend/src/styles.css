@@ -4380,7 +4380,8 @@
   :root[data-look="studio"] .public-event-row {
     grid-template-columns: 56px minmax(0, 1fr);
   }
-  :root[data-look="studio"] .public-event-row > .public-policy {
+  :root[data-look="studio"] .public-event-row > .public-policy,
+  :root[data-look="studio"] .public-event-row > .public-event-access {
     grid-column: 1 / -1;
   }
   .public-event-art {

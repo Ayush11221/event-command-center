@@ -181,7 +181,7 @@ export function PublicCatalog() {
                                   "Location not provided"}
                               </p>
                             </div>
-                            <div>
+                            <div className="public-event-access">
                               <PublicPolicy event={event} compact />
                               {event.event_state === "LIVE" && (
                                 <a
