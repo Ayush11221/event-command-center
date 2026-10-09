@@ -7,6 +7,8 @@ import { humanLabel } from "./event-presentation";
 import { ChartSpline, RefreshCw } from "lucide-react";
 import { StatusDot } from "../components/common/StatusDot";
 import { LiveValue } from "../components/common/LiveValue";
+import { isSyntheticDemo } from "./demo-context";
+import { SyntheticForecastNotice } from "./SyntheticForecastNotice";
 
 const unavailable: Record<string, string> = {
   INSUFFICIENT_DATA: "Not enough accepted attendance history for evaluation.",
@@ -29,6 +31,7 @@ export function ForecastPanel({
   onRun?: (run: ForecastRun | null, stale: boolean) => void;
 }) {
   const ready = operations.phase === "ready";
+  const demo = isSyntheticDemo();
   const lost =
     operations.phase === "error" && [401, 403, 404].includes(operations.status);
   const { state, elapsed, refresh } = useForecasts(eventId, ready, lost);
@@ -78,6 +81,7 @@ export function ForecastPanel({
         <ChartSpline aria-hidden="true" className="size-5" />
         <h2>Crowd forecast</h2>
       </div>
+      <SyntheticForecastNotice />
       <p className="field-help">
         Advisory only. Observed occupancy remains authoritative; forecasts never
         control gate entry.
@@ -99,7 +103,9 @@ export function ForecastPanel({
                 ? `Forecast unavailable. ${unavailable[run.status]}`
                 : stale
                   ? `Stale forecast. ${changed ? "Attendance or capacity changed." : state.failed ? "Latest refresh failed." : "Refresh to confirm a current estimate."}`
-                  : "Current advisory forecast."}
+                  : demo
+                    ? "Current demo forecast."
+                    : "Current advisory forecast."}
       </p>
       {run && (
         <p className="freshness">

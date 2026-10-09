@@ -13,6 +13,7 @@ import type { PrivateEntry } from "./private-entry";
 import { RegistrationPanel } from "./RegistrationPanel";
 import { ParticipantHome } from "./ParticipantHome";
 import { accessMessage } from "./auth-feedback";
+import { DemoBanner } from "./DemoBanner";
 
 // Staff-only screens load on demand so the participant first load stays small.
 const GateScanner = lazy(() =>
@@ -260,6 +261,7 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   return (
     <MotionConfig reducedMotion="user">
       <div className="app-frame">
+        <DemoBanner />
         <button
           type="button"
           className="skip-link"

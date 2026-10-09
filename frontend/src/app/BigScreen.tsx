@@ -7,6 +7,7 @@ import { VenueView } from "./VenueView";
 import { CapacityMeter } from "../components/common/CapacityMeter";
 import { LiveValue } from "../components/common/LiveValue";
 import { StatusDot, type StatusTone } from "../components/common/StatusDot";
+import { SyntheticForecastNotice } from "./SyntheticForecastNotice";
 
 function clock(at: number, timeZone: string | null, seconds = false) {
   try {
@@ -152,6 +153,7 @@ export function BigScreen({
           <p className="bigscreen-label">
             Crowd outlook {forecastStale && "· stale"}
           </p>
+          <SyntheticForecastNotice />
           {points.length ? (
             points.map((point) => {
               const change = point.predicted_occupancy - snapshot.occupied;

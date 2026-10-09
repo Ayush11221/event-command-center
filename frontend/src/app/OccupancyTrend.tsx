@@ -1,5 +1,10 @@
 import { useMemo } from "react";
 import type { ForecastRun } from "../services/forecasting";
+import { isSyntheticDemo } from "./demo-context";
+import {
+  SyntheticForecastNotice,
+  SYNTHETIC_FORECAST_PROVENANCE,
+} from "./SyntheticForecastNotice";
 
 export interface OccupancySample {
   at: number;
@@ -106,7 +111,8 @@ export function OccupancyTrend({
       ? `; advisory forecast ${points
           .map((p) => `${p.value} (range ${p.lower}–${p.upper})`)
           .join(", then ")}${forecastStale ? ", stale" : ""}.`
-      : "; no current forecast.");
+      : "; no current forecast.") +
+    (isSyntheticDemo() ? ` ${SYNTHETIC_FORECAST_PROVENANCE}` : "");
 
   return (
     <figure className="trend" role="img" aria-label={summary}>
@@ -192,6 +198,7 @@ export function OccupancyTrend({
           <span className="legend-capacity" data-label="Registration limit" />
         )}
       </figcaption>
+      <SyntheticForecastNotice />
     </figure>
   );
 }

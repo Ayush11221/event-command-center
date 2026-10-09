@@ -1,0 +1,181 @@
+# Standalone LOCAL synthetic stack. Use only through tests/demo/forecast-demo.mjs.
+name: eoc-forecast-demo
+x-labels: &labels
+  org.eoc.forecast-demo: SYNTHETIC_LOCAL_DEMO
+  org.eoc.forecast-demo.instance: ${FORECAST_DEMO_INSTANCE:?Run the guarded init command first}
+x-logs: &logs
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+services:
+  postgres:
+    labels: *labels
+    logging: *logs
+    image: eoc-forecast-demo-postgres
+    build: { context: ., dockerfile: docker/postgres.Dockerfile }
+    environment:
+      POSTGRES_DB: eoc_forecast_demo
+      POSTGRES_USER: eoc_migrator
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets: [db_password, instance]
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks: [data]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U eoc_migrator -d eoc_forecast_demo"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  migrate:
+    labels: *labels
+    logging: *logs
+    image: eoc-forecast-demo-migrate
+    build:
+      { context: ., dockerfile: docker/backend.Dockerfile, target: migrate }
+    environment: { DATABASE_URL_FILE: /run/secrets/migration_url }
+    secrets: [migration_url, app_password]
+    networks: [data]
+    depends_on: { postgres: { condition: service_healthy } }
+  api:
+    labels: *labels
+    logging: *logs
+    image: eoc-forecast-demo-api
+    build:
+      { context: ., dockerfile: docker/backend.Dockerfile, target: runtime }
+    init: true
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      BIND_HOST: 0.0.0.0
+      FRONTEND_ORIGIN: https://127.0.0.1:9443
+      DATABASE_URL_FILE: /run/secrets/database_url
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      CONTACT_KEY_FILE: /run/secrets/contact_key
+      OTP_KEY_FILE: /run/secrets/otp_key
+      FORECAST_SERVICE_KEY_FILE: /run/secrets/forecast_key
+      FORECAST_SERVICE_URL: http://127.0.0.1:8000
+      METRICS_TOKEN_FILE: /run/secrets/metrics_token
+      OTP_SOURCE_MODE: direct
+      EMAIL_TRANSPORT: smtp
+      TELEMETRY_ENABLED: "true"
+      TRACE_SAMPLE_RATIO: "1"
+    secrets:
+      [
+        database_url,
+        jwt_secret,
+        contact_key,
+        otp_key,
+        forecast_key,
+        metrics_token,
+      ]
+    networks: [data, edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    healthcheck:
+      test:
+        [
+          CMD,
+          node,
+          -e,
+          "fetch('http://127.0.0.1:3000/health/ready',{signal:AbortSignal.timeout(3000)}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 3s
+      timeout: 4s
+      retries: 30
+  forecast:
+    labels: *labels
+    logging: *logs
+    build: { context: ., dockerfile: docker/forecast.Dockerfile }
+    network_mode: service:api
+    environment: { FORECAST_SERVICE_KEY_FILE: /run/secrets/forecast_key }
+    secrets: [forecast_key]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: { api: { condition: service_healthy } }
+    healthcheck:
+      test:
+        [
+          CMD,
+          python,
+          -c,
+          "import urllib.request; r=urllib.request.Request('http://127.0.0.1:8000/internal/health',headers={'Authorization':'Bearer '+open('/run/secrets/forecast_key').read().strip()}); urllib.request.urlopen(r,timeout=2)",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  frontend:
+    labels: *labels
+    logging: *logs
+    image: eoc-forecast-demo-frontend
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        {
+          FRONTEND_ORIGIN: "https://127.0.0.1:9443",
+          FORECAST_DEMO_CONTEXT: "synthetic_local",
+        }
+    environment:
+      { PUBLIC_ORIGIN: "https://127.0.0.1:9443", PUBLIC_HOST: "127.0.0.1" }
+    ports: ["127.0.0.1:9443:9443"]
+    volumes: [caddy_data:/data, caddy_config:/config]
+    networks: [edge]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on: { api: { condition: service_healthy } }
+    healthcheck:
+      test:
+        [
+          CMD-SHELL,
+          "wget -q --no-check-certificate -O /dev/null https://127.0.0.1:9443/health/live",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+  demo:
+    profiles: [tools]
+    labels: *labels
+    logging: *logs
+    image: eoc-forecast-demo-migrate
+    build:
+      { context: ., dockerfile: docker/backend.Dockerfile, target: migrate }
+    command: [node, tests/demo/fixture.mjs]
+    volumes:
+      [
+        {
+          type: bind,
+          source: ./tests/demo,
+          target: /app/tests/demo,
+          read_only: true,
+        },
+      ]
+    secrets: [migration_url, jwt_secret, contact_key, instance]
+    networks: [data]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  data: { internal: true, labels: *labels }
+  # Docker cannot publish ports from an internal-only bridge. Only HTTPS is bound to host loopback.
+  edge: { labels: *labels }
+volumes:
+  postgres_data: { labels: *labels }
+  caddy_data: { labels: *labels }
+  caddy_config: { labels: *labels }
+secrets:
+  db_password: { file: ./.secrets/forecast-demo/db_password }
+  app_password: { file: ./.secrets/forecast-demo/app_password }
+  migration_url: { file: ./.secrets/forecast-demo/migration_url }
+  database_url: { file: ./.secrets/forecast-demo/database_url }
+  jwt_secret: { file: ./.secrets/forecast-demo/jwt_secret }
+  contact_key: { file: ./.secrets/forecast-demo/contact_key }
+  otp_key: { file: ./.secrets/forecast-demo/otp_key }
+  forecast_key: { file: ./.secrets/forecast-demo/forecast_key }
+  metrics_token: { file: ./.secrets/forecast-demo/metrics_token }
+  instance: { file: ./.secrets/forecast-demo/instance }

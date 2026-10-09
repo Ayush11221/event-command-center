@@ -49,11 +49,29 @@ vi.mock("./PublicEventDetail", () => ({
 afterEach(() => {
   cleanup();
   vi.resetAllMocks();
+  vi.unstubAllEnvs();
   localStorage.clear();
   window.history.replaceState(null, "", "/");
 });
 
 describe("application entry", () => {
+  it.each(["/", "/events", "/operations/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"])(
+    "keeps the synthetic environment banner visible at %s",
+    async (path) => {
+      vi.stubEnv("VITE_FORECAST_DEMO", "synthetic_local");
+      vi.mocked(currentActor).mockResolvedValue({
+        user_id: "u",
+        organizer_capable: false,
+        assignments: [],
+        csrf_token: "csrf",
+      });
+      window.history.replaceState(null, "", path);
+      render(<App />);
+      expect(
+        await screen.findByLabelText("Synthetic demo environment"),
+      ).toHaveTextContent("Local demo — synthetic attendance");
+    },
+  );
   it("continues an ordinary account to participant guidance without privileged controls", async () => {
     vi.mocked(currentActor).mockResolvedValue({
       user_id: "u",

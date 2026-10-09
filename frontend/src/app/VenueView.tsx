@@ -3,6 +3,11 @@ import { useTween } from "../components/common/useTween";
 import type { ForecastRun } from "../services/forecasting";
 import { listStaff } from "../services/staff";
 import { gateLabel } from "./gate-label";
+import { isSyntheticDemo } from "./demo-context";
+import {
+  SyntheticForecastNotice,
+  SYNTHETIC_FORECAST_PROVENANCE,
+} from "./SyntheticForecastNotice";
 import {
   capacityTone,
   NEAR_CAPACITY_PERCENT,
@@ -208,7 +213,8 @@ export function VenueView({
     "." +
     (next
       ? ` Advisory 30-minute forecast ${next.predicted_occupancy}${forecastStale ? ", stale" : ""}.`
-      : "");
+      : "") +
+    (isSyntheticDemo() ? ` ${SYNTHETIC_FORECAST_PROVENANCE}` : "");
 
   return (
     <figure
@@ -486,6 +492,7 @@ export function VenueView({
         <span data-label="Schematic, not to scale" />
         <span data-label="Hall fill = people inside vs registration limit" />
       </figcaption>
+      <SyntheticForecastNotice />
     </figure>
   );
 }

@@ -76,3 +76,72 @@ Before an upgrade retain the current image IDs/tags, key files and a verified ba
 Operational owner: the demo/release operator; application owner reviews contract regressions and recovery decisions. See the evidence matrix and security review before claiming acceptance.
 
 References: [Caddy internal TLS](https://caddyserver.com/docs/caddyfile/directives/tls), [WebSocket reverse proxy](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy), [default SNI](https://caddyserver.com/docs/caddyfile/options).
+
+## Isolated crowd forecasting demonstration (local only)
+
+This separate demonstration uses the event name **Crowd Forecast Demo — synthetic attendance**. Its attendance and identities are fictitious, and every forecast is explicitly labelled as computed from synthetic attendance. Never point this harness at Railway, use copied production data or credentials, or use its forecasts for operational decisions. It does not change the 270-minute policy or add an application simulation endpoint.
+
+### Setup and safety gates
+
+Use Node 22, installed repository dependencies, built backend modules (`npm run build --workspace=backend`), Docker Desktop with Linux containers, and the repository's installed Playwright Chromium. Run commands from the repository root in a clean shell, without Docker/Compose target overrides, database URLs, PostgreSQL overrides, Railway variables, application secrets or `NODE_OPTIONS`. Do not dump your environment to diagnose a rejection. The harness ignores dotenv files and rejects target/credential overrides rather than accepting them.
+
+```powershell
+node --test tests/demo/isolation.test.mjs
+node tests/demo/forecast-demo.mjs init
+node tests/demo/forecast-demo.mjs start
+node tests/demo/forecast-demo.mjs isolation
+```
+
+Do not run `seed` unless `isolation` reports `eoc_forecast_demo`, enabled protection triggers, and zero application records. The harness also enforces this inside the seed transaction. Use the harness instead of invoking this Compose file directly: it pins the project `eoc-forecast-demo`, local socket context, configuration, resource ownership and credentials. It rejects arbitrary URLs/event IDs, remote/TCP/SSH Docker endpoints, foreign resource name collisions, substituted credential files, symlinks, disabled attendance triggers and existing application data.
+
+The standalone `docker/forecast-demo.yml` uses an internal data network, project-scoped volumes, and new credentials exclusively under `.secrets/forecast-demo/`. It does not use the existing `.secrets/forecast_key` or other application secret files. Only HTTPS is published, at `https://127.0.0.1:9443`; API, Python and PostgreSQL have no published ports. The edge bridge must be host-reachable for Docker's loopback port publishing; the data network remains internal. Both bridges are dedicated to this project. All profiles, including the tools profile, are validated before startup. The test worker is bind-mounted only into that profile; `tests/` remains excluded from Docker build contexts and production runtime images.
+
+Credential files are generated exclusively, never overwritten. SHA-256 fingerprints bind subsequent commands to those generated files. Owner-only directory permissions are applied on Windows and Unix. On Unix, the container UID 1000 must be able to read these owner-protected mounted files; use an operator account with matching UID rather than broadening file permissions. Never print credential files, `sessions.json`, environment dumps, or unrestricted container inspections. No credentials belong in a `VITE_` variable. The optional browser launcher provisions short-lived fixture sessions privately; it never prints tokens or adds an authentication bypass endpoint. These sessions demonstrate the existing session/RBAC/CSRF mechanisms, not OTP delivery. Email/SMS submission is unconfigured. The local API's explicit `direct` OTP source policy counts its socket peer and trusts no forwarded identity headers; production authentication configuration is unchanged.
+
+### Dataset and real pipeline verification
+
+```powershell
+node tests/demo/forecast-demo.mjs seed
+node tests/demo/forecast-demo.mjs verify
+node tests/demo/forecast-demo.mjs browser
+```
+
+Seeding is permitted once, into a verified empty database. It creates a new event, dedicated fictitious accounts/registrations/QR credentials, and 16 deterministic accepted arrivals across approximately five hours. Timestamps are whole UTC minutes. Every historical scan decision and attendance transition is inserted together in one transaction with matching event, gate, operator, registration, credential and accepted timestamp. Existing constraints and append-only triggers remain enabled; no accepted timestamp is updated, and no trigger is disabled. `COMMITTED` describes records committed to this synthetic local ledger, not evidence of real human attendance. A database provenance marker and owner-protected manifest bind the dataset to this demo instance.
+
+`verify` uses the real Node HTTP API and the real authenticated Python service, without fabricated successful responses or service mocks. It registers two additional fictitious attendees while the event is PUBLISHED, retrieves a QR credential, performs the existing authorized transition to LIVE, checks in one attendee, and verifies a distinct duplicate attempt is rejected. It also checks CSRF, anonymous and participant forecast denials. Repeated verification uses the same idempotency keys for these commands; it does not create another attendance transition for that attendee.
+
+Two additional, clearly named synthetic threshold-test events are created locally for each verification. Their first accepted check-ins are based on the current database clock. The harness proves that 269 regular minute observations plus an off-minute endpoint remain INSUFFICIENT_DATA, and that 270 regular observations produce AVAILABLE. It never advances the system clock or lowers the threshold. A minute-rollover guard keeps these exact-count checks reliable; a very slow run may fail rather than claiming success with a different count.
+
+Every successful result is checked against its persisted `ForecastRun`, run ID, event, input context, occupied count and attendance revision. Matching correlation IDs must appear with HTTP 200 in both API and Python application logs. Evidence is saved to `.artifacts/forecast-demo/evidence.json`; the raw private sessions are separate and are never part of reported evidence. Public HTTP 200 alone is insufficient proof.
+
+The headless `browser` check validates the local Caddy certificate using Node's explicit copied public CA, then checks the actual application forecast, persistent synthetic provenance in all three role contexts, the scanner's prepared manual entry and the attendee's real QR display. It leaves the reserved arrival unchecked for the presentation. Its certificate exception is confined to fresh Playwright contexts restricted to the fixed loopback origin; it does not disable verification in application clients or install a global CA. It saves `.artifacts/forecast-demo/forecast-demo.png`.
+
+### Presentation and lifecycle
+
+```powershell
+node tests/demo/forecast-demo.mjs present
+```
+
+This opens isolated Organizer, Gate Scanner and fictitious Attendee browser contexts, using fresh 15-minute fixture access tokens without displaying them. The organizer shows the forecast. The attendee shows the reserved registration's QR. The launcher opens the scanner's existing manual-entry form and pre-fills that local QR credential; submit through the normal scanner UI. Actual camera hardware/permissions need separate verification. There is no role picker or server-side authority override. Registration remains closed after LIVE; reserved presentation attendees are registered during verification, preserving the existing lifecycle policy. A second presentation scan is correctly rejected if that attendee has already checked in. After new attendance, refresh the forecast normally; retained incompatible points are labelled stale by the existing UI.
+
+The frontend demo build rejects any page or API origin other than the fixed `https://127.0.0.1:9443`. Its persistent banner remains on all routes, and available, insufficient, stale and failed forecast displays retain synthetic provenance. Trend and Venue views also show their own provenance notices and include synthetic attendance in accessible summaries. Big Screen keeps notices inside both its forecast panel and Venue display, including when fullscreen hides the main-page banner. Ordinary builds do not enable this label mode.
+
+```powershell
+# Preserve the disposable dataset for a later presentation:
+node tests/demo/forecast-demo.mjs stop
+node tests/demo/forecast-demo.mjs start
+
+# Delete only this instance's verified disposable volumes and generated files:
+node tests/demo/forecast-demo.mjs cleanup
+```
+
+`stop` does not remove volumes. `cleanup` verifies resource ownership before removing only the named demo stack, its volumes, `.secrets/forecast-demo/`, and `.artifacts/forecast-demo/`. It does not prune Docker, touch the older `slice12-demo` stack, or delete other secrets/artifacts. After cleanup, initialize a fresh instance; never adopt existing unrelated data. To reuse a retained dataset, skip `init` and `seed`; run `start`, `verify`, then `present`. Verification creates fresh threshold-test fixtures, so this disposable database intentionally accumulates test evidence until cleanup.
+
+### Troubleshooting and limits
+
+- A guard rejection is fail-closed. Check the documented command, selected local socket context and presence of forbidden variable **names**; do not supply an alternative target. Do not edit manifests, credential files or resource labels to bypass ownership checks.
+- Port 9443 must be free. An unhealthy dependency or build failure must be resolved locally before isolation/seeding. Inspect only the fixed project's service logs through the guarded configuration; never dump credentials or container environments.
+- If a command fails after seeding, do not delete ledger rows or backdate existing records. Re-run `verify` with its stable keys, or use guarded cleanup to build a new disposable instance. If `seed` committed but its manifest could not be saved, the empty-data gate intentionally prevents a second seed; reset with guarded cleanup.
+- Missing correlated application logs, a non-AVAILABLE primary result, mismatched persistence/context, or a failed browser check means verification failed. Do not replace failures with fixture responses.
+- A fresh event with only normal current-time check-ins still needs approximately 4 hours 29–30 minutes from its first accepted check-in. Five hours of prepared synthetic history makes a short presentation possible; it does not accelerate production readiness. No observations are fabricated in production.
+- The current method is a check-in-only **persistence baseline**: both horizon point estimates equal the latest occupancy. Intervals and chronological retrospective metrics explain this baseline; they are not proof of production accuracy, usefulness, departures, future crowd growth, live OTP delivery or physical-camera behavior.
