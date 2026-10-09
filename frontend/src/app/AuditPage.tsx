@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ReviewEntry } from "./ReviewEntry";
 import { humanLabel } from "./event-presentation";
@@ -72,7 +73,10 @@ function AuditView({
   }, [eventId, query, attempt]);
   return (
     <>
-      <a href="/">Back to event workspace</a>
+      <a href="/" className="back-link">
+        <ArrowLeft aria-hidden="true" className="size-4" />
+        Back to event workspace
+      </a>
       <EventInformation information={information} />
       <p>
         Review recorded event activity. Each search is recorded for

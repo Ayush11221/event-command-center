@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { type ActorState } from "../services/proof";
 import { ReviewEntry } from "./ReviewEntry";
@@ -207,12 +208,16 @@ function TaskWorkspace({
     <>
       {staff && (
         <>
-          <a href="/">Back to event workspace</a>
+          <a href="/" className="back-link">
+            <ArrowLeft aria-hidden="true" className="size-4" />
+            Back to event workspace
+          </a>
           <EventInformation information={information} />
         </>
       )}
       {teamError && <p role="alert">{teamError}</p>}
       <button
+        className="secondary-button"
         disabled={busy}
         onClick={() => {
           setCursor(null);
@@ -234,7 +239,7 @@ function TaskWorkspace({
           {!list.items.length ? (
             <p>No tasks in this view.</p>
           ) : (
-            <ul className="event-list">
+            <ul className="event-list task-list">
               {list.items.map((t) => (
                 <li key={t.id}>
                   {staff ? (

@@ -209,3 +209,29 @@ TBD during the dedicated UI/UX phase:
 ## Design decision workflow
 
 Phase 1 defines journeys, information architecture, content priority, state models, and low-fidelity flows. Phase 2 documents the foundation; representative command-center, scanner, and participant prototypes must validate final font/palette, token refinements and component variants before packages are authorized. Every choice should trace to a user task, operational risk, accessibility need, or maintainability benefit.
+
+## 15. P1-D decisions (implemented)
+
+These resolve items previously marked TBD in sections 3, 7, 8 and 14.
+
+- **Packages:** Tailwind CSS 4 (`@tailwindcss/vite`), Lucide React, Motion, and the shadcn/ui `cn` helper (`clsx` + `tailwind-merge`). Product components in `frontend/src/components/common` (CapacityMeter, LiveValue, StatusDot, NavIndicator, LifecycleStepper, SegmentBar). No Radix primitive is installed yet: several inject runtime `<style>` elements that the production `style-src 'self'` CSP blocks.
+- **Font:** platform system stack (SF Pro on Apple devices, Segoe UI Variable on Windows); no web-font download, so nothing leaves the origin and the CSP stays `'self'`.
+- **Palette:** neutral graphite/white surfaces with a single blue action colour; light and dark values are assigned independently and validated by `theme-contrast.test.ts` (text ≥ 4.5:1, boundaries/focus ≥ 3:1). Decorative separators use the untested `--hairline` token; meaningful boundaries keep `--border`.
+- **Shape and depth:** controls 10 px radius, panels 16–20 px, pill-shaped buttons; one subtle panel elevation and one overlay elevation. Only the top bar uses translucency (disabled under `prefers-reduced-transparency`).
+- **Motion:** one easing (`cubic-bezier(0.22, 1, 0.36, 1)`). Entrances and value changes use CSS keyframes so content is never left hidden if script animation stalls; Motion drives the shared section-navigation indicator. `MotionConfig reducedMotion="user"` plus a global reduced-motion rule disable movement. Numbers never count through invented intermediate values.
+- **Scanner outcomes:** Accepted (green, solid border, check), Duplicate (amber, dashed border, repeat icon), Rejected (red, solid border, cross), Decision unknown (neutral, dotted border, warning, "Hold entry"). Each pairs colour with an icon, a written label, and a border shape.
+- **Capacity emphasis:** a presentation-only near-capacity mark at 90 % (warning tone); at or above the registration limit uses the critical tone. The bar is `aria-hidden`; written values carry the meaning.
+- **Deployment:** the theme bootstrap is the same-origin `/theme-init.js` (no inline script), so the build works unchanged behind the Railway Caddy CSP and on Vercel.
+- **Decorative duplicates:** the lifecycle stepper, event status pill, staff monograms and entry-pass label render their text with CSS `content` and are `aria-hidden`; the written status beside them is the accessible source, so assistive technology never hears a status twice.
+- **Destructive actions:** cancel event / cancel registration use an outline-danger trigger and an inline danger confirmation panel (no modal), preserving focus order and existing confirmation copy.
+- **Certificates:** batch progress shows two separate segmented bars, Issuance and Email delivery, so certificate issue state is never conflated with delivery state.
+
+## 16. Studio look and operational extras (P1-D)
+
+- **Studio look:** the default `data-look="studio"` on `<html>` (set by `public/theme-init.js`, overridable with `?look=classic|studio`) adds the editorial/isometric layer: dot-grid canvas, floating chrome, mono pill labels, italic serif accent words (`Accent`), floating stat cards and isometric illustrations (`components/common/Iso.tsx`). All studio rules are scoped under `:root[data-look="studio"]`; classic remains intact underneath.
+- **Honesty rule for illustrations:** every isometric graphic is decorative (`aria-hidden`, CSS-generated labels) and only restyles data the API already returns. No positions, flows, per-gate live traffic or per-zone counts are drawn, because the backend does not provide them.
+- **Live Operations:** Trend (observed samples since page open + advisory forecast band) and Venue (schematic hall filled to authoritative occupancy, configured gates with assigned Gate/Security counts) views; a control-room Big screen (`BigScreen.tsx`) that re-presents the same snapshot, forecast and observed changes.
+- **Scanner:** `GateStage` acts out the server's decision (accepted / duplicate / rejected / unknown); device-local tally, optional sound/vibration (`scan-feedback.ts`, sound off by default) and full-screen mode. None of these affect entry decisions.
+- **Workspace:** Quick actions palette (Ctrl/⌘K) exposing only existing navigation; event campus (state-styled buildings); opt-in guided tour; confetti only for a confirmed Published → Live transition.
+- **Participant:** wallet-style entry pass (pointer tilt + sheen); QR and credential handling unchanged.
+- **Motion rules confirmed by axe testing:** entrances animate transform only (never opacity, so contrast is correct on every frame); button colours change instantly; theme switches disable transitions for one frame.

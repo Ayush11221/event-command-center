@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { currentActor, ProofError } from "../services/proof";
 import {
@@ -196,7 +197,10 @@ export function CertificatesPage({ eventId }: { eventId: string }) {
     uncertain = pending.current !== null;
   return (
     <main className="page-shell public-page">
-      <a href="/">Back to event workspace</a>
+      <a href="/" className="back-link">
+        <ArrowLeft aria-hidden="true" className="size-4" />
+        Back to event workspace
+      </a>
       <h1>Certificates</h1>
       <EventInformation information={information} />
       <p>

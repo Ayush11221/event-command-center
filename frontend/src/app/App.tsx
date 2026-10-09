@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { Activity } from "lucide-react";
+import { MotionConfig } from "motion/react";
 import { currentActor, ProofError, type ActorState } from "../services/proof";
 import { subscribeAccountSession } from "../services/account-session";
 import { ProofEntry } from "./ProofEntry";
@@ -9,14 +11,46 @@ import { PublicEventDetail } from "./PublicEventDetail";
 import { PrivateEventDetail } from "./PrivateEventDetail";
 import type { PrivateEntry } from "./private-entry";
 import { RegistrationPanel } from "./RegistrationPanel";
-import { GateScanner } from "./GateScanner";
-import { OccupancyPage } from "./OccupancyPage";
-import { CertificatesPage } from "./CertificatesPage";
-import { TasksPage, VolunteerEntry } from "./TasksPage";
-import { ResultsPage } from "./ResultsPage";
-import { AuditPage } from "./AuditPage";
 import { ParticipantHome } from "./ParticipantHome";
 import { accessMessage } from "./auth-feedback";
+
+// Staff-only screens load on demand so the participant first load stays small.
+const GateScanner = lazy(() =>
+  import("./GateScanner").then((m) => ({ default: m.GateScanner })),
+);
+const OccupancyPage = lazy(() =>
+  import("./OccupancyPage").then((m) => ({ default: m.OccupancyPage })),
+);
+const CertificatesPage = lazy(() =>
+  import("./CertificatesPage").then((m) => ({ default: m.CertificatesPage })),
+);
+const TasksPage = lazy(() =>
+  import("./TasksPage").then((m) => ({ default: m.TasksPage })),
+);
+const VolunteerEntry = lazy(() =>
+  import("./TasksPage").then((m) => ({ default: m.VolunteerEntry })),
+);
+const ResultsPage = lazy(() =>
+  import("./ResultsPage").then((m) => ({ default: m.ResultsPage })),
+);
+const AuditPage = lazy(() =>
+  import("./AuditPage").then((m) => ({ default: m.AuditPage })),
+);
+
+function RouteFallback() {
+  return (
+    <main className="page-shell">
+      <div className="skeleton-page" aria-hidden="true">
+        <span className="skeleton skeleton-title" />
+        <span className="skeleton skeleton-line" />
+        <span className="skeleton skeleton-block" />
+      </div>
+      <p className="visually-hidden" role="status">
+        Loading…
+      </p>
+    </main>
+  );
+}
 
 function ManagementEntry() {
   const [session, setSession] = useState<
@@ -168,6 +202,34 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
   const volunteerRoute = path.match(
     /^\/volunteer(?:\/([0-9a-f-]+)\/tasks(?:\/([0-9a-f-]+))?)?\/?$/i,
   );
+  const staffRoute = !!(
+    operations ||
+    certificates ||
+    taskEvent ||
+    resultEvent ||
+    auditEvent
+  );
+  // Offer the scanner link only to accounts that can actually scan; the
+  // scanner itself still enforces the server-side gate assignment.
+  const [canScan, setCanScan] = useState(false);
+  useEffect(() => {
+    if (!staffRoute) return;
+    let active = true;
+    Promise.resolve()
+      .then(() => currentActor())
+      .then((actor) => {
+        if (active)
+          setCanScan(
+            !!actor?.assignments?.some(
+              (a) => a.role === "GATE_SECURITY" && a.gate_id,
+            ),
+          );
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [staffRoute]);
   const catalog = /^\/events\/?$/.test(path);
   const privatePage = /^\/private\/?$/.test(path);
   const detail = path.match(/^\/events\/([^/]+)\/?$/);
@@ -196,91 +258,93 @@ export function App({ privateEntry }: { privateEntry?: PrivateEntry } = {}) {
     volunteerRoute?.[0],
   ]);
   return (
-    <div className="app-frame">
-      <button
-        type="button"
-        className="skip-link"
-        onClick={() => {
-          const main = document.querySelector("main");
-          if (main) {
-            main.tabIndex = -1;
-            main.focus();
-          }
-        }}
-      >
-        Skip to main content
-      </button>
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            E
-          </span>
-          <span>Event Command Center</span>
-        </div>
-        <nav className="entry-nav" aria-label="Primary navigation">
-          <a
-            href="/events"
-            aria-current={catalog || detail ? "page" : undefined}
-          >
-            Public events
-          </a>
-          {volunteerRoute ? (
-            <a href="/volunteer">My tasks</a>
+    <MotionConfig reducedMotion="user">
+      <div className="app-frame">
+        <button
+          type="button"
+          className="skip-link"
+          onClick={() => {
+            const main = document.querySelector("main");
+            if (main) {
+              main.tabIndex = -1;
+              main.focus();
+            }
+          }}
+        >
+          Skip to main content
+        </button>
+        <header className="topbar">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">
+              <Activity strokeWidth={2.4} />
+            </span>
+            <span>Event Command Center</span>
+          </div>
+          <nav className="entry-nav" aria-label="Primary navigation">
+            <a
+              href="/events"
+              aria-current={catalog || detail ? "page" : undefined}
+            >
+              Public events
+            </a>
+            {volunteerRoute ? (
+              <a href="/volunteer">My tasks</a>
+            ) : (
+              <>
+                <a href="/">Event workspace</a>
+                {(scanner || (staffRoute && canScan)) && (
+                  <a
+                    href="/scanner"
+                    aria-current={scanner ? "page" : undefined}
+                  >
+                    Gate scanner
+                  </a>
+                )}
+              </>
+            )}
+          </nav>
+          <ThemeControl />
+        </header>
+        <AccountSessionNotice />
+        <Suspense fallback={<RouteFallback />}>
+          {taskEvent ? (
+            <TasksPage key={taskEvent} eventId={taskEvent} staff />
+          ) : resultEvent ? (
+            <ResultsPage key={resultEvent} eventId={resultEvent} />
+          ) : auditEvent ? (
+            <AuditPage key={auditEvent} eventId={auditEvent} />
+          ) : volunteerRoute ? (
+            volunteerRoute[1] ? (
+              <TasksPage
+                key={volunteerRoute[0]}
+                eventId={volunteerRoute[1]}
+                taskId={volunteerRoute[2]}
+              />
+            ) : (
+              <VolunteerEntry />
+            )
+          ) : certificates ? (
+            <CertificatesPage key={certificates} eventId={certificates} />
+          ) : operations ? (
+            <OccupancyPage key={operations} eventId={operations} />
+          ) : scanner ? (
+            <GateScanner />
+          ) : registration ? (
+            <main className="page-shell public-page">
+              <h1>View your registration</h1>
+              <RegistrationPanel registrationId={registration} />
+            </main>
+          ) : privatePage ? (
+            <PrivateEventDetail entry={privateEntry} />
+          ) : catalog ? (
+            <PublicCatalog />
+          ) : eventId ? (
+            <PublicEventDetail key={eventId} eventId={eventId} />
           ) : (
-            <>
-              <a href="/">Event workspace</a>
-              {(scanner ||
-                operations ||
-                certificates ||
-                taskEvent ||
-                resultEvent ||
-                auditEvent) && (
-                <a href="/scanner" aria-current={scanner ? "page" : undefined}>
-                  Gate scanner
-                </a>
-              )}
-            </>
+            <ManagementEntry />
           )}
-        </nav>
-        <ThemeControl />
-      </header>
-      <AccountSessionNotice />
-      {taskEvent ? (
-        <TasksPage key={taskEvent} eventId={taskEvent} staff />
-      ) : resultEvent ? (
-        <ResultsPage key={resultEvent} eventId={resultEvent} />
-      ) : auditEvent ? (
-        <AuditPage key={auditEvent} eventId={auditEvent} />
-      ) : volunteerRoute ? (
-        volunteerRoute[1] ? (
-          <TasksPage
-            key={volunteerRoute[0]}
-            eventId={volunteerRoute[1]}
-            taskId={volunteerRoute[2]}
-          />
-        ) : (
-          <VolunteerEntry />
-        )
-      ) : certificates ? (
-        <CertificatesPage key={certificates} eventId={certificates} />
-      ) : operations ? (
-        <OccupancyPage key={operations} eventId={operations} />
-      ) : scanner ? (
-        <GateScanner />
-      ) : registration ? (
-        <main className="page-shell public-page">
-          <h1>View your registration</h1>
-          <RegistrationPanel registrationId={registration} />
-        </main>
-      ) : privatePage ? (
-        <PrivateEventDetail entry={privateEntry} />
-      ) : catalog ? (
-        <PublicCatalog />
-      ) : eventId ? (
-        <PublicEventDetail key={eventId} eventId={eventId} />
-      ) : (
-        <ManagementEntry />
-      )}
-    </div>
+        </Suspense>
+      </div>
+    </MotionConfig>
   );
 }

@@ -606,7 +606,10 @@ try {
     await expect(page.getByText("27300%", { exact: true })).toBeVisible();
     await expect(page.getByText(/Stale forecast\./)).toBeVisible();
     for (const theme of width === 390 ? ["Dark", "System", "Light"] : []) {
-      await page.getByLabel("Appearance").selectOption({ label: theme });
+      await page
+        .getByRole("radiogroup", { name: "Appearance" })
+        .getByRole("radio", { name: theme })
+        .check();
       await validate(page, `390 Live Operations ${theme}`);
     }
     for (const [route, heading] of [

@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
 import type { OperationsState } from "./useOperations";
 import { useForecasts } from "./useForecasts";
+import type { ForecastRun } from "../services/forecasting";
 import { formatEventTime } from "../services/event-time";
 import { humanLabel } from "./event-presentation";
+import { ChartSpline, RefreshCw } from "lucide-react";
+import { StatusDot } from "../components/common/StatusDot";
+import { LiveValue } from "../components/common/LiveValue";
 
 const unavailable: Record<string, string> = {
   INSUFFICIENT_DATA: "Not enough accepted attendance history for evaluation.",
@@ -15,11 +19,14 @@ export function ForecastPanel({
   operations,
   connection,
   timeZone = null,
+  onRun,
 }: {
   eventId: string;
   operations: OperationsState;
   connection: string;
   timeZone?: string | null;
+  /** Shares the already-fetched run with the occupancy trend (no refetch). */
+  onRun?: (run: ForecastRun | null, stale: boolean) => void;
 }) {
   const ready = operations.phase === "ready";
   const lost =
@@ -34,7 +41,6 @@ export function ForecastPanel({
   useEffect(() => {
     if (notified && run) setNotifiedRun(run.run_id);
   }, [notified, run]);
-  if (lost) return null;
   const changed =
     !!run &&
     ((ready &&
@@ -51,14 +57,36 @@ export function ForecastPanel({
     !!run &&
     run.status === "AVAILABLE" &&
     (run.freshness.state === "STALE" || changed || expired || state.failed);
+  useEffect(() => {
+    onRun?.(lost ? null : (run ?? null), stale);
+  }, [onRun, run, stale, lost]);
+  if (lost) return null;
+  const forecastTone =
+    state.denied || state.failed || (!!run && run.status !== "AVAILABLE")
+      ? "degraded"
+      : state.loading || !run
+        ? "pending"
+        : stale
+          ? "degraded"
+          : "live";
   return (
-    <section className="forecast-panel" aria-label="Advisory crowd forecast">
-      <h2>Crowd forecast</h2>
-      <p>
+    <section
+      className="forecast-panel ops-panel"
+      aria-label="Advisory crowd forecast"
+    >
+      <div className="ops-panel-title">
+        <ChartSpline aria-hidden="true" className="size-5" />
+        <h2>Crowd forecast</h2>
+      </div>
+      <p className="field-help">
         Advisory only. Observed occupancy remains authoritative; forecasts never
         control gate entry.
       </p>
-      <p className="notice" aria-live="polite">
+      <p
+        className={`notice live-strip live-strip-${forecastTone}`}
+        aria-live="polite"
+      >
+        <StatusDot tone={forecastTone} />
         {state.denied
           ? "Forecast access is unavailable. Confirm your current event access."
           : state.loading
@@ -83,14 +111,36 @@ export function ForecastPanel({
       )}
       {run?.status === "AVAILABLE" && (
         <>
-          <dl className="occupancy-values">
+          <dl className="occupancy-values forecast-points">
             {run.points.map((point) => (
-              <div key={point.horizon_minutes}>
+              <div
+                key={point.horizon_minutes}
+                className={stale ? "forecast-point is-stale" : "forecast-point"}
+              >
                 <dt>
                   {point.horizon_minutes}-minute prediction
                   {stale ? " (stale)" : ""}
                 </dt>
-                <dd>{point.predicted_occupancy}</dd>
+                <dd>
+                  <LiveValue value={point.predicted_occupancy} />
+                </dd>
+                {run.input.capacity !== null && (
+                  <dd aria-hidden="true" className="forecast-band">
+                    <span
+                      className="forecast-band-range"
+                      style={{
+                        left: `${Math.min(100, (point.uncertainty.lower * 100) / run.input.capacity)}%`,
+                        width: `${Math.max(1, Math.min(100, (point.uncertainty.upper * 100) / run.input.capacity) - Math.min(100, (point.uncertainty.lower * 100) / run.input.capacity))}%`,
+                      }}
+                    />
+                    <span
+                      className="forecast-band-point"
+                      style={{
+                        left: `${Math.min(100, (point.predicted_occupancy * 100) / run.input.capacity)}%`,
+                      }}
+                    />
+                  </dd>
+                )}
                 <dd className="forecast-context">
                   Empirical interval: {point.uncertainty.lower}–
                   {point.uncertainty.upper}
@@ -101,12 +151,12 @@ export function ForecastPanel({
               </div>
             ))}
           </dl>
-          <p>
+          <p className="field-help">
             Persistence baseline only; check-in-only history contains no
             departures. The 90% nominal interval is a calibration target, not an
             accuracy guarantee.
           </p>
-          <details>
+          <details className="advanced-details">
             <summary>Retrospective evaluation</summary>
             <p>
               Chronological training, validation and held-out test ranges.
@@ -149,9 +199,11 @@ export function ForecastPanel({
       )}
       <button
         type="button"
+        className="secondary-button"
         onClick={refresh}
         disabled={!ready || state.loading || state.denied}
       >
+        <RefreshCw aria-hidden="true" className="size-4" />
         Refresh forecast
       </button>
     </section>

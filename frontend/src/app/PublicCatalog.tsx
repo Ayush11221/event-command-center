@@ -1,3 +1,5 @@
+import { Accent, IsoBuilding } from "../components/common/Iso";
+import { CalendarDays, MapPin } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   DiscoveryApiError,
@@ -81,7 +83,7 @@ export function PublicCatalog() {
         <div>
           <p className="eyebrow">PUBLIC EVENTS</p>
           <h1 ref={heading} tabIndex={-1}>
-            Explore events
+            Explore <Accent>events</Accent>
           </h1>
           <p>
             Browse published events and review their details and registration
@@ -100,7 +102,7 @@ export function PublicCatalog() {
         )}
       </div>
       {state.phase === "loading" ? (
-        <p role="status" className="notice">
+        <p role="status" className="notice is-loading">
           Loading public events…
         </p>
       ) : state.phase === "error" ? (
@@ -122,6 +124,14 @@ export function PublicCatalog() {
               {state.page.items.map((event) => (
                 <li key={event.event_id}>
                   <article className="public-event-row">
+                    <IsoBuilding
+                      className="public-event-art"
+                      tone={
+                        event.availability.policy_status === "OPEN"
+                          ? "action"
+                          : "state-completed"
+                      }
+                    />
                     <div>
                       <PublicTags event={event} />
                       <h2>
@@ -131,12 +141,18 @@ export function PublicCatalog() {
                           {event.name}
                         </a>
                       </h2>
-                      <p>
-                        {publicEventTime(event.start_at, event.time_zone)} –{" "}
-                        {publicEventTime(event.end_at, event.time_zone)}
+                      <p className="event-meta-line">
+                        <CalendarDays aria-hidden="true" className="size-4" />
+                        {publicEventTime(
+                          event.start_at,
+                          event.time_zone,
+                        )} – {publicEventTime(event.end_at, event.time_zone)}
                         {event.time_zone && ` · ${event.time_zone}`}
                       </p>
-                      <p>{event.public_location ?? "Location not provided"}</p>
+                      <p className="event-meta-line">
+                        <MapPin aria-hidden="true" className="size-4" />
+                        {event.public_location ?? "Location not provided"}
+                      </p>
                     </div>
                     <PublicPolicy event={event} compact />
                   </article>

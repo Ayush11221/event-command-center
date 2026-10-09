@@ -1,3 +1,4 @@
+import { CapacityMeter } from "../components/common/CapacityMeter";
 import { useEffect, useRef, useState } from "react";
 import { EventApiError, type ManagementDetail } from "../services/events";
 import { getOperations, type OperationsSnapshot } from "../services/occupancy";
@@ -95,26 +96,40 @@ export function EventRegistrations({
     }
   }
   return (
-    <section aria-label="Event registrations">
+    <section aria-label="Event registrations" className="registrations-panel">
       <h3>Registrations</h3>
-      <p role="status">{registrationStatus(detail, current?.registered)}</p>
-      <p>
-        Registration limit: {detail.registration_capacity ?? "Not configured"}
+      <p role="status" className="registrations-status">
+        {registrationStatus(detail, current?.registered)}
       </p>
+      <div className="stat-strip">
+        <p>
+          Registration limit: {detail.registration_capacity ?? "Not configured"}
+        </p>
+        {current && <p>Registered: {current.registered}</p>}
+      </div>
+      {current && detail.registration_capacity !== null && (
+        <CapacityMeter
+          occupied={current.registered}
+          capacity={detail.registration_capacity}
+        />
+      )}
       {current ? (
-        <>
-          <p>Registered: {current.registered}</p>
-          <p>Confirmed {formatEventTime(current.as_of, detail.time_zone)}</p>
-        </>
+        <p className="freshness">
+          Confirmed {formatEventTime(current.as_of, detail.time_zone)}
+        </p>
       ) : countError ? (
         <p role="alert">{countError}</p>
       ) : (
         <p role="status">Checking available places…</p>
       )}
-      <button type="button" onClick={() => setAttempt((value) => value + 1)}>
+      <button
+        type="button"
+        className="secondary-button"
+        onClick={() => setAttempt((value) => value + 1)}
+      >
         Refresh registrations
       </button>
-      <p>
+      <p className="field-help">
         Participants register through the event page. The current service
         supports looking up a registration by reference; it does not provide a
         participant directory.

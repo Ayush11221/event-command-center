@@ -1,3 +1,4 @@
+import { ArrowLeft } from "lucide-react";
 import { useEffect, useState } from "react";
 import { ReviewEntry } from "./ReviewEntry";
 import { gateLabel } from "./gate-label";
@@ -72,9 +73,17 @@ function ResultsView({
   }, [eventId, attempt]);
   return (
     <>
-      <a href="/">Back to event workspace</a>
+      <a href="/" className="back-link">
+        <ArrowLeft aria-hidden="true" className="size-4" />
+        Back to event workspace
+      </a>
       <EventInformation information={information} />
-      <button onClick={() => setAttempt((a) => a + 1)}>Refresh results</button>
+      <button
+        className="secondary-button"
+        onClick={() => setAttempt((a) => a + 1)}
+      >
+        Refresh results
+      </button>
       {message && <p role="alert">{message}</p>}
       {!data && !message && <p role="status">Loading results…</p>}
       {data && (
@@ -109,7 +118,7 @@ function ResultsView({
           </p>
           <h2>Gate check-ins</h2>
           {data.gate_check_ins.length ? (
-            <ul>
+            <ul className="tally-list">
               {data.gate_check_ins.map((g) => (
                 <li key={g.gate_id}>
                   {gateLabel(

@@ -33,7 +33,12 @@ export function PublicPolicy({
   return (
     <section className="public-policy" aria-label="Registration policy">
       <p className="policy-label">
-        Registration policy: <strong>{availability.policy_status}</strong>
+        Registration policy:{" "}
+        <strong
+          className={`reg-chip ${availability.policy_status === "OPEN" ? "is-registered" : "is-neutral"}`}
+        >
+          {availability.policy_status}
+        </strong>
       </p>
       {availability.reasons.length > 0 ? (
         <ul>

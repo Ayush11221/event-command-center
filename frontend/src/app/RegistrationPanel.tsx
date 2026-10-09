@@ -1,3 +1,5 @@
+import { IsoBuilding } from "../components/common/Iso";
+import { QrCode } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ProofError } from "../services/proof";
 import { subscribeAccountSession } from "../services/account-session";
@@ -388,7 +390,9 @@ export function RegistrationPanel({
               )}
               <p>
                 Registration status:{" "}
-                <strong>
+                <strong
+                  className={`reg-chip ${row.state === "CANCELLED" ? "is-cancelled" : "is-registered"}`}
+                >
                   {row.state === "CANCELLED" ? "Cancelled" : "Registered"}
                 </strong>
               </p>
@@ -434,6 +438,7 @@ export function RegistrationPanel({
                   Your entry QR is available below. Show it when you arrive.
                 </p>
                 <button disabled={busy} onClick={() => void showCredential()}>
+                  <QrCode aria-hidden="true" className="size-4" />
                   Show entry QR
                 </button>
                 {cancellationBlocked ? (
@@ -447,13 +452,14 @@ export function RegistrationPanel({
                     Cancel registration
                   </button>
                 ) : (
-                  <div className="notice">
+                  <div className="notice confirm-panel is-danger">
                     <p>
                       Cancel your registration? Your entry QR will stop working
                       and your place will be released.
                     </p>
                     <button
                       disabled={busy}
+                      className="danger-button"
                       onClick={() => void command("cancel")}
                     >
                       Confirm cancellation
@@ -470,7 +476,28 @@ export function RegistrationPanel({
               </>
             )}
           {qr && (
-            <figure>
+            <figure
+              className="entry-pass"
+              data-event={details?.name ?? ""}
+              onPointerMove={(event) => {
+                if (event.pointerType === "touch") return;
+                const box = event.currentTarget.getBoundingClientRect();
+                const x = (event.clientX - box.left) / box.width - 0.5;
+                const y = (event.clientY - box.top) / box.height - 0.5;
+                event.currentTarget.style.setProperty("--ry", `${x * 14}deg`);
+                event.currentTarget.style.setProperty("--rx", `${-y * 12}deg`);
+                event.currentTarget.style.setProperty(
+                  "--sx",
+                  `${(x + 0.5) * 100}%`,
+                );
+              }}
+              onPointerLeave={(event) => {
+                event.currentTarget.style.setProperty("--ry", "0deg");
+                event.currentTarget.style.setProperty("--rx", "0deg");
+              }}
+            >
+              <IsoBuilding className="pass-art" />
+              <span className="pass-sheen" aria-hidden="true" />
               <img
                 className="participant-qr"
                 src={`data:image/svg+xml,${encodeURIComponent(qr.qr_svg)}`}

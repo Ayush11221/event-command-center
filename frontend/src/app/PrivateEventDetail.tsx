@@ -59,7 +59,7 @@ export function PrivateEventDetail({ entry }: { entry?: PrivateEntry }) {
         Browse public events
       </a>
       {state.phase === "loading" ? (
-        <p role="status" className="notice">
+        <p role="status" className="notice is-loading">
           Loading private event detail…
         </p>
       ) : state.phase === "ready" ? (
