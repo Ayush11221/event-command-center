@@ -2444,9 +2444,9 @@
   }
 }
 @media (max-width: 520px) {
-  /* Two-row header on phones scrolls away so the scanner keeps the screen. */
+  /* The phone header scrolls away but stays above page content for Settings. */
   .topbar {
-    position: static;
+    position: relative;
   }
   :root {
     --topbar-height: 0px;
@@ -4389,7 +4389,8 @@
 }
 @media (max-width: 520px) {
   :root[data-look="studio"] .topbar {
-    position: static;
+    position: relative;
+    top: 0;
   }
   .iso-glyph {
     width: 36px;
