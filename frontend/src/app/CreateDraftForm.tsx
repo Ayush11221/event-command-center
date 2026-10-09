@@ -105,8 +105,8 @@ export function CreateDraftForm({
         <p className="eyebrow">START HERE</p>
         <h2 id="create-heading">Create an event</h2>
         <p>
-          A name is enough to start. Your event remains a Draft until it is
-          fully configured and you publish it.
+          Start with a name. Next, set the dates and registration limit in
+          Setup, then publish your event to accept registrations.
         </p>
       </div>
       <form className="draft-form" onSubmit={submit} noValidate>
@@ -134,7 +134,7 @@ export function CreateDraftForm({
           </button>
         </div>
         <p id="event-name-help" className="field-help">
-          Up to 200 characters. Only the name is required.
+          Up to 200 characters. This creates a Draft and opens Setup.
         </p>
         {fieldError && (
           <p id="event-name-error" className="field-error">

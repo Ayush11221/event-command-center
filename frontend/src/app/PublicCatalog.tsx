@@ -86,8 +86,8 @@ export function PublicCatalog() {
             Explore <Accent>events</Accent>
           </h1>
           <p>
-            Browse published events and review their details and registration
-            policy.
+            Find live events to open your entry QR, or browse published events
+            to register.
           </p>
         </div>
         {state.phase === "ready" && (
@@ -120,45 +120,85 @@ export function PublicCatalog() {
               <p>Check back for newly published events.</p>
             </section>
           ) : (
-            <ul className="public-event-list">
-              {state.page.items.map((event) => (
-                <li key={event.event_id}>
-                  <article className="public-event-row">
-                    <IsoBuilding
-                      className="public-event-art"
-                      tone={
-                        event.availability.policy_status === "OPEN"
-                          ? "action"
-                          : "state-completed"
-                      }
-                    />
-                    <div>
-                      <PublicTags event={event} />
-                      <h2>
-                        <a
-                          href={`/events/${encodeURIComponent(event.event_id)}`}
-                        >
-                          {event.name}
-                        </a>
-                      </h2>
-                      <p className="event-meta-line">
-                        <CalendarDays aria-hidden="true" className="size-4" />
-                        {publicEventTime(
-                          event.start_at,
-                          event.time_zone,
-                        )} – {publicEventTime(event.end_at, event.time_zone)}
-                        {event.time_zone && ` · ${event.time_zone}`}
-                      </p>
-                      <p className="event-meta-line">
-                        <MapPin aria-hidden="true" className="size-4" />
-                        {event.public_location ?? "Location not provided"}
-                      </p>
-                    </div>
-                    <PublicPolicy event={event} compact />
-                  </article>
-                </li>
-              ))}
-            </ul>
+            <>
+              {(["LIVE", "PUBLISHED"] as const).map((lifecycle) => {
+                const events = state.page.items.filter((event) =>
+                  lifecycle === "LIVE"
+                    ? event.event_state === "LIVE"
+                    : event.event_state !== "LIVE",
+                );
+                if (!events.length) return null;
+                return (
+                  <section
+                    key={lifecycle}
+                    aria-label={
+                      lifecycle === "LIVE" ? "Live events" : "Published events"
+                    }
+                  >
+                    <h2 className="event-section-title">
+                      {lifecycle === "LIVE"
+                        ? "Live events"
+                        : "Published events"}
+                    </h2>
+                    <ul className="public-event-list">
+                      {events.map((event) => (
+                        <li key={event.event_id}>
+                          <article className="public-event-row">
+                            <IsoBuilding
+                              className="public-event-art"
+                              tone={
+                                event.event_state === "LIVE" ||
+                                event.availability.policy_status === "OPEN"
+                                  ? "action"
+                                  : "state-completed"
+                              }
+                            />
+                            <div>
+                              <PublicTags event={event} />
+                              <h2>
+                                <a
+                                  href={`/events/${encodeURIComponent(event.event_id)}`}
+                                >
+                                  {event.name}
+                                </a>
+                              </h2>
+                              <p className="event-meta-line">
+                                <CalendarDays
+                                  aria-hidden="true"
+                                  className="size-4"
+                                />
+                                {publicEventTime(
+                                  event.start_at,
+                                  event.time_zone,
+                                )}{" "}
+                                –{" "}
+                                {publicEventTime(event.end_at, event.time_zone)}
+                                {event.time_zone && ` · ${event.time_zone}`}
+                              </p>
+                              <p className="event-meta-line">
+                                <MapPin aria-hidden="true" className="size-4" />
+                                {event.public_location ??
+                                  "Location not provided"}
+                              </p>
+                            </div>
+                            <div>
+                              <PublicPolicy event={event} compact />
+                              {event.event_state === "LIVE" && (
+                                <a
+                                  href={`/events/${encodeURIComponent(event.event_id)}`}
+                                >
+                                  View my registration
+                                </a>
+                              )}
+                            </div>
+                          </article>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </>
           )}
           <p className="freshness">
             Latest page confirmed {new Date(state.page.as_of).toLocaleString()}.

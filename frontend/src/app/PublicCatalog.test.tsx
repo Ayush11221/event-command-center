@@ -4,6 +4,7 @@ import {
   fireEvent,
   render,
   screen,
+  within,
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -26,6 +27,40 @@ afterEach(() => {
   delete document.documentElement.dataset.themeMode;
 });
 describe("V7 public catalog", () => {
+  it("puts live events first and offers registration recovery rather than new registration", async () => {
+    vi.mocked(getPublicCatalog).mockResolvedValue(
+      publicCatalogFixture({
+        items: [
+          publicDetailFixture(),
+          publicDetailFixture({
+            event_id: "live-one",
+            name: "Live conference",
+            event_state: "LIVE",
+          }),
+        ],
+      }),
+    );
+    render(<PublicCatalog />);
+    const live = await screen.findByRole("region", { name: "Live events" });
+    expect(
+      within(live).getByRole("link", { name: "Live conference" }),
+    ).toHaveAttribute("href", "/events/live-one");
+    expect(
+      within(live).getByRole("link", { name: "View my registration" }),
+    ).toHaveAttribute("href", "/events/live-one");
+    expect(live).toHaveTextContent("New registration is closed");
+    expect(within(live).queryByText("OPEN")).not.toBeInTheDocument();
+    expect(
+      screen
+        .getAllByRole("region")
+        .filter((region) =>
+          ["Live events", "Published events"].includes(
+            region.getAttribute("aria-label") ?? "",
+          ),
+        )
+        .map((region) => region.getAttribute("aria-label")),
+    ).toEqual(["Live events", "Published events"]);
+  });
   it("shows loading and aborts on unmount", () => {
     vi.mocked(getPublicCatalog).mockReturnValue(new Promise(() => {}));
     const view = render(<PublicCatalog />);

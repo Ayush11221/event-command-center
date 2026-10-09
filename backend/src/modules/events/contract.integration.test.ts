@@ -152,6 +152,7 @@ describe("V10 implemented OpenAPI contract", () => {
         "event_id",
         "name",
         "description",
+        "event_state",
         "start_at",
         "end_at",
         "time_zone",
@@ -164,6 +165,7 @@ describe("V10 implemented OpenAPI contract", () => {
         "correlation_id",
       ].sort(),
     );
+    expect(schema.properties!.event_state.enum).toEqual(["PUBLISHED", "LIVE"]);
     expect(
       Object.keys(
         specification.components.schemas.Availability.properties!,

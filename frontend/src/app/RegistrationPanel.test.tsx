@@ -67,6 +67,54 @@ async function open() {
   await screen.findByRole("button", { name: "Confirm registration" });
 }
 describe("participant registration flow", () => {
+  it("recovers a registered owner's entry QR during LIVE without registering again", async () => {
+    mock.mockResolvedValueOnce({
+      registration: { ...row, event_state: "LIVE" },
+    });
+    render(
+      <RegistrationPanel
+        eventId="event"
+        event={publicDetailFixture({ event_state: "LIVE" })}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "View my registration" }),
+    );
+    const show = await screen.findByRole("button", { name: "Show entry QR" });
+    mock.mockResolvedValueOnce({
+      qr_svg: "<svg></svg>",
+      expires_at: new Date(Date.now() + 60000).toISOString(),
+    });
+    fireEvent.click(show);
+    expect(await screen.findByAltText("Your entry QR")).toBeVisible();
+    expect(mock.mock.calls.every((call) => call[2] === undefined)).toBe(true);
+  });
+  it.each([
+    null,
+    { ...row, state: "CANCELLED" as const, event_state: "LIVE" as const },
+  ])(
+    "does not offer new registration or re-registration during LIVE (%j)",
+    async (registration) => {
+      mock.mockResolvedValue({ registration });
+      render(
+        <RegistrationPanel
+          eventId="event"
+          event={publicDetailFixture({ event_state: "LIVE" })}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "View my registration" }),
+      );
+      await screen.findByRole("heading", { name: "Your registration" });
+      await waitFor(() => expect(mock).toHaveBeenCalled());
+      expect(
+        screen.queryByRole("button", {
+          name: /Confirm registration|Register again/,
+        }),
+      ).not.toBeInTheDocument();
+      expect(mock.mock.calls.every((call) => call[2] === undefined)).toBe(true);
+    },
+  );
   it("shows View my registration for an existing owner without creating a duplicate", async () => {
     mock.mockResolvedValue({ registration: row });
     render(<RegistrationPanel eventId="event" />);

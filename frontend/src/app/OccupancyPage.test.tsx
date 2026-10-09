@@ -64,6 +64,19 @@ afterEach(() => {
   vi.resetAllMocks();
 });
 describe("occupancy operations view", () => {
+  it("makes a Draft event's closed entry explicit even on the operations screen", async () => {
+    vi.mocked(getOperations).mockResolvedValue({
+      ...snapshot,
+      event_state: "DRAFT",
+    });
+    render(<OccupancyPage eventId="event" />);
+    expect(await screen.findByText(/Event status: Draft/)).toHaveTextContent(
+      "Check-in is closed",
+    );
+    expect(
+      screen.queryByText("Live — latest information confirmed."),
+    ).not.toBeInTheDocument();
+  });
   it("shows the assigned event role only with an authoritative operations snapshot", async () => {
     vi.mocked(currentActor).mockResolvedValue({
       user_id: "admin",

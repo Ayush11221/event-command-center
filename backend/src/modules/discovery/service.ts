@@ -27,10 +27,16 @@ export function parsePublicCatalogQuery(query: Record<string, unknown>) {
   return parsePaginationQuery(query);
 }
 
-const publicScope = { state: "PUBLISHED", visibility: "PUBLIC" } as const;
+// A public event remains discoverable during admission so its attendees can
+// recover their own entry QR. Registration and scanning enforce their own rules.
+const publicScope = {
+  state: { in: ["PUBLISHED", "LIVE"] },
+  visibility: "PUBLIC",
+} satisfies Prisma.EventWhereInput;
 const publicSelection = {
   id: true,
   name: true,
+  state: true,
   startAt: true,
   endAt: true,
   timeZone: true,
@@ -85,7 +91,7 @@ export async function listPublicEvents(
     : undefined;
   try {
     // PostgreSQL DESC places nulls first. Handle legacy synthetic Published rows
-    // without changing the contract's PUBLIC + PUBLISHED eligibility predicate.
+    // without changing the PUBLIC + (PUBLISHED or LIVE) eligibility predicate.
     const rows = await deps.db.event.findMany({
       where: {
         ...publicScope,

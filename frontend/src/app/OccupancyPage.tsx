@@ -148,7 +148,7 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
           {connection.startsWith("Reconciling")
             ? "Updating latest information… Last confirmed values are shown until the update is confirmed."
             : connection.startsWith("Live")
-              ? "Live — latest information confirmed."
+              ? "Connected — latest information confirmed."
               : state.phase === "ready"
                 ? "Live connection unavailable. Showing last confirmed information; refresh to check the latest values."
                 : "Latest information is not confirmed."}
@@ -177,6 +177,9 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
                   <h2>{state.snapshot.event_name}</h2>
                   <p>
                     Event status: {humanLabel(state.snapshot.event_state)}.
+                    {state.snapshot.event_state === "LIVE"
+                      ? " Check-in is open for eligible registrations."
+                      : " Check-in is closed."}
                     People currently inside are counted from accepted check-ins.
                   </p>
                 </div>
@@ -354,7 +357,7 @@ export function OccupancyPage({ eventId }: { eventId: string }) {
           connectionTone={connectionTone}
           connectionLabel={
             connectionTone === "live"
-              ? "Live"
+              ? "Connected"
               : connectionTone === "pending"
                 ? "Updating"
                 : "Live connection unavailable · last confirmed"

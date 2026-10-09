@@ -8,6 +8,7 @@ export function publicDetailFixture(
 ): PublicDetail {
   return {
     event_id: "public-one",
+    event_state: "PUBLISHED",
     name: "Community conference",
     description: "A day of talks and shared ideas.",
     start_at: "2030-01-01T10:00:00Z",

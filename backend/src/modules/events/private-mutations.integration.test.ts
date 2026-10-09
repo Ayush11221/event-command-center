@@ -207,6 +207,7 @@ describe.skipIf(!databaseUrl)(
         [
           "event_id",
           "name",
+          "event_state",
           "description",
           "start_at",
           "end_at",

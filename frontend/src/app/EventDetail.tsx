@@ -24,7 +24,7 @@ import { GatePanel } from "./GatePanel";
 import { LifecyclePanel } from "./LifecyclePanel";
 import { PrivateLinkPanel } from "./PrivateLinkPanel";
 import { TeamPanel } from "./TeamPanel";
-import { humanLabel } from "./event-presentation";
+import { humanLabel, readinessLabels } from "./event-presentation";
 
 export type WorkspaceSection =
   "overview" | "setup" | "registrations" | "team" | "gates";
@@ -333,6 +333,38 @@ export function EventDetail({
       </div>
       <div className="detail-tab" hidden={active !== "setup"}>
         <h3>Setup</h3>
+        {relationship === "owned" && detail.state === "DRAFT" && (
+          <div className="notice">
+            <h4>Prepare your event</h4>
+            <ol>
+              <li>
+                Set the schedule, registration limit and access below, then save
+                changes.
+              </li>
+              <li>
+                Configure a gate in Gates and assign Gate / Security in Team
+                &amp; Staff.
+              </li>
+              <li>Open Overview and publish to accept registrations.</li>
+              <li>
+                After participants register, choose Start live event in Overview
+                to open check-in.
+              </li>
+            </ol>
+            {detail.readiness.publish_blockers.length > 0 && (
+              <>
+                <p>Still needed before publishing:</p>
+                <ul>
+                  {detail.readiness.publish_blockers.map((reason) => (
+                    <li key={reason}>
+                      {readinessLabels[reason] ?? "Review the event setup."}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        )}
         {csrf && showEditor && (canEdit || editing) ? (
           <EditEventForm
             {...common}

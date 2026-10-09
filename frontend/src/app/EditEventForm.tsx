@@ -271,7 +271,7 @@ export function EditEventForm({
       <h3>Edit event</h3>
       <p>
         {owner
-          ? "Set up your event before publishing or starting it."
+          ? "Set the schedule, registration limit and event access, then save changes. Optional details can be left blank."
           : "Edit the public details of your assigned event."}
       </p>
       {!editable && (
@@ -317,22 +317,30 @@ export function EditEventForm({
             <legend>{group.label}</legend>
             {group.label === "Schedule" && (
               <p className="form-group-help">
-                New events use India Standard Time (IST, UTC+05:30). Existing
-                event time zones are retained. Changing the time zone keeps the
-                entered clock times in the new zone and changes their saved
-                timestamps.
+                Start and end times are required before publishing. New events
+                use India Standard Time (IST, UTC+05:30). Existing event time
+                zones are retained. Changing the time zone keeps the entered
+                clock times in the new zone and changes their saved timestamps.
               </p>
             )}
             {group.label === "Registration" && (
               <p className="form-group-help">
-                If no opening time is set, registration opens on publication. If
-                no closing time is set, it closes when the event starts.
-                Registration also closes when the event becomes live.
+                Set the maximum number of registrations. The opening, closing
+                and cancellation times are optional. If no opening time is set,
+                registration opens on publication. If no closing time is set, it
+                closes when the event starts. Registration also closes when the
+                event becomes live.
               </p>
             )}
             {group.label === "Operations" && (
               <p className="form-group-help">
                 Configure gates in the Gates section.
+              </p>
+            )}
+            {group.label === "Access" && (
+              <p className="form-group-help">
+                Public events appear in Public events, including while live.
+                Private events require an organizer's invitation link.
               </p>
             )}
             {group.fields.map(([field, label, type]) => {

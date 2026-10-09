@@ -22,7 +22,7 @@ export function PublishedEventContent({
   detail,
   heading,
   onRefresh,
-  accessLabel = "PUBLISHED EVENT",
+  accessLabel,
   refreshLabel = "Refresh event detail",
   privateProof,
 }: {
@@ -37,7 +37,12 @@ export function PublishedEventContent({
     <article>
       <div className="page-heading">
         <div>
-          <p className="eyebrow">{accessLabel}</p>
+          <p className="eyebrow">
+            {accessLabel ??
+              (detail.event_state === "LIVE"
+                ? "LIVE EVENT"
+                : "PUBLISHED EVENT")}
+          </p>
           <h1 ref={heading} tabIndex={-1}>
             {detail.name}
           </h1>
@@ -78,7 +83,11 @@ export function PublishedEventContent({
           <dd>{detail.public_location ?? "Location not provided"}</dd>
         </div>
       </dl>
-      <h2 className="event-section-title">Registration policy</h2>
+      <h2 className="event-section-title">
+        {detail.event_state === "LIVE"
+          ? "Your entry QR"
+          : "Registration policy"}
+      </h2>
       <PublicPolicy event={detail} />
       <RegistrationPanel
         key={detail.event_id}

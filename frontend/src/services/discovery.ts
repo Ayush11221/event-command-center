@@ -1,6 +1,7 @@
 import type { ManagementDetail } from "./events";
 
 export interface PublicEventItem {
+  event_state: "PUBLISHED" | "LIVE";
   event_id: string;
   name: string;
   start_at: string | null;

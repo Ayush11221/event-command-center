@@ -78,3 +78,11 @@ Evidence contains payload categories, lengths and per-run keyed fingerprints, ne
 - `frontend/src/styles.css`
 
 Generated Graphify artifacts were refreshed separately. Existing P0/P1-A/P1-B working-tree changes and the four protected documents were preserved.
+
+## Public Live entry recovery (9 October 2026)
+
+Starting a public event previously removed it from discovery and made its public detail return 404. Public discovery now retains PUBLISHED and LIVE events and adds an allowlisted event_state. Live events have their own catalog section and View my registration action. The same verified participant ownership flow retrieves the original entry QR. Private links remain Published-only and private events remain absent from the catalog. No participant, credential, attendance or operations data is exposed by discovery. Registration, authorization, CSRF, gate scope, lifecycle enforcement and duplicate prevention are unchanged. This change implements the explicitly requested public Live QR recovery flow.
+
+Creation now explains Draft -> Setup -> Publish (registration) -> Start live event (admission), with required setup and optional registration times distinguished. Operations freshness says Connected rather than Live, and explicitly shows whether check-in is open from the authoritative event state.
+
+The isolated qr-entry regression now reopens the actual participant QR via the public Live catalog at a mobile viewport before scanning it through the real decoder and API. It verifies ACCEPTED/INSIDE, repeat ALREADY_CHECKED_IN and exactly one attendance transition. This is camera emulation, not physical-device or production attendance verification.

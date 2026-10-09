@@ -115,6 +115,7 @@ describe.skipIf(!sourceUrl)(
     }
     const listFields = [
       "event_id",
+      "event_state",
       "name",
       "start_at",
       "end_at",
@@ -135,12 +136,18 @@ describe.skipIf(!sourceUrl)(
         correlation_id: expect.any(String),
       });
     });
-    it("returns only PUBLIC + PUBLISHED events without session, CSRF, or context", async () => {
-      const eligible = await event();
+    it("returns only PUBLIC PUBLISHED and LIVE events without session, CSRF, or context", async () => {
+      const eligible = await event("PUBLISHED", "PUBLIC", {
+        publishedAt: new Date("2030-01-01T00:00:00Z"),
+      });
+      const live = await event("LIVE", "PUBLIC", {
+        publishedAt: new Date("2030-01-02T00:00:00Z"),
+      });
       const excluded = [];
-      for (const state of ["DRAFT", "LIVE", "COMPLETED", "CANCELLED"] as const)
+      for (const state of ["DRAFT", "COMPLETED", "CANCELLED"] as const)
         excluded.push(await event(state));
       excluded.push(await event("PUBLISHED", "PRIVATE"));
+      excluded.push(await event("LIVE", "PRIVATE"));
       const response = await request(app).get("/api/v1/discovery/events");
       expect(response.status).toBe(200);
       expect(response.headers["cache-control"]).toBe("no-store");
@@ -149,7 +156,12 @@ describe.skipIf(!sourceUrl)(
       );
       expect(
         response.body.items.map((item: { event_id: string }) => item.event_id),
-      ).toEqual([eligible.id]);
+      ).toEqual([live.id, eligible.id]);
+      expect(
+        response.body.items.map(
+          (item: { event_state: string }) => item.event_state,
+        ),
+      ).toEqual(["LIVE", "PUBLISHED"]);
       for (const hidden of excluded)
         expect(JSON.stringify(response.body)).not.toContain(hidden.id);
       expect(Object.keys(response.body.items[0]).sort()).toEqual(
@@ -167,7 +179,7 @@ describe.skipIf(!sourceUrl)(
         invalidCookie.body.items.map(
           (item: { event_id: string }) => item.event_id,
         ),
-      ).toEqual([eligible.id]);
+      ).toEqual([live.id, eligible.id]);
     });
     it("returns exact public detail fields and never exposes management relations or credentials", async () => {
       const record = await event();
@@ -194,6 +206,7 @@ describe.skipIf(!sourceUrl)(
       );
       expect(response.body).toMatchObject({
         event_id: record.id,
+        event_state: "PUBLISHED",
         name: record.name,
         description: record.description,
         time_zone: record.timeZone,
@@ -209,7 +222,6 @@ describe.skipIf(!sourceUrl)(
         "revision",
         "readiness",
         "permitted_actions",
-        "state",
         "visibility",
         "checkout_enabled",
         "published_at",
@@ -219,12 +231,13 @@ describe.skipIf(!sourceUrl)(
         expect(JSON.stringify(response.body)).not.toContain(secret);
       expect(response.body.availability.as_of).toBe(response.body.as_of);
     });
-    it("collapses guessed, PRIVATE and all non-Published IDs into an identical safe unavailable response even for an owner", async () => {
+    it("conceals guessed, PRIVATE, Draft and terminal events even for an owner", async () => {
       const hidden = [];
-      for (const state of ["DRAFT", "LIVE", "COMPLETED", "CANCELLED"] as const)
+      for (const state of ["DRAFT", "COMPLETED", "CANCELLED"] as const)
         hidden.push((await event(state)).id);
       hidden.push(
         (await event("PUBLISHED", "PRIVATE")).id,
+        (await event("LIVE", "PRIVATE")).id,
         randomUUID(),
         "malformed",
       );
@@ -280,6 +293,23 @@ describe.skipIf(!sourceUrl)(
       await db.event.update({
         where: { id: visible.id },
         data: { state: "LIVE" },
+      });
+      const live = await request(app).get(
+        `/api/v1/discovery/events/${visible.id}`,
+      );
+      expect(live.status).toBe(200);
+      expect(live.body.event_state).toBe("LIVE");
+      expect(Object.keys(live.body).sort()).toEqual(
+        [...listFields, "description", "as_of", "correlation_id"].sort(),
+      );
+      expect(
+        (
+          await request(app).get("/api/v1/discovery/events?limit=100")
+        ).body.items.map((item: { event_id: string }) => item.event_id),
+      ).toContain(visible.id);
+      await db.event.update({
+        where: { id: visible.id },
+        data: { state: "COMPLETED" },
       });
       expect(
         (await request(app).get(`/api/v1/discovery/events/${visible.id}`))

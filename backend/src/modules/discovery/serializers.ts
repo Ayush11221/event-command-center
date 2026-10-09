@@ -5,6 +5,7 @@ export type PublicCatalogEvent = Pick<
   Event,
   | "id"
   | "name"
+  | "state"
   | "startAt"
   | "endAt"
   | "timeZone"
@@ -22,6 +23,7 @@ export function publicCatalogItem(event: PublicCatalogEvent, asOf: Date) {
   return {
     event_id: event.id,
     name: event.name,
+    event_state: event.state,
     start_at: event.startAt?.toISOString() ?? null,
     end_at: event.endAt?.toISOString() ?? null,
     time_zone: event.timeZone,

@@ -57,7 +57,8 @@ const QRCode = createRequire(path.join(INTEGRATION, "backend/package.json"))(
 let stage = "isolation",
   browser,
   lastScanner,
-  lastOwner;
+  lastOwner,
+  cameraDiagnostics;
 const workerBase = String.raw`
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
@@ -282,16 +283,24 @@ try {
         async getUserMedia() {
           const img = new Image();
           img.src = window.__qrCameraSource;
+          // Render SVG modules at an integer pixel size. Fractional rasterization
+          // of a generated QR can make a synthetic video frame unreadable.
+          const svg = decodeURIComponent(
+            img.src.slice(img.src.indexOf(",") + 1),
+          );
+          const modules = Number(svg.match(/viewBox="0 0 (\d+) \d+"/)?.[1]);
+          const size = modules ? modules * Math.floor(640 / modules) : 512;
+          img.width = img.height = size;
           await img.decode();
           const c = document.createElement("canvas");
-          c.width = c.height = 512;
+          c.width = c.height = size;
           const ctx = c.getContext("2d");
           ctx.imageSmoothingEnabled = false;
           ctx.fillStyle = "white";
-          ctx.fillRect(0, 0, 512, 512);
-          ctx.drawImage(img, 0, 0, 512, 512);
+          ctx.fillRect(0, 0, size, size);
+          ctx.drawImage(img, 0, 0, size, size);
           const stream = c.captureStream(10);
-          setInterval(() => ctx.drawImage(img, 0, 0, 512, 512), 80);
+          setInterval(() => ctx.drawImage(img, 0, 0, size, size), 80);
           return stream;
         },
       },
@@ -338,7 +347,47 @@ try {
     await scanner
       .getByRole("button", { name: "Start camera", exact: true })
       .click();
-    const r = await response,
+    const r = await response.catch(async (error) => {
+        cameraDiagnostics = await scanner
+          .evaluate(
+            async ({ decoderUrl, expected, source }) => {
+              const { BrowserQRCodeReader } = await import(decoderUrl);
+              const reader = new BrowserQRCodeReader();
+              const image = new Image();
+              image.src = source;
+              await image.decode();
+              const video = document.querySelector("video");
+              const canvas = document.createElement("canvas");
+              canvas.width = canvas.height = video.videoWidth;
+              const ctx = canvas.getContext("2d");
+              const decode = (target) => {
+                ctx.fillStyle = "white";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.drawImage(target, 0, 0, canvas.width, canvas.height);
+                try {
+                  return {
+                    matches:
+                      reader.decodeFromCanvas(canvas).getText() === expected,
+                  };
+                } catch (error) {
+                  return { matches: false, error_type: error.name };
+                }
+              };
+              return { image: decode(image), video: decode(video) };
+            },
+            {
+              decoderUrl:
+                ORIGIN +
+                [...files.keys()].find((file) =>
+                  /^\/assets\/esm-.*\.js$/.test(file),
+                ),
+              expected: value,
+              source,
+            },
+          )
+          .catch(() => ({ diagnostic_failed: true }));
+        throw error;
+      }),
       b = await r.json();
     assert.equal(r.status(), 200);
     assert.equal(b.reason, reason);
@@ -440,9 +489,68 @@ try {
   const response = await live;
   assert.equal(response.status(), 200);
   assert.equal((await response.json()).state, "LIVE");
+  stage = "participant public LIVE discovery and registration recovery";
+  const attendee = pages.attendee;
+  await attendee.setViewportSize({ width: 390, height: 844 });
+  await attendee.goto(ORIGIN + "/events");
+  const liveEvents = attendee.getByRole("region", {
+    name: "Live events",
+    exact: true,
+  });
+  await expect(liveEvents).toBeVisible();
+  let eventLink = liveEvents.getByRole("link", {
+    name: fixture.a.name,
+    exact: true,
+  });
+  while (!(await eventLink.count())) {
+    const more = attendee.getByRole("button", {
+      name: "Load more events",
+      exact: true,
+    });
+    assert(
+      await more.isVisible(),
+      "LIVE synthetic event is missing from public discovery",
+    );
+    const page = attendee.waitForResponse(
+      (r) => new URL(r.url()).pathname === "/api/v1/discovery/events",
+    );
+    await more.click();
+    await page;
+    await expect(
+      attendee.getByText("More public events loaded.", { exact: true }),
+    ).toBeVisible();
+  }
+  await eventLink.click();
+  await expect(attendee.getByText("LIVE EVENT", { exact: true })).toBeVisible();
+  await attendee
+    .getByRole("button", { name: "View my registration", exact: true })
+    .click();
+  await attendee
+    .getByRole("button", { name: "Show entry QR", exact: true })
+    .click();
+  const recovered = attendee.getByAltText("Your entry QR", { exact: true });
+  await expect(recovered).toBeVisible();
+  await recovered.evaluate((image) => image.decode());
+  const recoveredSource = await recovered.getAttribute("src");
+  assert.equal(
+    recoveredSource,
+    validSource,
+    "Live public recovery must retain the actual participant entry QR",
+  );
+  assert(
+    !(await attendee
+      .getByRole("button", { name: /Confirm registration|Register again/ })
+      .count()),
+  );
+  assert(
+    await attendee.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+    "Participant live event overflows on mobile",
+  );
   await scan(
     "valid actual entry / LIVE",
-    validSource,
+    recoveredSource,
     fixture.valid.token,
     "ACCEPTED",
   );
@@ -495,6 +603,20 @@ try {
             .catch(() => null)
         : null,
       owner_state: lastOwner ? "Synthetic organizer flow incomplete" : null,
+      camera_diagnostics: cameraDiagnostics,
+      video: lastScanner
+        ? await lastScanner
+            .locator("video")
+            .evaluate((video) => ({
+              width: video.videoWidth,
+              height: video.videoHeight,
+              ready: video.readyState,
+              paused: video.paused,
+              time: video.currentTime,
+              visibility: document.visibilityState,
+            }))
+            .catch(() => null)
+        : null,
     }),
   );
   process.exitCode = 1;

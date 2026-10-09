@@ -30,6 +30,18 @@ export function PublicPolicy({
   compact?: boolean;
 }) {
   const { availability } = event;
+  if (event.event_state === "LIVE")
+    return (
+      <section className="public-policy" aria-label="Registration policy">
+        <p className="policy-label">
+          Event status: <strong className="reg-chip is-registered">LIVE</strong>
+        </p>
+        <p>
+          New registration is closed. Already registered? Open your registration
+          to show your entry QR.
+        </p>
+      </section>
+    );
   return (
     <section className="public-policy" aria-label="Registration policy">
       <p className="policy-label">

@@ -23,6 +23,26 @@ afterEach(() => {
   delete document.documentElement.dataset.themeMode;
 });
 describe("V7 public event detail", () => {
+  it("retains public detail and QR recovery when a published event starts live", async () => {
+    vi.mocked(getPublicDetail)
+      .mockResolvedValueOnce(publicDetailFixture())
+      .mockResolvedValueOnce(publicDetailFixture({ event_state: "LIVE" }));
+    render(<PublicEventDetail eventId="one" />);
+    await screen.findByRole("heading", { name: "Community conference" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Refresh event detail" }),
+    );
+    expect(await screen.findByText("LIVE EVENT")).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "View my registration" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Register" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Registration policy" }),
+    ).toHaveTextContent("New registration is closed");
+  });
   it("shows loading, preserves catalog navigation and aborts on unmount", () => {
     vi.mocked(getPublicDetail).mockReturnValue(new Promise(() => {}));
     const view = render(<PublicEventDetail eventId="one" />);

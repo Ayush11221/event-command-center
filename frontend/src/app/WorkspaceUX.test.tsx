@@ -100,6 +100,21 @@ async function setup() {
 }
 
 describe("P1-B workspace workflows", () => {
+  it("guides a Draft from required setup through publication and admission", async () => {
+    await setup();
+    expect(
+      screen.getByRole("heading", { name: "Prepare your event" }),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/After participants register, choose Start live event/),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Start and end times are required before publishing/),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/opening, closing and cancellation times are optional/),
+    ).toBeVisible();
+  });
   it("makes the selected event and role explicit and provides actual workflow sections", async () => {
     workspace();
     await screen.findByRole("button", { name: "Overview" });

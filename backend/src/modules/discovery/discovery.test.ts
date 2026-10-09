@@ -28,12 +28,13 @@ const event = {
   ownerUserId: "secret-owner",
   revision: 42,
   registrationCapacity: 999,
-  state: "PUBLISHED",
+  state: "PUBLISHED" as const,
   gates: [{ secret: true }],
   privateAccessLinks: ["secret-proof"],
 };
 const listFields = [
   "event_id",
+  "event_state",
   "name",
   "start_at",
   "end_at",
@@ -56,8 +57,9 @@ describe("V7 public serialization and pagination", () => {
       ["policy_status", "reasons", "opens_at", "closes_at", "as_of"].sort(),
     );
     expect(JSON.stringify(detail)).not.toMatch(
-      /secret|revision|capacity|gate|owner|state/,
+      /secret|revision|capacity|gate|owner/,
     );
+    expect(detail.event_state).toBe("PUBLISHED");
     expect(detail.availability).toMatchObject({
       policy_status: "OPEN",
       reasons: [],

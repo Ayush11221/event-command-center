@@ -64,6 +64,8 @@ export function RegistrationPanel({
     null,
   );
   const details = event ?? recoveredEvent;
+  const entryOnly =
+    details?.event_state === "LIVE" || row?.event_state === "LIVE";
   const inFlight = useRef(false),
     accessVersion = useRef(0);
   const expectedCsrf = useRef<string | null>(null);
@@ -305,7 +307,8 @@ export function RegistrationPanel({
   if (!opened)
     return (
       <button type="button" onClick={() => setOpened(true)}>
-        {row?.state === "REGISTERED" && row.relationship === "own"
+        {entryOnly ||
+        (row?.state === "REGISTERED" && row.relationship === "own")
           ? "View my registration"
           : details?.availability.policy_status === "CLOSED"
             ? "View registration"
@@ -412,12 +415,15 @@ export function RegistrationPanel({
           )}
           {session && !row && (
             <p>
-              {session.guest
-                ? "Your contact is verified. You can register without an account."
-                : "You're registering with your signed-in account."}
+              {entryOnly
+                ? "No registration was found for this identity. New registration is closed while the event is live. Sign in or verify the same contact you used to register."
+                : session.guest
+                  ? "Your contact is verified. You can register without an account."
+                  : "You're registering with your signed-in account."}
             </p>
           )}
           {session &&
+            !entryOnly &&
             (!row ||
               (row.state === "CANCELLED" && row.relationship === "own")) &&
             eventId && (

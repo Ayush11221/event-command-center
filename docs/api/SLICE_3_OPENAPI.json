@@ -626,7 +626,7 @@
     "/discovery/events": {
       "get": {
         "operationId": "listPublicEvents",
-        "summary": "Anonymous PUBLIC Published catalog",
+        "summary": "Anonymous PUBLIC Published or Live catalog",
         "security": [],
         "parameters": [
           {
@@ -697,7 +697,7 @@
     "/discovery/events/{eventId}": {
       "get": {
         "operationId": "getPublicEvent",
-        "summary": "Anonymous PUBLIC Published allowlisted detail",
+        "summary": "Anonymous PUBLIC Published or Live allowlisted detail",
         "security": [],
         "parameters": [
           {
@@ -742,7 +742,7 @@
             }
           },
           "404": {
-            "description": "EVENT_NOT_FOUND: absent or out-of-scope ID; PUBLIC detail hides PRIVATE/non-Published.",
+            "description": "EVENT_NOT_FOUND: unknown, PRIVATE, Draft or terminal public event.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1963,6 +1963,7 @@
         "additionalProperties": false,
         "required": [
           "event_id",
+          "event_state",
           "name",
           "start_at",
           "end_at",
@@ -2009,6 +2010,10 @@
           },
           "availability": {
             "$ref": "#/components/schemas/Availability"
+          },
+          "event_state": {
+            "type": "string",
+            "enum": ["PUBLISHED", "LIVE"]
           }
         }
       },
@@ -2017,6 +2022,7 @@
         "additionalProperties": false,
         "required": [
           "event_id",
+          "event_state",
           "name",
           "start_at",
           "end_at",
@@ -2076,9 +2082,13 @@
           },
           "correlation_id": {
             "type": "string"
+          },
+          "event_state": {
+            "type": "string",
+            "enum": ["PUBLISHED", "LIVE"]
           }
         },
-        "description": "Identical PUBLIC/PRIVATE allowlist. No management state/revision, policy configuration/capacity, ownership/admin, verification, QR, audit, participant or operational data."
+        "description": "Identical PUBLIC/PRIVATE allowlist with event_state. PUBLIC permits PUBLISHED and LIVE; PRIVATE bearer detail remains PUBLISHED only. No management revision, capacity, ownership, credentials, participant or operational data."
       },
       "ManagementList": {
         "type": "object",
