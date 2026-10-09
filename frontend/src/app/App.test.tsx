@@ -113,11 +113,14 @@ describe("application entry", () => {
       "My unfinished event",
     );
   });
-  it("routes an operations deep link through the internal reader while preserving appearance controls", () => {
+  it("routes an operations deep link through the internal reader while preserving appearance controls", async () => {
     window.history.replaceState(null, "", "/operations/internal-event");
     render(<App />);
+    // Staff routes are code-split, so the screen resolves asynchronously.
     expect(
-      screen.getByRole("heading", { name: "Scoped operations internal-event" }),
+      await screen.findByRole("heading", {
+        name: "Scoped operations internal-event",
+      }),
     ).toBeVisible();
     expect(screen.getByLabelText("Appearance")).toBeVisible();
     expect(document.title).toContain("Live Operations");
@@ -203,4 +206,31 @@ describe("application entry", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Authorized workspace")).toBeVisible();
   });
+});
+
+describe("scanner navigation link", () => {
+  it.each([
+    [[], false],
+    [[{ id: "a", event_id: "e", role: "GATE_SECURITY", gate_id: "g" }], true],
+  ])(
+    "on staff pages appears only for Gate/Security accounts (%#)",
+    async (assignments, visible) => {
+      vi.mocked(currentActor).mockResolvedValue({
+        user_id: "u",
+        organizer_capable: true,
+        assignments,
+        csrf_token: "csrf",
+      });
+      window.history.replaceState(null, "", "/operations/internal-event");
+      render(<App />);
+      await screen.findByRole("heading", {
+        name: "Scoped operations internal-event",
+      });
+      await vi.waitFor(() =>
+        expect(
+          screen.queryAllByRole("link", { name: "Gate scanner" }),
+        ).toHaveLength(visible ? 1 : 0),
+      );
+    },
+  );
 });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import {
   applyTheme,
   rememberTheme,
@@ -35,18 +36,26 @@ export function ThemeControl() {
     setMode(value);
   }
 
+  const options = [
+    ["light", "Light", Sun],
+    ["dark", "Dark", Moon],
+    ["system", "System", Monitor],
+  ] as const;
   return (
-    <label className="theme-control">
-      <span>Appearance</span>
-      <select
-        aria-label="Appearance"
-        value={mode}
-        onChange={(event) => change(event.target.value as ThemeMode)}
-      >
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-        <option value="system">System</option>
-      </select>
-    </label>
+    <div className="theme-control" role="radiogroup" aria-label="Appearance">
+      {options.map(([value, label, Icon]) => (
+        <label key={value} className="theme-option" title={label}>
+          <input
+            type="radio"
+            name="appearance"
+            value={value}
+            checked={mode === value}
+            onChange={() => change(value)}
+          />
+          <Icon aria-hidden="true" />
+          <span className="visually-hidden">{label}</span>
+        </label>
+      ))}
+    </div>
   );
 }

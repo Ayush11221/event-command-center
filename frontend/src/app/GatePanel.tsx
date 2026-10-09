@@ -151,7 +151,9 @@ export function GatePanel({
       <h3 id="gate-panel-heading" ref={heading} tabIndex={-1}>
         Gates
       </h3>
-      <p className="notice">
+      <p
+        className={`notice ${detail.readiness.configured_gate_present ? "notice-success" : "notice-warning"}`}
+      >
         {detail.readiness.configured_gate_present
           ? "Gate configured. The gate requirement for publishing and starting the event is satisfied."
           : "Your event needs at least one configured gate before it can be published or started."}
@@ -164,7 +166,7 @@ export function GatePanel({
           {[...detail.gates]
             .sort((a, b) => a.gate_id.localeCompare(b.gate_id))
             .map((gate) => (
-              <li key={gate.gate_id}>
+              <li key={gate.gate_id} className="gate-card">
                 <strong>{gateLabel(detail.gates, gate.gate_id)}</strong> ·
                 Configured
                 <div>

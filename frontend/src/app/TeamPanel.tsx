@@ -334,7 +334,10 @@ export function TeamPanel({
           <ul className="team-list">
             {data.assignments.map((row) => (
               <li key={row.id}>
-                <div>
+                <div
+                  className="person-row"
+                  data-initial={(row.email ?? "V").slice(0, 1).toUpperCase()}
+                >
                   <strong>{row.email ?? "Verified account"}</strong>
                   <p>Role: {staffRoleLabels[row.role]}</p>
                   {row.gateId && <p>Gate: {gateLabel(gates, row.gateId)}</p>}

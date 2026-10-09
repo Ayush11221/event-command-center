@@ -1,3 +1,4 @@
+import { SegmentBar } from "../components/common/SegmentBar";
 import { useEffect, useRef, useState } from "react";
 import {
   certificateRequest,
@@ -254,6 +255,15 @@ export function CertificateBatchPanel({
               Batch reference: {batch.batch_id}
             </p>
           </details>
+          <h3 className="progress-title">Issuance</h3>
+          <SegmentBar
+            total={batch.selected_count}
+            segments={[
+              { value: batch.successful_count, tone: "success" },
+              { value: batch.failed_count, tone: "critical" },
+              { value: batch.pending_count, tone: "pending" },
+            ]}
+          />
           <p role="status">
             {humanLabel(batch.status)}: {batch.successful_count} successful,{" "}
             {batch.failed_count} failed, {batch.pending_count} pending of{" "}
@@ -263,6 +273,21 @@ export function CertificateBatchPanel({
             {batch.generated_count} generated; {batch.already_satisfied_count}{" "}
             already satisfied.
           </p>
+          <h3 className="progress-title">Email delivery</h3>
+          <SegmentBar
+            total={
+              batch.delivery_counts.sent +
+              batch.delivery_counts.failed +
+              batch.delivery_counts.unknown +
+              batch.delivery_counts.not_required
+            }
+            segments={[
+              { value: batch.delivery_counts.sent, tone: "success" },
+              { value: batch.delivery_counts.failed, tone: "critical" },
+              { value: batch.delivery_counts.unknown, tone: "warning" },
+              { value: batch.delivery_counts.not_required, tone: "muted" },
+            ]}
+          />
           <p>
             Email: {batch.delivery_counts.sent} submitted,{" "}
             {batch.delivery_counts.failed} failed,{" "}
@@ -270,12 +295,16 @@ export function CertificateBatchPanel({
             {batch.delivery_counts.not_required} not required. Issuance and
             email outcomes are separate.
           </p>
-          <button disabled={busy} onClick={() => void read(cursor.current)}>
+          <button
+            className="secondary-button"
+            disabled={busy}
+            onClick={() => void read(cursor.current)}
+          >
             Refresh batch progress
           </button>
           <h3>Item outcomes</h3>
           {items.length ? (
-            <ul className="certificate-identifiers">
+            <ul className="certificate-identifiers item-list">
               {items.map((item, index) => (
                 <li key={item.registration_id}>
                   Certificate item {index + 1}: {humanLabel(item.status)}

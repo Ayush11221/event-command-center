@@ -1,3 +1,5 @@
+import { Accent, IsoGate } from "../components/common/Iso";
+import { GateStage } from "../components/common/GateStage";
 import {
   useCallback,
   useEffect,
@@ -13,8 +15,52 @@ import {
   type ScanResult,
 } from "../services/scanning";
 import { CameraCapture } from "./CameraCapture";
+import {
+  playScanFeedback,
+  rememberSoundPreference,
+  storedSoundPreference,
+} from "./scan-feedback";
+import {
+  ArrowLeft,
+  CircleCheck,
+  Maximize,
+  Minimize,
+  Volume2,
+  VolumeX,
+  CircleX,
+  Keyboard,
+  Repeat2,
+  ScanLine,
+  TriangleAlert,
+} from "lucide-react";
 import type { ScannerScope } from "../services/scanning";
 
+type Outcome = "accepted" | "duplicate" | "rejected" | "unknown";
+// Visual language per outcome; the heading text stays the source of meaning.
+const outcomeStyle: Record<
+  Outcome,
+  { label: string; Icon: typeof CircleCheck }
+> = {
+  accepted: { label: "Accepted", Icon: CircleCheck },
+  duplicate: { label: "Duplicate", Icon: Repeat2 },
+  rejected: { label: "Rejected", Icon: CircleX },
+  unknown: { label: "Hold entry", Icon: TriangleAlert },
+};
+function outcomeOf(result: ScanResult): Outcome {
+  if (result.decision === "ACCEPTED") return "accepted";
+  return result.reason === "ALREADY_CHECKED_IN" ? "duplicate" : "rejected";
+}
+function OutcomeMark({ outcome }: { outcome: Outcome }) {
+  const { label, Icon } = outcomeStyle[outcome];
+  return (
+    <p className="scan-outcome-label">
+      <span className="scan-outcome-icon" aria-hidden="true">
+        <Icon strokeWidth={2.4} />
+      </span>
+      {label}
+    </p>
+  );
+}
 const messages = {
   ACCEPTED: "Entry allowed",
   INVALID_CREDENTIAL: "QR code not recognized",
@@ -61,9 +107,21 @@ export function GateScanner() {
     [];
   return (
     <main className="page-shell scanner-page">
-      <a href="/">Back to event workspace</a>
-      <h1>Gate scanner</h1>
-      <p>
+      <a href="/">
+        <ArrowLeft aria-hidden="true" className="size-4" />
+        Back to event workspace
+      </a>
+      <p className="eyebrow scanner-eyebrow">
+        <ScanLine aria-hidden="true" className="size-4" />
+        Check-in station
+      </p>
+      <div className="studio-heading">
+        <h1>
+          Gate <Accent>scanner</Accent>
+        </h1>
+        <IsoGate className="studio-heading-art" />
+      </div>
+      <p className="scanner-lede">
         Check-in for your assigned gate. Entry requires an accepted server
         decision.
       </p>
@@ -120,6 +178,40 @@ function ScannerPanel({
   const manual = useRef<HTMLDetailsElement>(null);
   const manualInput = useRef<HTMLInputElement>(null);
   const capture = useRef<HTMLDivElement>(null);
+  const [sound, setSound] = useState(storedSoundPreference);
+  const soundRef = useRef(sound);
+  soundRef.current = sound;
+  // Device-local tally of server decisions shown here (one per scan_id).
+  const [tally, setTally] = useState({
+    accepted: 0,
+    duplicate: 0,
+    rejected: 0,
+  });
+  const counted = useRef(new Set<string>());
+  const fullscreenSupported =
+    typeof document !== "undefined" && !!document.fullscreenEnabled;
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => setFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+  useEffect(() => {
+    if (!result) return;
+    const outcome = outcomeOf(result);
+    if (!counted.current.has(result.scan_id)) {
+      counted.current.add(result.scan_id);
+      if (outcome !== "unknown")
+        setTally((current) => ({
+          ...current,
+          [outcome]: current[outcome] + 1,
+        }));
+    }
+    playScanFeedback(outcome, soundRef.current);
+  }, [result]);
+  useEffect(() => {
+    if (error) playScanFeedback("unknown", soundRef.current);
+  }, [error]);
   const gate = gates[gateIndex];
   const eventId = gate.event_id,
     gateId = gate.gate_id!;
@@ -275,6 +367,53 @@ function ScannerPanel({
           </select>
         </label>
       )}
+      <div className="scanner-toolbar">
+        <p className="scanner-tally">
+          This device: <strong>{tally.accepted}</strong> accepted ·{" "}
+          <strong>{tally.duplicate}</strong> duplicate ·{" "}
+          <strong>{tally.rejected}</strong> rejected
+        </p>
+        <div className="scanner-toggles">
+          <button
+            type="button"
+            className="secondary-button"
+            aria-pressed={sound}
+            onClick={() => {
+              rememberSoundPreference(!sound);
+              setSound(!sound);
+            }}
+          >
+            {sound ? (
+              <Volume2 aria-hidden="true" className="size-4" />
+            ) : (
+              <VolumeX aria-hidden="true" className="size-4" />
+            )}
+            Sound
+          </button>
+          {fullscreenSupported && (
+            <button
+              type="button"
+              className="secondary-button"
+              aria-pressed={fullscreen}
+              onClick={() => {
+                if (document.fullscreenElement)
+                  void document.exitFullscreen().catch(() => {});
+                else
+                  void document.documentElement
+                    .requestFullscreen()
+                    .catch(() => {});
+              }}
+            >
+              {fullscreen ? (
+                <Minimize aria-hidden="true" className="size-4" />
+              ) : (
+                <Maximize aria-hidden="true" className="size-4" />
+              )}
+              Full screen
+            </button>
+          )}
+        </div>
+      </div>
       <dl className="scanner-identifiers">
         <dt>Event</dt>
         <dd>{labels[gate.id]?.event_name ?? "Checking event name…"}</dd>
@@ -286,14 +425,17 @@ function ScannerPanel({
       {busy && <p role="status">Confirming entry. Hold entry…</p>}
       {result && (
         <div
-          className={
+          key={result.scan_id}
+          className={`scanner-result scan-outcome scan-outcome-${outcomeOf(result)} ${
             result.decision === "ACCEPTED"
-              ? "scanner-result scanner-accepted"
-              : "scanner-result scanner-rejected"
-          }
+              ? "scanner-accepted"
+              : "scanner-rejected"
+          }`}
           role="status"
           aria-live="polite"
         >
+          <GateStage outcome={outcomeOf(result)} />
+          <OutcomeMark outcome={outcomeOf(result)} />
           <h2>
             {result.reason === "CANCELLED_CREDENTIAL" &&
             result.registration_status !== "CANCELLED"
@@ -323,7 +465,12 @@ function ScannerPanel({
         </div>
       )}
       {error && (
-        <div className="scanner-result" role="alert">
+        <div
+          className="scanner-result scan-outcome scan-outcome-unknown"
+          role="alert"
+        >
+          <GateStage outcome="unknown" />
+          <OutcomeMark outcome="unknown" />
           <p>{error}</p>
           {retryable && (
             <button
@@ -375,7 +522,10 @@ function ScannerPanel({
             />
           </div>
           <details ref={manual} className="scanner-manual">
-            <summary>Enter QR code manually</summary>
+            <summary>
+              <Keyboard aria-hidden="true" className="size-4" />
+              Enter QR code manually
+            </summary>
             <form onSubmit={submit} className="scanner-form" aria-busy={busy}>
               <label htmlFor="scan-token">Entry QR code</label>
               <p id="scan-help">

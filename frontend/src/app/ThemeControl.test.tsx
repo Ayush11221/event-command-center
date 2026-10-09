@@ -50,8 +50,12 @@ describe("Light, Dark and System theme", () => {
     const media = preference(true);
     localStorage.setItem("eoc.theme.v1", "system");
     const html = readFileSync("index.html", "utf8");
-    const bootstrap = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
-    expect(bootstrap).toBeTruthy();
+    // Same-origin classic script (CSP script-src 'self'), before the React entry.
+    const initAt = html.indexOf('<script src="/theme-init.js"></script>');
+    expect(initAt).toBeGreaterThan(-1);
+    expect(initAt).toBeLessThan(html.indexOf("/src/main.tsx"));
+    expect(html).not.toMatch(/<script>[\s\S]*?<\/script>/);
+    const bootstrap = readFileSync("public/theme-init.js", "utf8");
     new Function("document", "localStorage", "matchMedia", bootstrap!)(
       document,
       localStorage,
@@ -67,17 +71,20 @@ describe("Light, Dark and System theme", () => {
   it("persists explicit modes and follows OS changes only in System", () => {
     const media = preference(false);
     render(<ThemeControl />);
-    const control = screen.getByLabelText("Appearance");
-    fireEvent.change(control, { target: { value: "dark" } });
+    expect(
+      screen.getByRole("radiogroup", { name: "Appearance" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(screen.getByRole("radio", { name: "Dark" })).toBeChecked();
     expect(localStorage.getItem("eoc.theme.v1")).toBe("dark");
     expect(document.documentElement.dataset.theme).toBe("dark");
     media.change(false);
     expect(document.documentElement.dataset.theme).toBe("dark");
-    fireEvent.change(control, { target: { value: "system" } });
+    fireEvent.click(screen.getByRole("radio", { name: "System" }));
     expect(document.documentElement.dataset.theme).toBe("light");
     media.change(true);
     expect(document.documentElement.dataset.theme).toBe("dark");
-    fireEvent.change(control, { target: { value: "light" } });
+    fireEvent.click(screen.getByRole("radio", { name: "Light" }));
     media.change(true);
     expect(document.documentElement.dataset.theme).toBe("light");
   });
