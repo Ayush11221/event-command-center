@@ -42,11 +42,20 @@ The current frontend/API have no general operational-alert feed or acknowledgeme
 - Git whitespace checks passed, the index stayed empty, and all four protected document hashes remained unchanged. No staging, commit, push, or deployment occurred.
 - Existing Graphify output was updated with the pinned project Python environment because the local executable launcher exited without output. The final AST update completed with 2367 nodes/6826 edges. Its warning about the absent SQL parser applies to SQL coverage; no package was installed and no semantic/API extraction was performed.
 
+## Entry QR regression with the local API
+
+Run `node tests/demo/qr-entry.mjs` against an existing isolated forecast-demo stack. If that stack belongs to another worktree, use `node tests/demo/qr-entry.mjs --demo-root <demo-worktree>`. The harness verifies both worktrees belong to the same Git repository, validates the existing loopback-only stack and local database, and builds the current frontend into a temporary directory.
+
+The entry images come from the real participant page and credential endpoint. Canvas-camera emulation feeds those images to the actual scanner decoder and scan API. Fresh synthetic fixtures cover PUBLISHED rejection, wrong-event entry QR, non-entry URL, malformed credential, an entry QR that expires after viewing, the normal Organizer Start live event action, LIVE acceptance, and duplicate rejection. The harness checks CSRF and scan IDs, exactly one attendance transition, and zero attendance for the other event. Existing forecast attendees remain untouched.
+
+Evidence contains payload categories, lengths and per-run keyed fingerprints, never raw credentials or sessions. Result-panel screenshots and evidence stay outside the repository. This proves the isolated workflow; it does not prove physical-camera decoding or identify the payload used in an inaccessible production request.
+
 ## Files added
 
 - `frontend/src/app/AssignedGateContext.tsx`
 - `frontend/src/app/AssignedGateContext.test.tsx`
 - `tests/p1-c-mobile.mjs`
+- `tests/demo/qr-entry.mjs`
 - `docs/implementation/P1_C_MOBILE_OPERATIONAL_UX.md`
 
 ## Files modified in P1-C
