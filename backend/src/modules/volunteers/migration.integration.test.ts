@@ -174,6 +174,16 @@ describe.skipIf(!process.env.TEST_DATABASE_URL)(
             "utf8",
           ),
         );
+        // Current results and profile-aware Prisma models also require these
+        // independent additive columns. Snapshot them before the Slice 11
+        // migration so preservation is still compared against the same data.
+        for (const prerequisite of [
+          "20261010000000_gate_checkout",
+          "20261010010000_account_profile",
+        ])
+          await sql.query(
+            readFileSync(resolve(root, prerequisite, "migration.sql"), "utf8"),
+          );
         db = createDatabase(target.href);
         const config = {
           databaseUrl: target.href,

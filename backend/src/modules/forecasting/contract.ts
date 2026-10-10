@@ -6,7 +6,7 @@ export const METHOD = {
 } as const;
 export const LIMITATIONS = [
   "BASELINE_ONLY",
-  "CHECK_IN_ONLY",
+  "ACCEPTED_ATTENDANCE_HISTORY",
   "EMPIRICAL_UNCERTAINTY",
   "NO_PRODUCTION_ACCURACY_CLAIM",
 ];
@@ -136,6 +136,7 @@ export function fallback(
 export function validResult(
   value: unknown,
   eventId: string,
+  allowLegacyHistory = false,
 ): value is ForecastResult {
   if (
     !keys(
@@ -158,7 +159,16 @@ export function validResult(
     !Array.isArray(value.limitations) ||
     value.limitations.length !== 4 ||
     new Set(value.limitations).size !== 4 ||
-    value.limitations.some((v) => !LIMITATIONS.includes(v))
+    value.limitations.some(
+      (v) =>
+        !LIMITATIONS.includes(v) &&
+        !(allowLegacyHistory && v === "CHECK_IN_ONLY"),
+    ) ||
+    ![
+      "BASELINE_ONLY",
+      "EMPIRICAL_UNCERTAINTY",
+      "NO_PRODUCTION_ACCURACY_CLAIM",
+    ].every((code) => (value.limitations as unknown[]).includes(code))
   )
     return false;
   const input = value.input;

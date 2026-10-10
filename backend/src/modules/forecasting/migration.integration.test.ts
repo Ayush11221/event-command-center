@@ -38,8 +38,11 @@ describe.skipIf(!url)("Slice 8 upgrade migration preservation", () => {
         await sql.query(
           readFileSync(resolve(migrations, migration, "migration.sql"), "utf8"),
         );
-      const owner = await db.user.create({ data: { organizerCapable: true } }),
-        participant = await db.user.create({ data: {} });
+      const owner = await db.user.create({
+          data: { organizerCapable: true },
+          select: { id: true },
+        }),
+        participant = await db.user.create({ data: {}, select: { id: true } });
       const event = await db.event.create({
           data: {
             ownerUserId: owner.id,
@@ -61,30 +64,17 @@ describe.skipIf(!url)("Slice 8 upgrade migration preservation", () => {
       });
       const at = new Date();
       await db.$transaction(async (tx) => {
-        const decision = await tx.scanDecision.create({
-          data: {
-            scanId: randomUUID(),
-            eventId: event.id,
-            gateId: gate.id,
-            operatorUserId: owner.id,
-            registrationId: registration.id,
-            credentialId: credential.id,
-            decision: "ACCEPTED",
-            reason: "ACCEPTED",
-            decidedAt: at,
-            correlationId: randomUUID(),
-          },
-        });
-        await tx.attendanceTransition.create({
-          data: {
-            eventId: event.id,
-            gateId: gate.id,
-            operatorUserId: owner.id,
-            registrationId: registration.id,
-            scanDecisionId: decision.id,
-            acceptedAt: at,
-          },
-        });
+        // Populate the historical schema without current Prisma defaults for
+        // columns introduced by later migrations (direction and sequence).
+        const decisionId = randomUUID();
+        await tx.$executeRaw`
+          INSERT INTO "ScanDecision" (id,"scanId","eventId","gateId","operatorUserId","registrationId","credentialId",decision,reason,"decidedAt","correlationId")
+          VALUES (${decisionId}::uuid,${randomUUID()}::uuid,${event.id}::uuid,${gate.id}::uuid,${owner.id}::uuid,${registration.id}::uuid,${credential.id}::uuid,'ACCEPTED','ACCEPTED',${at},${randomUUID()})
+        `;
+        await tx.$executeRaw`
+          INSERT INTO "AttendanceTransition" (id,"eventId","gateId","operatorUserId","registrationId","scanDecisionId","acceptedAt")
+          VALUES (${randomUUID()}::uuid,${event.id}::uuid,${gate.id}::uuid,${owner.id}::uuid,${registration.id}::uuid,${decisionId}::uuid,${at})
+        `;
         await tx.auditEvent.create({
           data: {
             actorKind: "ACCOUNT",

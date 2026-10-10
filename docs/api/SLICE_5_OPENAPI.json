@@ -3,7 +3,7 @@
   "info": {
     "title": "Event Command Center - Slice 5 implemented check-in",
     "version": "1.0.0",
-    "description": "Additive check-in only. Seven-day current-authority command replay. No checkout, occupancy, corrections or camera/offline workflow."
+    "description": "Assigned-gate entry and optional check-out with re-entry after accepted exit. Seven-day current-authority command replay; each accepted transition affects occupancy once."
   },
   "servers": [
     {
@@ -14,8 +14,8 @@
     "/scan-decisions": {
       "post": {
         "operationId": "checkInCredential",
-        "summary": "Validate QR and check in at a currently assigned gate.",
-        "description": "Requires current GATE_SECURITY event/gate assignment and LIVE for acceptance. Fixed CHECK_IN. Wrong-event is privacy-masked as INVALID_CREDENTIAL. Same scan ID is scoped to account/action/gate; seven-day replay, then 410, never a second replay system. Responses no-store/no-referrer.",
+        "summary": "Record entry or enabled exit at a currently assigned gate.",
+        "description": "Requires current GATE_SECURITY event/gate assignment and LIVE for acceptance. Defaults to CHECK_IN. CHECK_OUT requires enabled checkout and INSIDE; re-entry requires accepted exit. Wrong-event is privacy-masked as INVALID_CREDENTIAL. Same scan ID is scoped to account/action/gate; seven-day replay, then 410, never a second replay system. Responses no-store/no-referrer.",
         "security": [
           {
             "AccountSession": []
@@ -166,6 +166,11 @@
             "minLength": 1,
             "maxLength": 128,
             "description": "Opaque QR proof, sent only in body. Never persisted as plaintext."
+          },
+          "direction": {
+            "type": "string",
+            "enum": ["CHECK_IN", "CHECK_OUT"],
+            "default": "CHECK_IN"
           }
         }
       },
@@ -209,6 +214,9 @@
               "EXPIRED_CREDENTIAL",
               "CANCELLED_CREDENTIAL",
               "ALREADY_CHECKED_IN",
+              "CHECKOUT_DISABLED",
+              "NOT_CHECKED_IN",
+              "ALREADY_CHECKED_OUT",
               "REGISTRATION_UNAVAILABLE"
             ]
           },
@@ -218,7 +226,7 @@
           },
           "attendance_status": {
             "type": ["string", "null"],
-            "enum": ["NOT_ARRIVED", "INSIDE", null]
+            "enum": ["NOT_ARRIVED", "INSIDE", "LEFT", null]
           },
           "decided_at": {
             "type": "string",
@@ -249,7 +257,7 @@
                   "const": "REGISTERED"
                 },
                 "attendance_status": {
-                  "const": "INSIDE"
+                  "enum": ["INSIDE", "LEFT"]
                 }
               }
             },
@@ -261,6 +269,9 @@
                     "EXPIRED_CREDENTIAL",
                     "CANCELLED_CREDENTIAL",
                     "ALREADY_CHECKED_IN",
+                    "CHECKOUT_DISABLED",
+                    "NOT_CHECKED_IN",
+                    "ALREADY_CHECKED_OUT",
                     "REGISTRATION_UNAVAILABLE"
                   ]
                 }

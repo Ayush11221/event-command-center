@@ -146,6 +146,8 @@ Detailed, testable requirements and identifiers live in [requirements/REQUIREMEN
 20. A failed scan holds/rejects entry and cannot change occupancy. One unique logical scan_id records the server decision; same-scan_id transport retry returns that decision. Manual gate overrides are post-MVP.
 21. Only Organizer may manually close/reopen registration. Capacity-only closure automatically lifts when a pre-check-in cancellation frees a slot and no other closure applies; scheduled/event-based, Live, and manual closures do not. Gate staff see only display name, registration/attendance status, event context, and scan result—not contact, OTP, or account credentials.
 
+22. After email account login, collect full name, contact number, college/organization and optional student/employee ID, with verified email read-only. Store self-reported profile values as normal fields for later identification; they do not grant roles or verify phone/affiliation ownership. The later verification procedure is TBD.
+
 ## 10. Non-functional requirements
 
 ### Performance

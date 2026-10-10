@@ -62,7 +62,7 @@ Node reconstructs exact one-minute states from committed accepted check-ins over
 at most six hours, with a fresh endpoint. Python requires 270 full minute
 observations, calibrates a nearest-rank 90th-percentile interval on validation
 residuals, and reports chronological held-out MAE/RMSE, interval coverage and
-availability per horizon. This is check-in-only, baseline-only output with no
+availability per horizon. This uses net accepted entry/exit history and is baseline-only output with no
 production accuracy claim.
 
 Backend PostgreSQL tests require `TEST_DATABASE_URL` pointing to a dedicated test

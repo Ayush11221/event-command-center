@@ -26,15 +26,15 @@ export async function extractForecast(
       }[]
     >`
       WITH accepted AS (
-        SELECT a."acceptedAt" AS at FROM "AttendanceTransition" a
+        SELECT a."acceptedAt" AS at, CASE WHEN a.kind = 'CHECK_IN' THEN 1 ELSE -1 END AS change FROM "AttendanceTransition" a
         JOIN "Registration" r ON r.id = a."registrationId" AND r."eventId" = a."eventId"
-        WHERE a."eventId" = ${eventId}::uuid AND a.kind = 'CHECK_IN'
+        WHERE a."eventId" = ${eventId}::uuid
           AND r.state = 'REGISTERED' AND a."acceptedAt" <= ${new Date(snapshot.as_of)}
       ), context AS (
-        SELECT min(at) AS first_at, count(*) FILTER (WHERE at < ${cutoff}) AS prior FROM accepted
+        SELECT min(at) AS first_at, COALESCE(sum(change) FILTER (WHERE at < ${cutoff}), 0)::bigint AS prior FROM accepted
       ), buckets AS (
         SELECT date_trunc('minute', at) + CASE WHEN at = date_trunc('minute', at)
-          THEN interval '0' ELSE interval '1 minute' END AS at, count(*) AS arrivals
+          THEN interval '0' ELSE interval '1 minute' END AS at, sum(change)::bigint AS arrivals
         FROM accepted WHERE at >= ${cutoff} GROUP BY 1
       )
       SELECT context.first_at, context.prior, buckets.at, buckets.arrivals

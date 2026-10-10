@@ -12,6 +12,10 @@ import {
   recoverCredential,
 } from "../registrations/credential.js";
 import { checkIn } from "./service.js";
+import type { ScanInput } from "./input.js";
+import { readOperations } from "../occupancy/service.js";
+import { extractForecast } from "../forecasting/source.js";
+import { eventResults } from "../event-results/service.js";
 const url = process.env.TEST_DATABASE_URL;
 const origin = "http://127.0.0.1:5173";
 const config = {
@@ -136,7 +140,7 @@ describe.skipIf(!url)("Slice 5 scanner API and persistence", () => {
     };
   }
   type Fixture = Awaited<ReturnType<typeof fixture>>;
-  function scan(f: Fixture, body = f.body, who = f.operator) {
+  function scan(f: Fixture, body: ScanInput = f.body, who = f.operator) {
     return request(app)
       .post("/api/v1/scan-decisions")
       .set("Cookie", who.cookie)
@@ -157,6 +161,128 @@ describe.skipIf(!url)("Slice 5 scanner API and persistence", () => {
       ).firstAcceptedCheckInAt,
     ).toBeNull();
   }
+  it("records exit once, permits re-entry and preserves first attendance and forecast occupancy", async () => {
+    const f = await fixture();
+    await db.event.update({
+      where: { id: f.event.id },
+      data: { checkoutEnabled: true },
+    });
+    const entry = await scan(f);
+    const command = {
+      ...f.body,
+      scan_id: randomUUID(),
+      direction: "CHECK_OUT" as const,
+    };
+    const exit = await scan(f, command);
+    expect(exit.status).toBe(200);
+    expect(exit.body).toMatchObject({
+      decision: "ACCEPTED",
+      attendance_status: "LEFT",
+    });
+    const snapshot = await db.$transaction((tx) =>
+      readOperations(tx, f.event.id, randomUUID()),
+    );
+    expect(snapshot).toMatchObject({ occupied: 0, registered: 1, revision: 2 });
+    const forecast = await extractForecast(
+      deps,
+      f.owner,
+      f.event.id,
+      randomUUID(),
+    );
+    expect(forecast.occupied).toBe(0);
+    expect(forecast.observations.at(-1)?.value).toBe(0);
+    expect((await scan(f, command)).body).toMatchObject({
+      replayed: true,
+      attendance_status: "LEFT",
+    });
+    expect(
+      (await scan(f, { ...command, scan_id: randomUUID() })).body.reason,
+    ).toBe("ALREADY_CHECKED_OUT");
+    expect(
+      (await scan(f, { ...f.body, scan_id: randomUUID() })).body
+        .attendance_status,
+    ).toBe("INSIDE");
+    const transitions = await db.attendanceTransition.findMany({
+      where: { registrationId: f.registration.id },
+      orderBy: { sequence: "asc" },
+    });
+    expect(transitions.map((t) => [t.kind, t.sequence])).toEqual([
+      ["CHECK_IN", 1],
+      ["CHECK_OUT", 2],
+      ["CHECK_IN", 3],
+    ]);
+    expect(
+      (
+        await db.registration.findUniqueOrThrow({
+          where: { id: f.registration.id },
+        })
+      ).firstAcceptedCheckInAt,
+    ).toEqual(new Date(entry.body.decided_at));
+    expect(
+      (
+        await db.$transaction((tx) =>
+          readOperations(tx, f.event.id, randomUUID()),
+        )
+      ).occupied,
+    ).toBe(1);
+    await db.event.update({
+      where: { id: f.event.id },
+      data: { state: "COMPLETED" },
+    });
+    const results = await eventResults(deps, f.owner, f.event.id, randomUUID());
+    expect(results).toMatchObject({
+      accepted_check_ins: 1,
+      certificate_eligible_count: 1,
+    });
+  });
+  it("rejects disabled exits, exits before entry, direction-changing replay and unauthorized exits", async () => {
+    const f = await fixture();
+    const exit = {
+      ...f.body,
+      scan_id: randomUUID(),
+      direction: "CHECK_OUT" as const,
+    };
+    expect((await scan(f, exit)).body.reason).toBe("CHECKOUT_DISABLED");
+    await db.event.update({
+      where: { id: f.event.id },
+      data: { checkoutEnabled: true },
+    });
+    expect(
+      (await scan(f, { ...exit, scan_id: randomUUID() })).body.reason,
+    ).toBe("NOT_CHECKED_IN");
+    expect((await scan(f, exit, f.owner)).status).toBe(403);
+    expect((await scan(f)).body.reason).toBe("ACCEPTED");
+    expect((await scan(f, { ...f.body, direction: "CHECK_OUT" })).status).toBe(
+      409,
+    );
+    expect(
+      await db.attendanceTransition.count({ where: { eventId: f.event.id } }),
+    ).toBe(1);
+  });
+  it("serializes simultaneous exits and never subtracts occupancy twice", async () => {
+    const f = await fixture();
+    await db.event.update({
+      where: { id: f.event.id },
+      data: { checkoutEnabled: true },
+    });
+    await scan(f);
+    const results = await Promise.all(
+      [1, 2].map(() =>
+        scan(f, { ...f.body, scan_id: randomUUID(), direction: "CHECK_OUT" }),
+      ),
+    );
+    expect(results.map((r) => r.body.reason).sort()).toEqual([
+      "ACCEPTED",
+      "ALREADY_CHECKED_OUT",
+    ]);
+    expect(
+      (
+        await db.$transaction((tx) =>
+          readOperations(tx, f.event.id, randomUUID()),
+        )
+      ).occupied,
+    ).toBe(0);
+  });
   it.each([false, true])(
     "checks in a valid opaque %s guest registration atomically",
     async (guest) => {
@@ -176,7 +302,7 @@ describe.skipIf(!url)("Slice 5 scanner API and persistence", () => {
         replayed: false,
         correlation_id: corr,
       });
-      const transition = await db.attendanceTransition.findUniqueOrThrow({
+      const transition = await db.attendanceTransition.findFirstOrThrow({
         where: { registrationId: f.registration.id },
       });
       expect(transition).toMatchObject({
@@ -661,7 +787,7 @@ describe.skipIf(!url)("Slice 5 scanner API and persistence", () => {
   it("enforces unique and immutable attendance, source associations and cancellation barrier in PostgreSQL", async () => {
     const f = await fixture();
     await scan(f);
-    const row = await db.attendanceTransition.findUniqueOrThrow({
+    const row = await db.attendanceTransition.findFirstOrThrow({
       where: { registrationId: f.registration.id },
     });
     const data = {

@@ -247,8 +247,12 @@ describe.skipIf(!databaseUrl)("Migration preservation", () => {
       try {
         const owner = await target.user.create({
           data: { organizerCapable: true },
+          select: { id: true },
         });
-        const participant = await target.user.create({ data: {} });
+        const participant = await target.user.create({
+          data: {},
+          select: { id: true },
+        });
         const guest = await target.guestIdentity.create({
           data: { lookupHash: "a".repeat(64) },
         });
@@ -452,6 +456,7 @@ describe.skipIf(!databaseUrl)("Migration preservation", () => {
       try {
         const owner = await target.user.create({
           data: { organizerCapable: true },
+          select: { id: true },
         });
         const event = await target.event.create({
           data: {

@@ -3,6 +3,11 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { challenge, verify, currentActor, ProofError } from "../services/proof";
 import { App } from "./App";
+import { accountProfile, saveAccountProfile } from "../services/profile";
+vi.mock("../services/profile", () => ({
+  accountProfile: vi.fn(),
+  saveAccountProfile: vi.fn(),
+}));
 
 vi.mock("../services/proof", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../services/proof")>();
@@ -108,6 +113,14 @@ describe("application entry", () => {
     vi.mocked(currentActor).mockResolvedValue(actor);
     vi.mocked(challenge).mockResolvedValue();
     vi.mocked(verify).mockResolvedValue();
+    vi.mocked(accountProfile).mockResolvedValue({
+      display_name: "Owner",
+      verified_email: "owner@example.com",
+      phone_number: "9876543210",
+      organization: "College",
+      affiliation_id: null,
+    });
+    vi.mocked(saveAccountProfile).mockResolvedValue();
     render(<App />);
     const field = await screen.findByLabelText("Unfinished event name");
     fireEvent.change(field, { target: { value: "My unfinished event" } });
@@ -126,7 +139,10 @@ describe("application entry", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Verify and continue" }),
     );
-    expect(await screen.findByText("Authorized workspace")).toBeVisible();
+    await screen.findByLabelText("Full name");
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
+    await screen.findByRole("button", { name: "Expire access" });
+    expect(screen.getByText("Authorized workspace")).toBeVisible();
     expect(screen.getByLabelText("Unfinished event name")).toHaveValue(
       "My unfinished event",
     );

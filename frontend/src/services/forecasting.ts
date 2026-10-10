@@ -170,10 +170,16 @@ export function validCurrent(
         ![
           "BASELINE_ONLY",
           "CHECK_IN_ONLY",
+          "ACCEPTED_ATTENDANCE_HISTORY",
           "EMPIRICAL_UNCERTAINTY",
           "NO_PRODUCTION_ACCURACY_CLAIM",
         ].includes(code),
     ) ||
+    ![
+      "BASELINE_ONLY",
+      "EMPIRICAL_UNCERTAINTY",
+      "NO_PRODUCTION_ACCURACY_CLAIM",
+    ].every((code) => (run.limitations as unknown[]).includes(code)) ||
     !closed(fresh, "state,reason,expires_at") ||
     !stamp(fresh.expires_at) ||
     Date.parse(fresh.expires_at) !== Date.parse(run.generated_at) + 60000

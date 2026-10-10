@@ -14,6 +14,9 @@ export type ScanReason =
   | "EXPIRED_CREDENTIAL"
   | "CANCELLED_CREDENTIAL"
   | "ALREADY_CHECKED_IN"
+  | "CHECKOUT_DISABLED"
+  | "NOT_CHECKED_IN"
+  | "ALREADY_CHECKED_OUT"
   | "REGISTRATION_UNAVAILABLE";
 
 async function lockScanner(
@@ -45,10 +48,13 @@ export async function checkIn(
   input: ScanInput,
   correlationId: string,
 ) {
+  const direction = input.direction ?? "CHECK_IN";
   return executeIdempotentCommand(
     deps.db,
     {
       actorUserId: actor.userId,
+      // Keep the legacy logical-scan namespace: changing direction with the
+      // same scan_id must conflict, including keys issued before this migration.
       action: "SCAN_CHECK_IN",
       resourceKey: `gate:${input.gate_id}`,
       idempotencyKey: input.scan_id,
@@ -73,7 +79,7 @@ export async function checkIn(
         );
       const event = await tx.event.findUniqueOrThrow({
         where: { id: input.event_id },
-        select: { state: true },
+        select: { state: true, checkoutEnabled: true },
       });
       let hash: string | undefined;
       try {
@@ -94,6 +100,19 @@ export async function checkIn(
         : null;
       const now = new Date();
       const registration = credential?.registration;
+      const previous = registration
+        ? await tx.attendanceTransition.findFirst({
+            where: { registrationId: registration.id },
+            orderBy: { sequence: "desc" },
+            select: { kind: true },
+          })
+        : null;
+      const attendance =
+        previous?.kind === "CHECK_OUT"
+          ? "LEFT"
+          : registration?.firstAcceptedCheckInAt
+            ? "INSIDE"
+            : "NOT_ARRIVED";
       const reason: ScanReason = !credential
         ? "INVALID_CREDENTIAL"
         : credential.revokedAt || registration?.state === "CANCELLED"
@@ -102,9 +121,19 @@ export async function checkIn(
             ? "EXPIRED_CREDENTIAL"
             : event.state !== "LIVE" || registration?.state !== "REGISTERED"
               ? "REGISTRATION_UNAVAILABLE"
-              : registration.firstAcceptedCheckInAt
-                ? "ALREADY_CHECKED_IN"
-                : "ACCEPTED";
+              : direction === "CHECK_OUT"
+                ? !event.checkoutEnabled
+                  ? "CHECKOUT_DISABLED"
+                  : attendance === "NOT_ARRIVED"
+                    ? "NOT_CHECKED_IN"
+                    : attendance === "LEFT"
+                      ? "ALREADY_CHECKED_OUT"
+                      : "ACCEPTED"
+                : attendance === "INSIDE"
+                  ? "ALREADY_CHECKED_IN"
+                  : attendance === "LEFT" && !event.checkoutEnabled
+                    ? "CHECKOUT_DISABLED"
+                    : "ACCEPTED";
       const decision = reason === "ACCEPTED" ? "ACCEPTED" : "REJECTED";
       const scan = await tx.scanDecision.create({
         data: {
@@ -115,6 +144,7 @@ export async function checkIn(
           registrationId: registration?.id,
           credentialId: credential?.id,
           decision,
+          direction,
           reason,
           decidedAt: now,
           correlationId,
@@ -128,6 +158,7 @@ export async function checkIn(
             operatorUserId: actor.userId,
             registrationId: registration!.id,
             scanDecisionId: scan.id,
+            kind: direction,
             acceptedAt: now,
           },
         });
@@ -135,7 +166,7 @@ export async function checkIn(
         actorKind: "ACCOUNT",
         actorUserId: actor.userId,
         eventId: input.event_id,
-        action: "SCAN_CHECK_IN",
+        action: direction === "CHECK_OUT" ? "SCAN_CHECK_OUT" : "SCAN_CHECK_IN",
         outcome: decision,
         correlationId,
         metadata: {
@@ -156,9 +187,11 @@ export async function checkIn(
           decided_at: now.toISOString(),
           registration_status: registration?.state ?? null,
           attendance_status: registration
-            ? decision === "ACCEPTED" || registration.firstAcceptedCheckInAt
-              ? "INSIDE"
-              : "NOT_ARRIVED"
+            ? decision === "ACCEPTED"
+              ? direction === "CHECK_OUT"
+                ? "LEFT"
+                : "INSIDE"
+              : attendance
             : null,
         },
       };

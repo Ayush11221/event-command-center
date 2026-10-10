@@ -31,6 +31,18 @@ function fetchBody(body: unknown, status = 200) {
   return fetch;
 }
 describe("scanner transport boundary", () => {
+  it("accepts exit only with LEFT status and never interprets an entry response as an exit", async () => {
+    const exit = { ...command, direction: "CHECK_OUT" as const };
+    fetchBody({ ...response, attendance_status: "LEFT" });
+    expect(
+      (await submitScan(exit, "csrf", new AbortController().signal))
+        .attendance_status,
+    ).toBe("LEFT");
+    fetchBody(response);
+    await expect(
+      submitScan(exit, "csrf", new AbortController().signal),
+    ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
   it("sends opaque proof only in the mutation body with account/CSRF/scan replay headers", async () => {
     const fetch = fetchBody({
       ...response,

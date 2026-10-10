@@ -55,7 +55,7 @@ function serialize(
   snapshot: Observed,
 ) {
   if (
-    !validResult(row.result, row.eventId) ||
+    !validResult(row.result, row.eventId, true) ||
     row.persistedAt.getTime() < Date.parse(row.result.generated_at) ||
     row.persistedAt.getTime() > Date.parse(snapshot.as_of)
   )

@@ -2613,6 +2613,7 @@
               "type": "string",
               "enum": [
                 "NO_EXIT_OR_DWELL_DATA",
+                "NO_DWELL_ANALYSIS",
                 "HISTORICAL_OCCUPANCY_NOT_RECORDED",
                 "NO_REGISTERED_DENOMINATOR",
                 "ATTENDANCE_RATE_UNAVAILABLE",

@@ -13,6 +13,8 @@ import {
 } from "../services/event-review";
 const limitations: Record<string, string> = {
   NO_EXIT_OR_DWELL_DATA: "Exit and dwell-duration data are unavailable.",
+  NO_DWELL_ANALYSIS:
+    "Time spent at the event is not analyzed. Exit capture is optional.",
   HISTORICAL_OCCUPANCY_NOT_RECORDED:
     "No persisted historical occupancy series is available.",
   NO_REGISTERED_DENOMINATOR:

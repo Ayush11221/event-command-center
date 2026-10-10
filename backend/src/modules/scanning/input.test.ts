@@ -22,7 +22,8 @@ describe("scan input boundary", () => {
     "proof",
     {},
     { ...valid, role: "GATE_SECURITY" },
-    { ...valid, direction: "CHECK_OUT" },
+    { ...valid, direction: "EXIT" },
+    { ...valid, direction: null },
     { ...valid, registration_id: randomUUID() },
     { ...valid, event_id: "bad" },
     { ...valid, scan_id: 3 },
@@ -50,5 +51,15 @@ describe("scan input boundary", () => {
     );
     expect(result).not.toEqual(scanFingerprint(valid, Buffer.alloc(32, 11)));
     expect(() => scanFingerprint(valid, Buffer.alloc(1))).toThrow();
+  });
+  it("accepts exit, preserves legacy entry fingerprints and distinguishes directions", () => {
+    expect(
+      scanInput({ ...valid, direction: "CHECK_IN" }, valid.scan_id),
+    ).toEqual(valid);
+    const exit = scanInput({ ...valid, direction: "CHECK_OUT" }, valid.scan_id);
+    expect(exit.direction).toBe("CHECK_OUT");
+    expect(scanFingerprint(exit, Buffer.alloc(32, 10))).not.toEqual(
+      scanFingerprint(valid, Buffer.alloc(32, 10)),
+    );
   });
 });

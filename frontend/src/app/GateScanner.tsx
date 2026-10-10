@@ -48,16 +48,24 @@ const outcomeStyle: Record<
 };
 function outcomeOf(result: ScanResult): Outcome {
   if (result.decision === "ACCEPTED") return "accepted";
-  return result.reason === "ALREADY_CHECKED_IN" ? "duplicate" : "rejected";
+  return ["ALREADY_CHECKED_IN", "ALREADY_CHECKED_OUT"].includes(result.reason)
+    ? "duplicate"
+    : "rejected";
 }
-function OutcomeMark({ outcome }: { outcome: Outcome }) {
+function OutcomeMark({
+  outcome,
+  exit = false,
+}: {
+  outcome: Outcome;
+  exit?: boolean;
+}) {
   const { label, Icon } = outcomeStyle[outcome];
   return (
     <p className="scan-outcome-label">
       <span className="scan-outcome-icon" aria-hidden="true">
         <Icon strokeWidth={2.4} />
       </span>
-      {label}
+      {outcome === "unknown" && exit ? "Exit unconfirmed" : label}
     </p>
   );
 }
@@ -67,6 +75,9 @@ const messages = {
   EXPIRED_CREDENTIAL: "QR code expired",
   CANCELLED_CREDENTIAL: "Registration cancelled",
   ALREADY_CHECKED_IN: "Already checked in",
+  CHECKOUT_DISABLED: "Check-out is disabled for this event",
+  NOT_CHECKED_IN: "Participant has not checked in",
+  ALREADY_CHECKED_OUT: "Already checked out",
   REGISTRATION_UNAVAILABLE: "Entry is not currently open",
 };
 export function GateScanner() {
@@ -113,7 +124,7 @@ export function GateScanner() {
       </a>
       <p className="eyebrow scanner-eyebrow">
         <ScanLine aria-hidden="true" className="size-4" />
-        Check-in station
+        Entry and exit station
       </p>
       <div className="studio-heading">
         <h1>
@@ -122,8 +133,8 @@ export function GateScanner() {
         <IsoGate className="studio-heading-art" />
       </div>
       <p className="scanner-lede">
-        Check-in for your assigned gate. Entry requires an accepted server
-        decision.
+        Entry and exit for your assigned gate. Each change requires an accepted
+        server decision.
       </p>
       {checking ? (
         <p role="status">Checking scanner access...</p>
@@ -163,6 +174,9 @@ function ScannerPanel({
   onScopeLost: () => void;
 }) {
   const [gateIndex, setGateIndex] = useState(0);
+  const [direction, setDirection] = useState<"CHECK_IN" | "CHECK_OUT">(
+    "CHECK_IN",
+  );
   const [scope, setScope] = useState<"checking" | "ready" | "error">(
     "checking",
   );
@@ -219,6 +233,7 @@ function ScannerPanel({
     let active = true;
     const abort = new AbortController();
     setScope("checking");
+    setDirection("CHECK_IN");
     setToken("");
     setResult(null);
     setError("");
@@ -306,14 +321,18 @@ function ScannerPanel({
         failure.status === 0 ||
         failure.status >= 500;
       setRetryable(retry);
+      const hold =
+        command.direction === "CHECK_OUT"
+          ? "Do not assume this exit was recorded."
+          : "Hold entry.";
       setError(
         retry
-          ? "Couldn't confirm this scan. Check your connection and try again. Decision unknown. Hold entry. Retry this same scan to recover its server result."
+          ? `Couldn't confirm this scan. Check your connection and try again. Decision unknown. ${hold} Retry this same scan to recover its server result.`
           : failure instanceof ProofError && failure.status === 409
-            ? "Scan retry conflicts with the original command. Hold entry and start a new scan."
+            ? `Scan retry conflicts with the original command. ${hold} Start a new scan.`
             : failure instanceof ProofError && failure.status === 410
-              ? "Scan replay expired. Hold entry and start a new scan."
-              : "Scan request was not accepted. Hold entry and check the input.",
+              ? `Scan replay expired. ${hold} Start a new scan.`
+              : `Scan request was not accepted. ${hold} Check the input.`,
       );
       if (!retry) pending.current = null;
     } finally {
@@ -345,10 +364,11 @@ function ScannerPanel({
       event_id: eventId,
       gate_id: gateId,
       credential: value,
+      ...(direction === "CHECK_OUT" ? { direction } : {}),
     });
   }
   return (
-    <section aria-label="Check-in station">
+    <section aria-label="Gate scan station">
       {gates.length > 1 && (
         <label className="scanner-context">
           Assigned gate
@@ -422,7 +442,40 @@ function ScannerPanel({
         <dt>Gate</dt>
         <dd>{labels[gate.id]?.gate_label ?? "Checking gate name…"}</dd>
       </dl>
-      {busy && <p role="status">Confirming entry. Hold entry…</p>}
+      {scope === "ready" && (
+        <label className="scanner-context">
+          Scan mode
+          <select
+            value={direction}
+            disabled={busy || !!pending.current}
+            onChange={(e) => {
+              setDirection(e.target.value as "CHECK_IN" | "CHECK_OUT");
+              setResult(null);
+              setError("");
+              setToken("");
+              setRetryable(false);
+            }}
+          >
+            <option value="CHECK_IN">Entry</option>
+            <option
+              value="CHECK_OUT"
+              disabled={!labels[gate.id]?.checkout_enabled}
+            >
+              Exit
+            </option>
+          </select>
+        </label>
+      )}
+      {scope === "ready" && !labels[gate.id]?.checkout_enabled && (
+        <p>Exit scanning is disabled for this event.</p>
+      )}
+      {busy && (
+        <p role="status">
+          {direction === "CHECK_OUT"
+            ? "Confirming exit. Wait for the server result…"
+            : "Confirming entry. Hold entry…"}
+        </p>
+      )}
       {result && (
         <div
           key={result.scan_id}
@@ -440,14 +493,20 @@ function ScannerPanel({
             {result.reason === "CANCELLED_CREDENTIAL" &&
             result.registration_status !== "CANCELLED"
               ? "QR code cancelled"
-              : messages[result.reason]}
+              : result.reason === "ACCEPTED" && direction === "CHECK_OUT"
+                ? "Exit recorded"
+                : messages[result.reason]}
           </h2>
           <p>
             {result.decision === "ACCEPTED"
-              ? "Registration confirmed. Participant checked in."
+              ? direction === "CHECK_OUT"
+                ? "Participant checked out. Occupancy updated."
+                : "Registration confirmed. Participant checked in."
               : result.reason === "INVALID_CREDENTIAL"
                 ? "This QR code cannot be used here. Use the entry QR for this event. Hold entry."
-                : "Entry not permitted. Hold entry."}
+                : direction === "CHECK_OUT"
+                  ? "Exit was not recorded. Check the result before trying again."
+                  : "Entry not permitted. Hold entry."}
           </p>
           {result.replayed && <p>Recovered result.</p>}
           <p>Ready for the next person. Move this QR code out of view.</p>
@@ -470,7 +529,7 @@ function ScannerPanel({
           role="alert"
         >
           <GateStage outcome="unknown" />
-          <OutcomeMark outcome="unknown" />
+          <OutcomeMark outcome="unknown" exit={direction === "CHECK_OUT"} />
           <p>{error}</p>
           {retryable && (
             <button
@@ -512,7 +571,7 @@ function ScannerPanel({
         <>
           <div ref={capture} tabIndex={-1}>
             <CameraCapture
-              key={`${eventId}:${gateId}`}
+              key={`${eventId}:${gateId}:${direction}`}
               onDetect={scan}
               blocked={busy || !!pending.current}
               onManualEntry={() => {
@@ -549,7 +608,7 @@ function ScannerPanel({
                 type="submit"
                 disabled={busy || !!pending.current || !token.trim()}
               >
-                Check in
+                {direction === "CHECK_OUT" ? "Check out" : "Check in"}
               </button>
             </form>
           </details>

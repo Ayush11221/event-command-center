@@ -6,10 +6,12 @@ export interface ScanCommand {
   event_id: string;
   gate_id: string;
   credential: string;
+  direction?: "CHECK_IN" | "CHECK_OUT";
 }
 export interface ScannerScope {
   event_name: string;
   gate_label: string;
+  checkout_enabled?: boolean;
 }
 export type ScanReason =
   | "ACCEPTED"
@@ -17,6 +19,9 @@ export type ScanReason =
   | "EXPIRED_CREDENTIAL"
   | "CANCELLED_CREDENTIAL"
   | "ALREADY_CHECKED_IN"
+  | "CHECKOUT_DISABLED"
+  | "NOT_CHECKED_IN"
+  | "ALREADY_CHECKED_OUT"
   | "REGISTRATION_UNAVAILABLE";
 export interface ScanResult {
   scan_id: string;
@@ -25,7 +30,7 @@ export interface ScanResult {
   decision: "ACCEPTED" | "REJECTED";
   reason: ScanReason;
   registration_status: "REGISTERED" | "CANCELLED" | null;
-  attendance_status: "NOT_ARRIVED" | "INSIDE" | null;
+  attendance_status: "NOT_ARRIVED" | "INSIDE" | "LEFT" | null;
   decided_at: string;
   replayed: boolean;
   correlation_id: string;
@@ -96,6 +101,7 @@ export async function scannerScope(
   return {
     event_name: body.event_name,
     gate_label: body.gate_label,
+    checkout_enabled: body.checkout_enabled === true,
   } as ScannerScope;
 }
 export async function submitScan(
@@ -119,18 +125,22 @@ export async function submitScan(
     typeof body.decided_at !== "string" ||
     !Number.isFinite(Date.parse(body.decided_at)) ||
     !["REGISTERED", "CANCELLED", null].includes(body.registration_status) ||
-    !["NOT_ARRIVED", "INSIDE", null].includes(body.attendance_status) ||
+    !["NOT_ARRIVED", "INSIDE", "LEFT", null].includes(body.attendance_status) ||
     !(
       (body.decision === "ACCEPTED" &&
         body.reason === "ACCEPTED" &&
         body.registration_status === "REGISTERED" &&
-        body.attendance_status === "INSIDE") ||
+        body.attendance_status ===
+          (command.direction === "CHECK_OUT" ? "LEFT" : "INSIDE")) ||
       (body.decision === "REJECTED" &&
         [
           "INVALID_CREDENTIAL",
           "EXPIRED_CREDENTIAL",
           "CANCELLED_CREDENTIAL",
           "ALREADY_CHECKED_IN",
+          "CHECKOUT_DISABLED",
+          "NOT_CHECKED_IN",
+          "ALREADY_CHECKED_OUT",
           "REGISTRATION_UNAVAILABLE",
         ].includes(body.reason))
     )

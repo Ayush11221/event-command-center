@@ -617,6 +617,7 @@
               "enum": [
                 "BASELINE_ONLY",
                 "CHECK_IN_ONLY",
+                "ACCEPTED_ATTENDANCE_HISTORY",
                 "EMPIRICAL_UNCERTAINTY",
                 "NO_PRODUCTION_ACCURACY_CLAIM"
               ]

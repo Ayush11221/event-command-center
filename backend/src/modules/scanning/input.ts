@@ -7,6 +7,7 @@ export interface ScanInput {
   event_id: string;
   gate_id: string;
   credential: string;
+  direction?: "CHECK_IN" | "CHECK_OUT";
 }
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export function scanInput(body: unknown, key: string | undefined): ScanInput {
@@ -14,7 +15,12 @@ export function scanInput(body: unknown, key: string | undefined): ScanInput {
     throw new ApiError(400, "VALIDATION", "Invalid scan request");
   const row = body as Record<string, unknown>;
   if (
-    Object.keys(row).length !== 4 ||
+    Object.keys(row).some(
+      (field) =>
+        !["scan_id", "event_id", "gate_id", "credential", "direction"].includes(
+          field,
+        ),
+    ) ||
     !["scan_id", "event_id", "gate_id", "credential"].every((field) =>
       Object.hasOwn(row, field),
     ) ||
@@ -23,7 +29,9 @@ export function scanInput(body: unknown, key: string | undefined): ScanInput {
     ) ||
     typeof row.credential !== "string" ||
     row.credential.length < 1 ||
-    row.credential.length > 128
+    row.credential.length > 128 ||
+    (Object.hasOwn(row, "direction") &&
+      !["CHECK_IN", "CHECK_OUT"].includes(row.direction as string))
   )
     throw new ApiError(400, "VALIDATION", "Invalid scan request");
   const result = {
@@ -31,6 +39,9 @@ export function scanInput(body: unknown, key: string | undefined): ScanInput {
     event_id: (row.event_id as string).toLowerCase(),
     gate_id: (row.gate_id as string).toLowerCase(),
     credential: row.credential,
+    ...(row.direction === "CHECK_OUT"
+      ? { direction: "CHECK_OUT" as const }
+      : {}),
   };
   if (parseIdempotencyKey(key) !== result.scan_id)
     throw new ApiError(400, "VALIDATION", "Idempotency-Key must equal scan_id");

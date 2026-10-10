@@ -147,7 +147,7 @@ export function staffRouter(deps: AuthDependencies) {
         await requireGateScope(tx, actor.userId, eventId, gateId);
         const event = await tx.event.findUniqueOrThrow({
           where: { id: eventId },
-          select: { name: true },
+          select: { name: true, checkoutEnabled: true },
         });
         const gates = await tx.gate.findMany({
           where: { eventId },
@@ -156,6 +156,7 @@ export function staffRouter(deps: AuthDependencies) {
         });
         return {
           event_name: event.name,
+          checkout_enabled: event.checkoutEnabled,
           gate_label: `Gate ${gates.findIndex((gate) => gate.id === gateId) + 1}`,
         };
       });

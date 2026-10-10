@@ -9,6 +9,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { challenge, currentActor, ProofError, verify } from "../services/proof";
 import { ProofEntry } from "./ProofEntry";
+import { accountProfile, saveAccountProfile } from "../services/profile";
+vi.mock("../services/profile", () => ({
+  accountProfile: vi.fn(),
+  saveAccountProfile: vi.fn(),
+}));
 vi.mock("../services/proof", async (original) => ({
   ...(await original<typeof import("../services/proof")>()),
   challenge: vi.fn(),
@@ -25,6 +30,14 @@ beforeEach(() => {
   vi.mocked(challenge).mockResolvedValue();
   vi.mocked(verify).mockResolvedValue();
   vi.mocked(currentActor).mockResolvedValue(actor);
+  vi.mocked(accountProfile).mockResolvedValue({
+    display_name: "Name",
+    verified_email: "person@example.com",
+    phone_number: "9876543210",
+    organization: "College",
+    affiliation_id: null,
+  });
+  vi.mocked(saveAccountProfile).mockResolvedValue();
 });
 afterEach(() => {
   cleanup();
@@ -49,6 +62,12 @@ async function enterCode() {
     fireEvent.click(
       screen.getByRole("button", { name: "Verify and continue" }),
     );
+  });
+}
+async function saveDetails() {
+  await screen.findByLabelText("Full name");
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Save and continue" }));
   });
 }
 describe("P1-A account verification", () => {
@@ -83,6 +102,8 @@ describe("P1-A account verification", () => {
       expect(screen.getByLabelText("Verification code")).toHaveFocus();
       await enterCode();
       expect(verify).toHaveBeenCalledWith("account", "EMAIL", email, "123456");
+      expect(authenticated).not.toHaveBeenCalled();
+      await saveDetails();
       expect(authenticated).toHaveBeenCalledWith(actor);
       expect(localStorage.length).toBe(0);
       expect(sessionStorage.length).toBe(0);
@@ -251,6 +272,8 @@ describe("P1-A account verification", () => {
       fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     });
     expect(verify).toHaveBeenCalledTimes(1);
+    vi.mocked(currentActor).mockResolvedValue(actor);
+    await saveDetails();
     expect(authenticated).toHaveBeenCalledWith(actor);
   });
   it("clears typed codes when the page is hidden for navigation", async () => {

@@ -58,6 +58,7 @@ enum ScanOutcome {
 
 enum AttendanceKind {
   CHECK_IN
+  CHECK_OUT
 }
 
 enum VolunteerTaskStatus {
@@ -95,6 +96,10 @@ model VolunteerTask {
 
 model User {
   id                     String                 @id @default(uuid()) @db.Uuid
+  displayName            String?                @db.VarChar(100)
+  profilePhone           String?                @db.VarChar(16)
+  organization           String?                @db.VarChar(120)
+  affiliationId          String?                @db.VarChar(64)
   organizerCapable       Boolean                @default(false)
   createdAt              DateTime               @default(now()) @db.Timestamptz(3)
   contacts               VerifiedContact[]
@@ -513,6 +518,7 @@ model ScanDecision {
   registrationId String?               @db.Uuid
   credentialId   String?               @db.Uuid
   decision       ScanOutcome
+  direction      AttendanceKind        @default(CHECK_IN)
   reason         String                @db.VarChar(40)
   decidedAt      DateTime              @db.Timestamptz(3)
   correlationId  String                @db.VarChar(64)
@@ -532,9 +538,10 @@ model AttendanceTransition {
   eventId        String         @db.Uuid
   gateId         String         @db.Uuid
   operatorUserId String         @db.Uuid
-  registrationId String         @unique @db.Uuid
+  registrationId String         @db.Uuid
   scanDecisionId String         @unique @db.Uuid
   kind           AttendanceKind @default(CHECK_IN)
+  sequence       Int            @default(1)
   acceptedAt     DateTime       @db.Timestamptz(3)
   event          Event          @relation(fields: [eventId], references: [id], onDelete: Restrict)
   gate           Gate           @relation(fields: [eventId, gateId], references: [eventId, id], onDelete: Restrict)
@@ -542,5 +549,6 @@ model AttendanceTransition {
   registration   Registration   @relation(fields: [eventId, registrationId], references: [eventId, id], onDelete: Restrict)
   scanDecision   ScanDecision   @relation(fields: [scanDecisionId], references: [id], onDelete: Restrict)
 
+  @@unique([registrationId, sequence])
   @@index([eventId, acceptedAt])
 }

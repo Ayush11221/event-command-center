@@ -23,6 +23,8 @@ import {
   verifyGuestProof,
 } from "./tokens.js";
 
+import { profileInput, readProfile, saveProfile } from "./profile.js";
+
 const ACCOUNT_COOKIE = "eoc_session";
 const RENEWAL_COOKIE = "eoc_renewal";
 const GUEST_COOKIE = "eoc_guest_proof";
@@ -421,7 +423,7 @@ export function authRouter(deps: AuthDependencies) {
     try {
       user = await deps.db.user.findUnique({
         where: { id: actor.userId },
-        select: { id: true, organizerCapable: true },
+        select: { id: true, organizerCapable: true, displayName: true },
       });
       assignments = await deps.db.eventRoleAssignment.findMany({
         where: { userId: actor.userId, revokedAt: null },
@@ -434,6 +436,7 @@ export function authRouter(deps: AuthDependencies) {
       throw new ApiError(401, "UNAUTHENTICATED", "Authentication required");
     response.json({
       user_id: user.id,
+      display_name: user.displayName,
       organizer_capable: user.organizerCapable,
       assignments: assignments.map((item) => ({
         id: item.id,
@@ -444,6 +447,35 @@ export function authRouter(deps: AuthDependencies) {
       csrf_token: csrfToken(actor.sessionId, deps.config.jwtSecret),
       correlation_id: response.locals.correlationId,
     });
+  });
+
+  router.get("/account/profile", async (request, response) => {
+    const actor = await authenticate(request, deps);
+    try {
+      response.json(await readProfile(deps, actor));
+    } catch {
+      throw unavailable();
+    }
+  });
+
+  router.post("/account/profile", async (request, response) => {
+    const actor = await authenticate(request, deps);
+    requireOrigin(request, deps.frontendOrigin);
+    requireCsrf(request, actor, deps);
+    const details = profileInput(request.body);
+    try {
+      response.json(
+        await saveProfile(
+          deps,
+          actor,
+          details,
+          response.locals.correlationId as string,
+        ),
+      );
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw unavailable();
+    }
   });
 
   router.post("/logout", async (request, response) => {

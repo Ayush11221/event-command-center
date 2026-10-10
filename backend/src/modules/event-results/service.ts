@@ -27,7 +27,7 @@ export async function eventResults(
       }[]
     >`
       WITH r AS (SELECT * FROM "Registration" WHERE "eventId"=${eventId}::uuid),
-      a AS (SELECT * FROM "AttendanceTransition" WHERE "eventId"=${eventId}::uuid AND kind='CHECK_IN'),
+      a AS (SELECT * FROM "AttendanceTransition" WHERE "eventId"=${eventId}::uuid AND kind='CHECK_IN' AND sequence=1),
       c AS (SELECT id,status,"registrationId" FROM "Certificate" WHERE "eventId"=${eventId}::uuid),
       d AS (SELECT d.status FROM "CertificateDelivery" d JOIN c ON c.id=d."certificateId" WHERE d."eventId"=${eventId}::uuid)
       SELECT e.state::text, (SELECT count(*) FROM r) AS total,
@@ -76,7 +76,7 @@ export async function eventResults(
     const denominator = total - cancelled,
       valid = denominator > 0 && accepted <= denominator;
     const limitations = [
-      "NO_EXIT_OR_DWELL_DATA",
+      "NO_DWELL_ANALYSIS",
       "HISTORICAL_OCCUPANCY_NOT_RECORDED",
     ];
     if (denominator === 0) limitations.push("NO_REGISTERED_DENOMINATOR");

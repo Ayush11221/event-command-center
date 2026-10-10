@@ -95,6 +95,43 @@ function enter() {
   fireEvent.click(screen.getByRole("button", { name: "Check in" }));
 }
 describe("Gate/Security scanner", () => {
+  it("records exit with the same QR, clears stale entry feedback and locks direction during recovery", async () => {
+    vi.mocked(scannerScope).mockResolvedValue({
+      event_name: "Community event",
+      gate_label: "Gate 1",
+      checkout_enabled: true,
+    });
+    await open();
+    enter();
+    await screen.findByRole("heading", { name: "Entry allowed" });
+    fireEvent.change(screen.getByLabelText("Scan mode"), {
+      target: { value: "CHECK_OUT" },
+    });
+    expect(screen.queryByRole("heading", { name: "Entry allowed" })).toBeNull();
+    vi.mocked(submitScan)
+      .mockRejectedValueOnce(new ProofError("NETWORK", 0))
+      .mockResolvedValueOnce({ ...accepted, attendance_status: "LEFT" });
+    fireEvent.change(screen.getByLabelText("Entry QR code"), {
+      target: { value: "qr1.opaque-secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Check out" }));
+    await screen.findByRole("button", { name: "Retry same scan" });
+    expect(screen.getByRole("alert")).toHaveTextContent("Exit unconfirmed");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("Hold entry");
+    expect(screen.getByLabelText("Scan mode")).toBeDisabled();
+    const original = vi.mocked(submitScan).mock.calls[1][0];
+    expect(original.direction).toBe("CHECK_OUT");
+    fireEvent.click(screen.getByRole("button", { name: "Retry same scan" }));
+    await screen.findByRole("heading", { name: "Exit recorded" });
+    expect(vi.mocked(submitScan).mock.calls[2][0]).toEqual(original);
+  });
+  it("does not enable exit when the assigned-event policy disables checkout", async () => {
+    await open();
+    expect(screen.getByRole("option", { name: "Exit" })).toBeDisabled();
+    expect(
+      screen.getByText("Exit scanning is disabled for this event."),
+    ).toBeVisible();
+  });
   it("keeps role context and offers next-person focus without remounting capture", async () => {
     await open();
     expect(screen.getByText("Gate / Security")).toBeVisible();
@@ -190,10 +227,12 @@ describe("Gate/Security scanner", () => {
     );
     await screen.findByText("Verifying gate context...");
     expect(screen.queryByLabelText("Entry QR code")).not.toBeInTheDocument();
-    expect(scannerScope).toHaveBeenCalledWith(
-      "event",
-      "gate",
-      expect.any(AbortSignal),
+    await waitFor(() =>
+      expect(scannerScope).toHaveBeenCalledWith(
+        "event",
+        "gate",
+        expect.any(AbortSignal),
+      ),
     );
   });
   it.each(["EVENT_ADMIN", "VOLUNTEER", "PARTICIPANT", "OWNER"])(

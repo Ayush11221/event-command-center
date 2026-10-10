@@ -77,9 +77,10 @@ export async function readOperations(
           WHERE r."eventId" = e.id AND r.state = 'REGISTERED'
         ) registrations
         CROSS JOIN LATERAL (
-          SELECT count(*) AS occupied, max(a."acceptedAt") AS last_attendance_at
+          SELECT COALESCE(sum(CASE WHEN a.kind = 'CHECK_IN' THEN 1 ELSE -1 END), 0)::bigint AS occupied,
+            max(a."acceptedAt") AS last_attendance_at
           FROM "AttendanceTransition" a JOIN "Registration" r ON r.id = a."registrationId" AND r."eventId" = a."eventId"
-          WHERE a."eventId" = e.id AND a.kind = 'CHECK_IN' AND r.state = 'REGISTERED'
+          WHERE a."eventId" = e.id AND r.state = 'REGISTERED'
         ) attendance
         WHERE e.id = ${eventId}::uuid
       `;

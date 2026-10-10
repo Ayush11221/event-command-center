@@ -158,9 +158,12 @@ export function ForecastPanel({
             ))}
           </dl>
           <p className="field-help">
-            Persistence baseline only; check-in-only history contains no
-            departures. The 90% nominal interval is a calibration target, not an
-            accuracy guarantee.
+            Persistence baseline only;{" "}
+            {run.limitations.includes("CHECK_IN_ONLY")
+              ? "this earlier run used entry-only history."
+              : "history includes accepted entries and exits."}{" "}
+            The 90% nominal interval is a calibration target, not an accuracy
+            guarantee.
           </p>
           <details className="advanced-details">
             <summary>Retrospective evaluation</summary>

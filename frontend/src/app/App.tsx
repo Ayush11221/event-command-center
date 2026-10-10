@@ -14,6 +14,7 @@ import { RegistrationPanel } from "./RegistrationPanel";
 import { ParticipantHome } from "./ParticipantHome";
 import { accessMessage } from "./auth-feedback";
 import { DemoBanner } from "./DemoBanner";
+import { AccountProfileForm } from "./AccountProfileForm";
 
 // Staff-only screens load on demand so the participant first load stays small.
 const GateScanner = lazy(() =>
@@ -157,8 +158,17 @@ function ManagementEntry({
             inert={session.expired}
             key={session.actor.user_id}
           >
-            {session.actor.organizer_capable ||
-            session.actor.assignments.length > 0 ? (
+            {session.actor.display_name === null ? (
+              <main className="page-shell entry-layout">
+                <AccountProfileForm
+                  actor={session.actor}
+                  onComplete={(actor) =>
+                    setSession({ state: "authenticated", actor })
+                  }
+                />
+              </main>
+            ) : session.actor.organizer_capable ||
+              session.actor.assignments.length > 0 ? (
               <Workspace
                 initialActor={session.actor}
                 onSessionExpired={expire}

@@ -8,6 +8,7 @@ import {
 } from "../services/proof";
 import { accessMessage } from "./auth-feedback";
 import { VerificationForm } from "./VerificationForm";
+import { AccountProfileForm } from "./AccountProfileForm";
 export function ParticipantProof({
   onVerified,
   fresh = false,
@@ -21,6 +22,9 @@ export function ParticipantProof({
     fresh ? "guest" : null,
   );
   const [account, setAccount] = useState<ActorState | null>(null);
+  const [verifiedAccount, setVerifiedAccount] = useState<ActorState | null>(
+    null,
+  );
   const [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const [resetVersion, setResetVersion] = useState(0);
@@ -114,7 +118,15 @@ export function ParticipantProof({
           </div>
         </>
       ) : null}
-      <div hidden={account !== null || mode === null}>
+      {verifiedAccount && (
+        <AccountProfileForm
+          actor={verifiedAccount}
+          onComplete={() => onVerified("account")}
+        />
+      )}
+      <div
+        hidden={account !== null || mode === null || verifiedAccount !== null}
+      >
         <h3>
           {mode === "account"
             ? "Sign in or create an account"
@@ -129,8 +141,8 @@ export function ParticipantProof({
             if (mode === "guest") {
               await requireGuestChoice();
               await currentGuest();
-            } else await currentActor();
-            onVerified(mode ?? "account");
+              onVerified("guest");
+            } else setVerifiedAccount(await currentActor());
           }}
         />
         {!fresh && (

@@ -8,6 +8,7 @@ type Mode = "account" | "guest";
 
 export interface ActorState {
   user_id: string;
+  display_name?: string | null;
   organizer_capable: boolean;
   assignments: {
     id: string;

@@ -249,3 +249,16 @@ describe("Slice 8 result, freshness and cursor contract", () => {
     visit(spec);
   });
 });
+
+describe("forecast history compatibility", () => {
+  it("reads retained entry-only runs without accepting them from the updated service", () => {
+    const result = fallback(request, "MODEL_UNAVAILABLE");
+    result.limitations = result.limitations.map((v) =>
+      v === "ACCEPTED_ATTENDANCE_HISTORY" ? "CHECK_IN_ONLY" : v,
+    );
+    expect(validResult(result, eventId)).toBe(false);
+    expect(validResult(result, eventId, true)).toBe(true);
+    result.limitations[0] = "ACCEPTED_ATTENDANCE_HISTORY";
+    expect(validResult(result, eventId, true)).toBe(false);
+  });
+});

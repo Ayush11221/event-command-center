@@ -55,7 +55,7 @@ describe("Slice 5 additive contract", () => {
       for (const key of schema.required)
         expect(schema.properties).toHaveProperty(key);
   });
-  it("requires account/CSRF/Origin/idempotency and excludes unimplemented direction/client authority", () => {
+  it("requires account/CSRF/Origin/idempotency and allows only entry or exit direction", () => {
     const operation = spec.paths["/scan-decisions"].post;
     expect(operation.security).toEqual([{ AccountSession: [] }]);
     expect(
@@ -75,6 +75,7 @@ describe("Slice 5 additive contract", () => {
       "event_id",
       "gate_id",
       "credential",
+      "direction",
     ]);
     expect(schema.properties.credential.maxLength).toBe(128);
     expect(Object.keys(operation.responses)).toEqual([
@@ -108,13 +109,17 @@ describe("Slice 5 additive contract", () => {
       "EXPIRED_CREDENTIAL",
       "CANCELLED_CREDENTIAL",
       "ALREADY_CHECKED_IN",
+      "CHECKOUT_DISABLED",
+      "NOT_CHECKED_IN",
+      "ALREADY_CHECKED_OUT",
       "REGISTRATION_UNAVAILABLE",
     ]);
     expect(spec.paths["/scan-decisions"].post.description).toContain(
       "Wrong-event is privacy-masked",
     );
-    expect(schema.allOf[0].then.properties.attendance_status.const).toBe(
+    expect(schema.allOf[0].then.properties.attendance_status.enum).toEqual([
       "INSIDE",
-    );
+      "LEFT",
+    ]);
   });
 });

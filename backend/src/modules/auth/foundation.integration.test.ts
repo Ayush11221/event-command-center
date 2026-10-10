@@ -730,6 +730,7 @@ describe.skipIf(!databaseUrl)("Slice 2 PostgreSQL/API foundation", () => {
     expect(allowed.status).toBe(200);
     expect(Object.keys(allowed.body).sort()).toEqual([
       "authorized",
+      "checkout_enabled",
       "correlation_id",
       "event_id",
       "event_name",
